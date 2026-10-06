@@ -216,7 +216,7 @@ func stageArtifactPackageLayer(ctx context.Context, workspaceRoot *os.Root, src 
 			return nil
 		}
 	}
-	return copyFileContentsBetweenRoots(ctx, workspaceRoot, src, dstRoot, dst)
+	return CopyFileContentsBetweenRoots(ctx, workspaceRoot, src, dstRoot, dst)
 }
 
 // rootPathContainsSymlink reports whether name includes a symbolic-link
@@ -295,9 +295,9 @@ func packageSpecFromLayout(pkgLayout *layout.PackageLayout) *PackageSpec {
 	return packageSpecFromDefinition(pkgLayout.Definition(), pkgLayout.Digest())
 }
 
-// copyFileContentsBetweenRoots copies src atomically between rooted
+// CopyFileContentsBetweenRoots copies src atomically between rooted
 // filesystems while observing context cancellation.
-func copyFileContentsBetweenRoots(ctx context.Context, srcRoot *os.Root, src string, dstRoot *os.Root, dst string) error {
+func CopyFileContentsBetweenRoots(ctx context.Context, srcRoot *os.Root, src string, dstRoot *os.Root, dst string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

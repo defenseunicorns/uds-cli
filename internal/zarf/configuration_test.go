@@ -6,6 +6,7 @@ package zarf
 import (
 	"errors"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,5 +81,46 @@ func resetTempDirConfig(t *testing.T) {
 		zarfTempDir.active = originalActive
 		zarfconfig.CommonOptions.TempDirectory = originalZarfValue
 		zarfTempDir.mu.Unlock()
+	})
+}
+
+func TestWithTempDirWaitsForDifferentDirectoryAfterFailure(t *testing.T) {
+	resetTempDirConfig(t)
+	synctest.Test(t, func(t *testing.T) {
+		firstStarted := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		secondStarted := make(chan struct{})
+		errs := make(chan error, 2)
+		wantErr := errors.New("operation failed")
+		go func() {
+			_, err := WithTempDir("first", func() (struct{}, error) {
+				close(firstStarted)
+				<-releaseFirst
+				return struct{}{}, wantErr
+			})
+			errs <- err
+		}()
+		<-firstStarted
+		go func() {
+			_, err := WithTempDir("second", func() (struct{}, error) {
+				assert.Equal(t, "second", zarfconfig.CommonOptions.TempDirectory)
+				close(secondStarted)
+				return struct{}{}, nil
+			})
+			errs <- err
+		}()
+		synctest.Wait()
+		assert.Equal(t, "first", zarfconfig.CommonOptions.TempDirectory)
+		select {
+		case <-secondStarted:
+			t.Error("operation using another directory started before the active operation finished")
+		default:
+		}
+		close(releaseFirst)
+		synctest.Wait()
+		<-secondStarted
+		firstErr, secondErr := <-errs, <-errs
+		require.ErrorIs(t, errors.Join(firstErr, secondErr), wantErr)
+		assert.Equal(t, "second", zarfconfig.CommonOptions.TempDirectory)
 	})
 }

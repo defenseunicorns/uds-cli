@@ -45,14 +45,19 @@ By the end of this guide, you will have edited source and a recreated package th
 
 3. **Review the generated worktree**
 
-   The generated `app-source/zarf.yaml` references local assets, preserves the package API version and architecture, and marks the version with `-disassembled`. The `.uds/disassembly.json` file records the metadata format version, source architecture, and source flavor required for reassembly.
+   The generated `app-source/zarf.yaml` references local assets and preserves the package API version and architecture. Existing versions receive the `-disassembled` suffix; an unversioned package receives the version `disassembled`. The `.uds/disassembly.json` file records the metadata format version, source architecture, and source flavor required for reassembly.
 
    > [!CAUTION]
    > Do not edit `.uds/disassembly.json`. Reassembly rejects unsupported metadata versions and architecture drift between that file and `zarf.yaml`.
 
+   > [!CAUTION]
+   > For Git repositories, disassembly replaces the original repository URL with an absolute `file://` source. This also changes the rebuilt repository's deploy identity. Manifests or GitOps consumers that reference the original URL may need adjustments to work correctly.
+
 4. **Make and review the required changes**
 
-   Edit the generated source, then review the complete worktree. Keep the `-disassembled` version suffix so operators can distinguish the recreated package from the original signed artifact.
+   Edit the generated source, then review the complete worktree. Keep the version ending in `disassembled` so operators can distinguish the recreated package from the original signed artifact.
+
+   If you edit files inside a recovered Git repository, commit those changes in that repository before reassembly. Zarf clones committed content, so uncommitted working-tree edits are not included. Other generated source files do not require Git commits.
 
 5. **Reassemble the package**
 
@@ -68,7 +73,7 @@ By the end of this guide, you will have edited source and a recreated package th
 
 ## Verification
 
-A package archive beneath `./build` confirms that the generated source is buildable. Inspect its name for the original architecture and flavor and confirm its version ends in `-disassembled`.
+A package archive beneath `./build` confirms that the generated source is buildable. Inspect its name for the recovered architecture and flavor and confirm its version ends in `disassembled`.
 
 Reassembly does not prove deployment behavior. Validate the recreated artifact in its intended environment, then review and sign it according to your trust policy.
 

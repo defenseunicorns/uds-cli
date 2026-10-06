@@ -15,6 +15,7 @@ import (
 
 func loadPackageSource(ctx context.Context, opts Options) (*layout.PackageLayout, error) {
 	pkgLayout, err := packager.LoadPackage(ctx, opts.Source, packager.LoadOptions{
+		Architecture:         opts.Architecture,
 		Filter:               filters.Empty(),
 		OCIConcurrency:       opts.Concurrency,
 		CachePath:            opts.CachePath,

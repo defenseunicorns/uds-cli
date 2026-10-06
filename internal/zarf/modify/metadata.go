@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	disassembleVersionSuffix = "-disassembled"
+	disassembleVersionSuffix = "disassembled"
 	disassemblyFormatVersion = "v1alpha1"
 	disassemblyMetadataDir   = ".uds"
 	disassemblyMetadataFile  = "disassembly.json"
@@ -32,9 +32,9 @@ type disassemblyMetadata struct {
 
 func normalizeMetadata(metadata *api.PackageMetadata) {
 	if metadata.Version == "" {
-		metadata.Version = strings.TrimPrefix(disassembleVersionSuffix, "-")
+		metadata.Version = disassembleVersionSuffix
 	} else if !strings.HasSuffix(metadata.Version, disassembleVersionSuffix) {
-		metadata.Version += disassembleVersionSuffix
+		metadata.Version += "-" + disassembleVersionSuffix
 	}
 }
 

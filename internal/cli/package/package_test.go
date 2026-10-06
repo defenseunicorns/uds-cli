@@ -12,14 +12,12 @@ import (
 )
 
 func TestPackageModRejectsSourceIdentityOverrides(t *testing.T) {
-	// Architecture and flavor come from the created package and its disassembly
-	// metadata. Reassembly also omits --set to reduce complexity for porting source
-	// upstream.
+	// Reassembly preserves recovered architecture and flavor and omits source-time
+	// variable overrides.
 	tests := []struct {
 		name string
 		args []string
 	}{
-		{name: "disassemble architecture", args: []string{"disassemble", "source", "output", "--architecture=arm64"}},
 		{name: "reassemble architecture", args: []string{"reassemble", "source", "--architecture=arm64"}},
 		{name: "reassemble flavor", args: []string{"reassemble", "source", "--flavor=offline"}},
 		{name: "reassemble variables", args: []string{"reassemble", "source", "--set=VALUE=changed"}},
@@ -30,6 +28,21 @@ func TestPackageModRejectsSourceIdentityOverrides(t *testing.T) {
 			cmd := NewModCommand(streams)
 			cmd.SetArgs(tt.args)
 			require.ErrorContains(t, cmd.Execute(), "unknown flag")
+		})
+	}
+}
+
+func TestDisassembleArchitectureSelection(t *testing.T) {
+	for _, flag := range []string{"--architecture", "-a"} {
+		t.Run(flag, func(t *testing.T) {
+			streams, _, _, _ := iostreams.NewTestIOStreams()
+			parent := NewModCommand(streams)
+			cmd, _, err := parent.Find([]string{"disassemble"})
+			require.NoError(t, err)
+			require.NoError(t, cmd.ParseFlags([]string{flag, "arm64"}))
+			opts := NewDisassembleOptions(streams)
+			require.NoError(t, opts.Complete(cmd, []string{"source", "output"}))
+			assert.Equal(t, "arm64", opts.Architecture)
 		})
 	}
 }

@@ -11,49 +11,50 @@ import (
 
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
-	chartv3 "helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v4/pkg/chart/common"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
+	"helm.sh/helm/v4/pkg/chart/v2/loader"
+	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
 )
 
 func TestExtractChartArchiveLocalizesExpandedDependencies(t *testing.T) {
-	dependency := &chartv3.Dependency{
+	dependency := &chartv2.Dependency{
 		Name:       "child",
 		Version:    "1.x",
 		Repository: "https://invalid.example.com/charts",
 		Alias:      "renamed-child",
 	}
-	parent := &chartv3.Chart{
-		Metadata: &chartv3.Metadata{
-			APIVersion:   chartv3.APIVersionV2,
+	parent := &chartv2.Chart{
+		Metadata: &chartv2.Metadata{
+			APIVersion:   chartv2.APIVersionV2,
 			Name:         "parent",
 			Version:      "1.0.0",
-			Dependencies: []*chartv3.Dependency{dependency},
+			Dependencies: []*chartv2.Dependency{dependency},
 		},
-		Lock: &chartv3.Lock{
+		Lock: &chartv2.Lock{
 			Generated:    time.Now(),
 			Digest:       "stale",
-			Dependencies: []*chartv3.Dependency{dependency},
+			Dependencies: []*chartv2.Dependency{dependency},
 		},
-		Templates: []*chartv3.File{{Name: "templates/Chart.lock", Data: []byte("template lock")}},
-		Files:     []*chartv3.File{{Name: "docs/requirements.yaml", Data: []byte("dependencies: application data")}},
+		Templates: []*common.File{{Name: "templates/Chart.lock", Data: []byte("template lock")}},
+		Files:     []*common.File{{Name: "docs/requirements.yaml", Data: []byte("dependencies: application data")}},
 	}
-	childDependency := &chartv3.Dependency{Name: "grandchild", Version: "2.x", Repository: "https://invalid.example.com/nested"}
-	child := &chartv3.Chart{
-		Metadata: &chartv3.Metadata{
-			APIVersion:   chartv3.APIVersionV2,
+	childDependency := &chartv2.Dependency{Name: "grandchild", Version: "2.x", Repository: "https://invalid.example.com/nested"}
+	child := &chartv2.Chart{
+		Metadata: &chartv2.Metadata{
+			APIVersion:   chartv2.APIVersionV2,
 			Name:         "child",
 			Version:      "1.2.3",
-			Dependencies: []*chartv3.Dependency{childDependency},
+			Dependencies: []*chartv2.Dependency{childDependency},
 		},
-		Lock: &chartv3.Lock{
+		Lock: &chartv2.Lock{
 			Generated:    time.Now(),
 			Digest:       "nested-stale",
-			Dependencies: []*chartv3.Dependency{childDependency},
+			Dependencies: []*chartv2.Dependency{childDependency},
 		},
 	}
-	child.AddDependency(&chartv3.Chart{Metadata: &chartv3.Metadata{
-		APIVersion: chartv3.APIVersionV2,
+	child.AddDependency(&chartv2.Chart{Metadata: &chartv2.Metadata{
+		APIVersion: chartv2.APIVersionV2,
 		Name:       "grandchild",
 		Version:    "2.1.0",
 	}})
@@ -76,14 +77,14 @@ func TestExtractChartArchiveLocalizesExpandedDependencies(t *testing.T) {
 
 	contents, err := os.ReadFile(filepath.Join(outputDir, "Chart.yaml"))
 	require.NoError(t, err)
-	var metadata chartv3.Metadata
+	var metadata chartv2.Metadata
 	require.NoError(t, goyaml.Unmarshal(contents, &metadata))
 	require.Len(t, metadata.Dependencies, 1)
 	require.Empty(t, metadata.Dependencies[0].Repository)
 	require.Equal(t, "renamed-child", metadata.Dependencies[0].Alias)
 	contents, err = os.ReadFile(filepath.Join(outputDir, "charts", "child", "Chart.yaml"))
 	require.NoError(t, err)
-	var childMetadata chartv3.Metadata
+	var childMetadata chartv2.Metadata
 	require.NoError(t, goyaml.Unmarshal(contents, &childMetadata))
 	require.Len(t, childMetadata.Dependencies, 1)
 	require.Empty(t, childMetadata.Dependencies[0].Repository)

@@ -37,7 +37,7 @@ func NewDisassembleCommand(streams iostreams.IOStreams) *cobra.Command {
 }
 
 func newDisassembleCommand(o *DisassembleOptions) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "disassemble <source> <output-dir>",
 		Short: "Convert a Zarf package into rebuildable offline source",
 		Args:  cobra.ExactArgs(2),
@@ -48,6 +48,8 @@ func newDisassembleCommand(o *DisassembleOptions) *cobra.Command {
 			return o.Run(cmd.Context())
 		},
 	}
+	cmd.Flags().StringP("architecture", "a", "", "architecture of the OCI package to disassemble (defaults to the workstation architecture)")
+	return cmd
 }
 
 // Complete fills options from command-line arguments and flags.
@@ -55,6 +57,9 @@ func (o *DisassembleOptions) Complete(cmd *cobra.Command, args []string) error {
 	o.Source = args[0]
 	o.OutputDir = args[1]
 	var err error
+	if o.Architecture, err = cmd.Flags().GetString("architecture"); err != nil {
+		return err
+	}
 	o.LogLevelName, err = completePackageOptions(cmd, &o.PackageOptions)
 	return err
 }

@@ -15,8 +15,8 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	chartv3 "helm.sh/helm/v3/pkg/chart"
-	chartloader "helm.sh/helm/v3/pkg/chart/loader"
+	chartarchive "helm.sh/helm/v4/pkg/chart/loader/archive"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
 )
 
 func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *api.Component) error {
@@ -120,7 +120,7 @@ func extractChartArchive(source, destination string) (err error) {
 		err = errors.Join(err, archiveFile.Close())
 	}()
 
-	files, err := chartloader.LoadArchiveFiles(archiveFile)
+	files, err := chartarchive.LoadArchiveFiles(archiveFile)
 	if err != nil {
 		return err
 	}
@@ -172,14 +172,14 @@ func chartRootMetadata(name string) (string, bool) {
 }
 
 type chartRequirements struct {
-	Dependencies []*chartv3.Dependency `yaml:"dependencies,omitempty"`
+	Dependencies []*chartv2.Dependency `yaml:"dependencies,omitempty"`
 }
 
 func localizeChartDependencies(name string, data []byte) ([]byte, error) {
 	var definition any
 	switch name {
 	case "Chart.yaml":
-		definition = &chartv3.Metadata{}
+		definition = &chartv2.Metadata{}
 	case "requirements.yaml":
 		definition = &chartRequirements{}
 	default:
@@ -189,9 +189,9 @@ func localizeChartDependencies(name string, data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("reading %s: %w", name, err)
 	}
 
-	var dependencies []*chartv3.Dependency
+	var dependencies []*chartv2.Dependency
 	switch typed := definition.(type) {
-	case *chartv3.Metadata:
+	case *chartv2.Metadata:
 		dependencies = typed.Dependencies
 	case *chartRequirements:
 		dependencies = typed.Dependencies

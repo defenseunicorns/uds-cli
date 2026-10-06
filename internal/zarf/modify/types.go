@@ -23,6 +23,7 @@ type PackageOptions struct {
 type Options struct {
 	PackageOptions
 	Source               string
+	Architecture         string
 	OutputDir            string
 	VerificationStrategy layout.VerificationStrategy
 	Warn                 func(string, ...any)

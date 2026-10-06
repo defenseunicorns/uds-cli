@@ -91,7 +91,7 @@ func disassemble(ctx context.Context, opts Options) (string, error) {
 	}
 	defer removeAllWithWarning(opts.Warn, "output staging directory", stageDir)
 
-	if err := localizePackageLevelAssets(ctx, pkgLayout, stageDir, &pkg); err != nil {
+	if err := localizePackageLevelAssets(ctx, pkgLayout, stageDir, tmpRoot, &pkg); err != nil {
 		return "", err
 	}
 	for i := range pkg.Components {

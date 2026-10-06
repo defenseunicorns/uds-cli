@@ -245,7 +245,7 @@ func TestCopyFileContentsBetweenRoots_PreservesExistingTmpPath(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, root.Close()) })
 
-	require.NoError(t, copyFileContentsBetweenRoots(t.Context(), root, "source", root, "target"))
+	require.NoError(t, CopyFileContentsBetweenRoots(t.Context(), root, "source", root, "target"))
 	tmpData, err := root.ReadFile("target.tmp")
 	require.NoError(t, err)
 	assert.Equal(t, "existing", string(tmpData))
@@ -301,7 +301,7 @@ func TestCopyFileContents_ObservesCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	err = copyFileContentsBetweenRoots(ctx, root, "src", root, "dst")
+	err = CopyFileContentsBetweenRoots(ctx, root, "src", root, "dst")
 	require.ErrorIs(t, err, context.Canceled)
 	assert.NoFileExists(t, filepath.Join(workspaceDir, "dst"))
 }
