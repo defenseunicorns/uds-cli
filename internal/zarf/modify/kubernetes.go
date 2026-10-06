@@ -78,7 +78,7 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 		chart := &component.Charts[idx]
 		archiveName := layout.ChartArchiveName(chart.Name, chart.LegacyVersion)
 		src := filepath.Join(chartDir, archiveName)
-		rel := filepath.ToSlash(filepath.Join("charts", fmt.Sprintf("%d-%s", idx, strings.TrimSuffix(archiveName, ".tgz"))))
+		rel := filepath.ToSlash(filepath.Join("charts", chart.Name))
 		if err := extractChartArchive(src, filepath.Join(outputDir, rel)); err != nil {
 			return fmt.Errorf("extracting chart %s: %w", chart.Name, err)
 		}

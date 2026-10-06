@@ -11,6 +11,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/zarf/modify"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
+	zarflogger "github.com/zarf-dev/zarf/src/pkg/logger"
 )
 
 // DisassembleOptions holds options for package disassembly.
@@ -68,6 +69,7 @@ func (o *DisassembleOptions) Complete(cmd *cobra.Command, args []string) error {
 func (o *DisassembleOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.LogLevelName)
 	o.Options.Warn = o.IOStreams.Warn
+	ctx = zarflogger.WithContext(ctx, o.Logger())
 	outputDir, err := modify.Disassemble(ctx, o.Options)
 	if err != nil {
 		return err

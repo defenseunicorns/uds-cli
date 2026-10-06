@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/archive"
+	"github.com/zarf-dev/zarf/src/pkg/images"
 	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
@@ -40,6 +42,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/transform"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarftypes "github.com/zarf-dev/zarf/src/types"
+	yamlv3 "gopkg.in/yaml.v3"
 	chartloader "helm.sh/helm/v4/pkg/chart/v2/loader"
 	"oras.land/oras-go/v2/content"
 	contentoci "oras.land/oras-go/v2/content/oci"
@@ -89,7 +92,7 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Equal(t, "1.0.0", chart.LegacyVersion)
 	require.NotNil(t, chart.Local)
 	assert.Nil(t, chart.HelmRepository)
-	assert.Contains(t, chart.Local.Path, filepath.ToSlash("components/app/charts/0-app-1.0.0"))
+	assert.Equal(t, "components/app/charts/app", chart.Local.Path)
 	require.DirExists(t, filepath.Join(outputDir, chart.Local.Path))
 	require.FileExists(t, filepath.Join(outputDir, chart.Local.Path, "Chart.yaml"))
 	require.FileExists(t, filepath.Join(outputDir, chart.Local.Path, "templates", "configmap.yaml"))
@@ -114,8 +117,16 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	rendered, err := os.ReadFile(filepath.Join(outputDir, manifest.Kustomize.Files[0], "rendered.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(rendered), "{{ $labels.instance }}")
-	assert.NotEqual(t, pkg.Components[0].Files[0].Source, pkg.Components[0].Files[1].Source)
-	assert.NotEqual(t, pkg.Components[0].DataInjections[0].Source, pkg.Components[0].DataInjections[1].Source)
+	assert.Equal(t, "components/app/files/0-config.yaml", pkg.Components[0].Files[0].Source)
+	assert.Equal(t, "components/app/files/1-config.yaml", pkg.Components[0].Files[1].Source)
+	assert.Equal(t, "components/app/data/0-payload.txt", pkg.Components[0].DataInjections[0].Source)
+	assert.Equal(t, "components/app/data/1-payload.txt", pkg.Components[0].DataInjections[1].Source)
+	for _, file := range pkg.Components[0].Files {
+		assert.FileExists(t, filepath.Join(outputDir, file.Source))
+	}
+	for _, data := range pkg.Components[0].DataInjections {
+		assert.FileExists(t, filepath.Join(outputDir, data.Source))
+	}
 	require.Len(t, pkg.Components[0].Repositories, 1)
 	repoSource, err := url.Parse(pkg.Components[0].Repositories[0].URL)
 	require.NoError(t, err)
@@ -416,30 +427,89 @@ func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
 
 func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 	const image = "registry.invalid/offline/app:v1"
-	sourceDir := copyFixture(t, "offline-image")
-	imageArchive := filepath.Join(sourceDir, "images.tar")
-	writeImageArchive(t, imageArchive, image)
-	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
-	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
-	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		name        string
+		annotations map[string]string
+	}{
+		{name: "current references", annotations: map[string]string{
+			ocispec.AnnotationRefName: image, ocispec.AnnotationBaseImageName: image,
+		}},
+		{name: "legacy base-name only", annotations: map[string]string{
+			ocispec.AnnotationBaseImageName: image,
+		}},
+		{name: "preserve existing reference", annotations: map[string]string{
+			ocispec.AnnotationRefName: image, ocispec.AnnotationBaseImageName: "registry.invalid/provenance/base:v0",
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sourceDir := copyFixture(t, "offline-image")
+			imageArchive := filepath.Join(sourceDir, "images.tar")
+			writeImageArchive(t, imageArchive, image)
+			pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true, CachePath: t.TempDir()}, assemble.AssembleOptions{SkipSBOM: true, CachePath: t.TempDir()})
+			t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
+			sourceIndex := setPackageImageAnnotations(t, pkgLayout, tc.annotations)
+			archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+			require.NoError(t, err)
 
-	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
-	require.NoError(t, err)
-	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	require.Len(t, generated.Components[0].ImageArchives, 1)
-	assert.Equal(t, []string{image}, generated.Components[0].ImageArchives[0].Images)
+			outputDir := filepath.Join(t.TempDir(), "output")
+			_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
+			require.NoError(t, err)
+			generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true, CachePath: t.TempDir()})
+			require.NoError(t, err)
+			require.Len(t, generated.Components[0].ImageArchives, 1)
+			imageArchive = filepath.Join(outputDir, generated.Components[0].ImageArchives[0].Path)
+			assert.Equal(t, []string{image}, generated.Components[0].ImageArchives[0].Images)
 
-	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
-	defer func() { require.NoError(t, reassembled.Cleanup()) }()
-	indexBytes, err := os.ReadFile(filepath.Join(reassembled.GetImageDirPath(), ocispec.ImageIndexFile))
+			manifests, err := images.GetManifestsFromArchive(t.Context(), imageArchive)
+			require.NoError(t, err)
+			require.Len(t, manifests, 1)
+			assert.Equal(t, image, manifests[0].Annotations[ocispec.AnnotationRefName])
+			assert.Equal(t, tc.annotations[ocispec.AnnotationBaseImageName], manifests[0].Annotations[ocispec.AnnotationBaseImageName])
+			assert.Equal(t, sourceIndex.Manifests[0].Digest, manifests[0].Digest)
+
+			reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true, CachePath: t.TempDir()}, assemble.AssembleOptions{SkipSBOM: true, CachePath: t.TempDir()})
+			t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
+			manifests, err = images.GetManifestsFromArchive(t.Context(), reassembled.GetImageDirPath())
+			require.NoError(t, err)
+			require.Len(t, manifests, 1)
+			assert.Equal(t, image, manifests[0].Annotations[ocispec.AnnotationRefName])
+			assert.Equal(t, sourceIndex.Manifests[0].Digest, manifests[0].Digest)
+		})
+	}
+}
+
+func setPackageImageAnnotations(t *testing.T, pkgLayout *layout.PackageLayout, annotations map[string]string) ocispec.Index {
+	t.Helper()
+	root, err := os.OpenRoot(pkgLayout.DirPath())
+	require.NoError(t, err)
+	defer func() { require.NoError(t, root.Close()) }()
+	indexPath := filepath.Join(layout.ImagesDir, ocispec.ImageIndexFile)
+	original, err := root.ReadFile(indexPath)
 	require.NoError(t, err)
 	var index ocispec.Index
-	require.NoError(t, json.Unmarshal(indexBytes, &index))
+	require.NoError(t, json.Unmarshal(original, &index))
 	require.Len(t, index.Manifests, 1)
-	assert.Equal(t, image, index.Manifests[0].Annotations[ocispec.AnnotationRefName])
+	index.Manifests[0].Annotations = annotations
+	updated, err := json.Marshal(index)
+	require.NoError(t, err)
+	require.NoError(t, root.WriteFile(indexPath, updated, helpers.ReadWriteUser))
+
+	// Model a complete package built with these annotations, preserving the
+	// integrity checks exercised by Disassemble's normal package loader.
+	checksums, err := root.ReadFile(layout.Checksums)
+	require.NoError(t, err)
+	rel := filepath.ToSlash(filepath.Join(layout.ImagesDir, ocispec.ImageIndexFile))
+	oldLine := fmt.Sprintf("%x %s\n", sha256.Sum256(original), rel)
+	newLine := fmt.Sprintf("%x %s\n", sha256.Sum256(updated), rel)
+	require.Contains(t, string(checksums), oldLine)
+	lines := strings.Split(strings.TrimSuffix(strings.Replace(string(checksums), oldLine, newLine, 1), "\n"), "\n")
+	slices.Sort(lines)
+	checksums = []byte(strings.Join(lines, "\n") + "\n")
+	require.NoError(t, root.WriteFile(layout.Checksums, checksums, helpers.ReadWriteUser))
+	definition := pkgLayout.Definition()
+	definition.Build.AggregateChecksum = fmt.Sprintf("%x", sha256.Sum256(checksums))
+	require.NoError(t, layout.WritePackageDefinition(filepath.Join(pkgLayout.DirPath(), layout.ZarfYAML), definition))
+	return index
 }
 
 func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
@@ -674,4 +744,97 @@ func writeImageArchive(t *testing.T, archivePath, ref string) {
 		paths = append(paths, filepath.Join(imageDir, entry.Name()))
 	}
 	require.NoError(t, archive.Compress(ctx, paths, archivePath, archive.CompressOpts{}))
+}
+
+func TestWriteSourceDefinitionFormatting(t *testing.T) {
+	for _, version := range []string{"", v1alpha1.APIVersion, v1beta1.APIVersion} {
+		name := version
+		if name == "" {
+			name = "unversioned alpha"
+		}
+		t.Run(name, func(t *testing.T) {
+			pkg := api.Package{
+				APIVersion: version,
+				Kind:       api.PackageKind(v1alpha1.ZarfPackageConfig),
+				Metadata:   api.PackageMetadata{Name: "readable", Version: "1.0.0"},
+				Components: []api.Component{{Name: "first"}, {Name: "second"}, {Name: "third"}},
+				Values:     api.Values{Files: []string{"values.yaml"}, Schema: "values.schema.json"},
+				Documentation: map[string]string{
+					"guide": "guide.md",
+				},
+			}
+			alphaFields := ""
+			metadataSuffix, componentSuffix := "", ""
+			if version != v1beta1.APIVersion {
+				pkg.Constants = []api.Constant{{Name: "FIXED", Value: "fixed"}}
+				pkg.Variables = []api.InteractiveVariable{{Variable: api.Variable{Name: "INPUT"}, Default: "input"}}
+				alphaFields = "\nconstants:\n  - name: FIXED\n    value: fixed\n\nvariables:\n  - name: INPUT\n    default: input\n"
+				metadataSuffix = "  allowNamespaceOverride: true\n"
+				componentSuffix = "    required: true\n"
+			}
+			path := filepath.Join(t.TempDir(), layout.ZarfYAML)
+			require.NoError(t, writeSourceDefinition(path, pkg))
+			contents, err := os.ReadFile(path)
+			require.NoError(t, err)
+			prefix := ""
+			if version != "" {
+				prefix = "apiVersion: " + version + "\n\n"
+			}
+			want := prefix + "kind: ZarfPackageConfig\nmetadata:\n  name: readable\n  version: 1.0.0\n" + metadataSuffix +
+				"\ncomponents:\n  - name: first\n" + componentSuffix + "\n  - name: second\n" + componentSuffix +
+				"\n  - name: third\n" + componentSuffix + alphaFields +
+				"\nvalues:\n  files:\n    - values.yaml\n  schema: values.schema.json\n\ndocumentation:\n  guide: guide.md\n"
+			assert.Equal(t, want, string(contents))
+		})
+	}
+}
+
+func TestWriteSourceDefinitionFormattingPreservesMultilineScalars(t *testing.T) {
+	for _, version := range []string{"", v1alpha1.APIVersion, v1beta1.APIVersion} {
+		for _, trailingNewlines := range []int{0, 1, 2, 3} {
+			t.Run(fmt.Sprintf("%s/trailing_newlines_%d", version, trailingNewlines), func(t *testing.T) {
+				text := "literal text\nmetadata: embedded\ncomponents:\n  - name: embedded\n\nkind: embedded" + strings.Repeat("\n", trailingNewlines)
+				command := "cat <<'EOF'\n" + text + "\nEOF" + strings.Repeat("\n", trailingNewlines)
+				pkg := api.Package{
+					APIVersion: version,
+					Kind:       api.PackageKind(v1alpha1.ZarfPackageConfig),
+					Metadata:   api.PackageMetadata{Name: "literal", Description: text},
+					Components: []api.Component{
+						{Name: "command", Actions: api.ComponentActions{OnDeploy: api.ActionSet{Before: []api.Action{{Cmd: command}}}}},
+						{Name: "description", Description: text},
+					},
+					Values:        api.Values{Files: []string{"values.yaml"}},
+					Documentation: map[string]string{"guide": text},
+				}
+				var definition any = convert.PackageToV1alpha1(pkg)
+				if version == v1beta1.APIVersion {
+					definition = convert.PackageToV1beta1(pkg)
+				}
+				original, err := goyaml.MarshalWithOptions(definition, goyaml.IndentSequence(true), goyaml.UseLiteralStyleIfMultiline(true))
+				require.NoError(t, err)
+				path := filepath.Join(t.TempDir(), layout.ZarfYAML)
+				require.NoError(t, writeSourceDefinition(path, pkg))
+				contents, err := os.ReadFile(path)
+				require.NoError(t, err)
+
+				// A separate YAML implementation checks that spacing preserves the
+				// entire document, including keep-chomp scalar trailing newlines.
+				var before, after map[string]any
+				require.NoError(t, yamlv3.Unmarshal(original, &before))
+				require.NoError(t, yamlv3.Unmarshal(contents, &after))
+				assert.Equal(t, before, after)
+				metadata := after["metadata"].(map[string]any)
+				assert.Equal(t, text, metadata["description"])
+				components := after["components"].([]any)
+				description := components[1].(map[string]any)
+				assert.Equal(t, text, description["description"])
+				actions := components[0].(map[string]any)["actions"].(map[string]any)
+				beforeActions := actions["onDeploy"].(map[string]any)["before"].([]any)
+				assert.Equal(t, command, beforeActions[0].(map[string]any)["cmd"])
+				assert.Contains(t, string(contents), "description: |")
+				assert.Contains(t, string(contents), "cmd: |")
+				assert.Contains(t, string(contents), "\ncomponents:\n  - name: command\n")
+			})
+		}
+	}
 }

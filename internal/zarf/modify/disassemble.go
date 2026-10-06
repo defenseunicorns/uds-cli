@@ -161,7 +161,7 @@ func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, out
 			return err
 		}
 	}
-	if err := localizeImages(ctx, pkgLayout, outputDir, component); err != nil {
+	if err := localizeImages(ctx, pkgLayout, outputDir, tmpRoot, component); err != nil {
 		return err
 	}
 

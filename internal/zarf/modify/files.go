@@ -54,9 +54,9 @@ func localizeIndexedAssets[T any](ctx context.Context, pkgLayout *layout.Package
 func indexedAssetPath(kind string, idx int, target, fallback string) string {
 	name := filepath.Base(target)
 	if name == "" || name == "." || name == string(filepath.Separator) {
-		name = fmt.Sprintf("%s-%d", fallback, idx)
+		name = fallback
 	}
-	return filepath.ToSlash(filepath.Join(kind, strconv.Itoa(idx), name))
+	return filepath.ToSlash(filepath.Join(kind, fmt.Sprintf("%d-%s", idx, name)))
 }
 
 func sourceFromIndexedDir(root string, idx int, target string) (string, error) {
