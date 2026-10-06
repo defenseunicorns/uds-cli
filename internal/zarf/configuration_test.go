@@ -12,7 +12,7 @@ import (
 	zarfconfig "github.com/zarf-dev/zarf/src/config"
 )
 
-func TestWithTempDirConfiguresZarfOnce(t *testing.T) {
+func TestWithTempDirConfiguresEachOperation(t *testing.T) {
 	resetTempDirConfig(t)
 	zarfconfig.CommonOptions.TempDirectory = "before"
 	wantErr := errors.New("operation failed")
@@ -25,42 +25,60 @@ func TestWithTempDirConfiguresZarfOnce(t *testing.T) {
 	assert.Equal(t, "result", result)
 	require.ErrorIs(t, err, wantErr)
 	assert.Equal(t, "during", zarfconfig.CommonOptions.TempDirectory)
-}
 
-func TestWithTempDirRejectsAnotherDirectory(t *testing.T) {
-	resetTempDirConfig(t)
-	_, err := WithTempDir("first", func() (struct{}, error) {
+	_, err = WithTempDir("after", func() (struct{}, error) {
+		assert.Equal(t, "after", zarfconfig.CommonOptions.TempDirectory)
 		return struct{}{}, nil
 	})
 	require.NoError(t, err)
+	assert.Equal(t, "after", zarfconfig.CommonOptions.TempDirectory)
+}
 
-	called := false
-	_, err = WithTempDir("second", func() (struct{}, error) {
-		called = true
-		return struct{}{}, nil
-	})
+func TestWithTempDirAllowsConcurrentOperationsInSameDirectory(t *testing.T) {
+	resetTempDirConfig(t)
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	errs := make(chan error, 2)
 
-	require.ErrorContains(t, err, `zarf temporary directory is already configured as "first", cannot change it to "second"`)
-	assert.False(t, called)
-	assert.Equal(t, "first", zarfconfig.CommonOptions.TempDirectory)
+	go func() {
+		_, err := WithTempDir("shared", func() (struct{}, error) {
+			close(firstStarted)
+			<-secondStarted
+			return struct{}{}, nil
+		})
+		errs <- err
+	}()
+	<-firstStarted
+
+	go func() {
+		_, err := WithTempDir("shared", func() (struct{}, error) {
+			assert.Equal(t, "shared", zarfconfig.CommonOptions.TempDirectory)
+			close(secondStarted)
+			return struct{}{}, nil
+		})
+		errs <- err
+	}()
+
+	require.NoError(t, <-errs)
+	require.NoError(t, <-errs)
 }
 
 func resetTempDirConfig(t *testing.T) {
 	t.Helper()
 
-	zarfTempDir.Lock()
+	zarfTempDir.mu.Lock()
 	originalValue := zarfTempDir.value
-	originalSet := zarfTempDir.set
+	originalActive := zarfTempDir.active
 	originalZarfValue := zarfconfig.CommonOptions.TempDirectory
 	zarfTempDir.value = ""
-	zarfTempDir.set = false
-	zarfTempDir.Unlock()
+	zarfTempDir.active = 0
+	zarfTempDir.mu.Unlock()
 
 	t.Cleanup(func() {
-		zarfTempDir.Lock()
+		zarfTempDir.mu.Lock()
 		zarfTempDir.value = originalValue
-		zarfTempDir.set = originalSet
+		zarfTempDir.active = originalActive
 		zarfconfig.CommonOptions.TempDirectory = originalZarfValue
-		zarfTempDir.Unlock()
+		zarfTempDir.mu.Unlock()
 	})
 }
