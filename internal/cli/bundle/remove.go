@@ -11,7 +11,6 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
-	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -213,8 +212,6 @@ func runRemove(ctx context.Context, s iostreams.IOStreams, printer printer.Resou
 		Streams:                   s,
 	}
 
-	// Zarf package APIs read their process-global temp setting instead of UDS config.
-	zarf.ConfigureTempDir(cfg.Options.TmpDir)
 	result, err := bundle.Remove(ctx, &bundle.DeploySource{
 		BundlePath: bundlePath,
 		Bundle:     parsedBundle,

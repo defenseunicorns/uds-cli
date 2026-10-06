@@ -63,14 +63,15 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "disassembled%source")
 	var warnings []string
 	result, err := Disassemble(t.Context(), Options{
-		Source: archivePath, OutputDir: outputDir,
-		TmpDir: t.TempDir(), Concurrency: 1,
+		PackageOptions: testPackageOptions(t),
+		Source:         archivePath,
+		OutputDir:      outputDir,
 		Warn: func(msg string, _ ...any) {
 			warnings = append(warnings, msg)
 		},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, outputDir, result.OutputDir)
+	assert.Equal(t, outputDir, result)
 	require.Len(t, warnings, 1)
 	assert.Contains(t, warnings[0], "last resort")
 	assert.Contains(t, warnings[0], "upstream source")
@@ -175,7 +176,9 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 
 	outputDir := filepath.Join(t.TempDir(), "output")
 	_, err = Disassemble(t.Context(), Options{
-		Source: "oci://" + ref, OutputDir: outputDir, PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1,
+		PackageOptions: PackageOptions{PlainHTTP: true, TmpDir: os.TempDir(), Concurrency: 1},
+		Source:         "oci://" + ref,
+		OutputDir:      outputDir,
 	})
 	require.NoError(t, err)
 	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
@@ -191,8 +194,9 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 
 	outputDir := filepath.Join(t.TempDir(), "beta-output")
 	_, err = Disassemble(t.Context(), Options{
-		Source: archivePath, OutputDir: outputDir,
-		TmpDir: t.TempDir(),
+		PackageOptions: testPackageOptions(t),
+		Source:         archivePath,
+		OutputDir:      outputDir,
 	})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
@@ -244,7 +248,7 @@ func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
 	require.NoError(t, err)
 	generatedYAML, err := os.ReadFile(filepath.Join(outputDir, layout.ZarfYAML))
 	require.NoError(t, err)
@@ -298,7 +302,7 @@ func TestDisassemblePreservesFlavorSelectors(t *testing.T) {
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true})
 	require.NoError(t, err)
@@ -309,11 +313,10 @@ func TestDisassemblePreservesFlavorSelectors(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, disassemblyMetadata{FormatVersion: "v1alpha1", Architecture: "amd64", Flavor: "offline"}, metadata)
 
-	result, err := Reassemble(t.Context(), ReassembleOptions{SourceDir: outputDir, Output: t.TempDir(), Concurrency: 1})
+	result, err := Reassemble(t.Context(), ReassembleOptions{PackageOptions: testPackageOptions(t), SourceDir: outputDir, Output: t.TempDir()})
 	require.NoError(t, err)
-	assert.Equal(t, outputDir, result.SourceDir)
-	require.FileExists(t, result.OutputPath)
-	reassembled, err := loadPackageSource(t.Context(), Options{Source: result.OutputPath, Concurrency: 1})
+	require.FileExists(t, result)
+	reassembled, err := loadPackageSource(t.Context(), Options{PackageOptions: PackageOptions{Concurrency: 1}, Source: result})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 	assert.Equal(t, "offline", reassembled.AsV1alpha1().Build.Flavor)
@@ -368,7 +371,7 @@ func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Reassemble(t.Context(), ReassembleOptions{SourceDir: tc.prepare(t), Output: t.TempDir(), Concurrency: 1})
+			_, err := Reassemble(t.Context(), ReassembleOptions{PackageOptions: testPackageOptions(t), SourceDir: tc.prepare(t), Output: t.TempDir()})
 			require.ErrorContains(t, err, tc.wantError)
 		})
 	}
@@ -385,7 +388,7 @@ func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
@@ -407,8 +410,10 @@ func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 	outputDir := filepath.Join(parent, "output")
 	var warnings []string
 	_, err := Disassemble(t.Context(), Options{
-		Source: filepath.Join(parent, "missing.tar.zst"), OutputDir: outputDir,
-		TmpDir: t.TempDir(), Warn: func(msg string, _ ...any) {
+		PackageOptions: testPackageOptions(t),
+		Source:         filepath.Join(parent, "missing.tar.zst"),
+		OutputDir:      outputDir,
+		Warn: func(msg string, _ ...any) {
 			warnings = append(warnings, msg)
 		},
 	})
@@ -428,7 +433,7 @@ func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.
 	require.NoError(t, err)
 
 	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{Source: archivePath, OutputDir: outputDir, TmpDir: t.TempDir()})
+	_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
 	require.NoError(t, err)
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
@@ -513,6 +518,11 @@ func copyFixture(t *testing.T, name string) string {
 	dir := t.TempDir()
 	require.NoError(t, helpers.CreatePathAndCopy(filepath.Join("testdata", name), dir))
 	return dir
+}
+
+func testPackageOptions(t *testing.T) PackageOptions {
+	t.Helper()
+	return PackageOptions{TmpDir: os.TempDir(), Concurrency: 1}
 }
 
 func assembleTestPackage(t *testing.T, sourceDir string, definitionOpts load.DefinitionOptions, assembleOpts assemble.AssembleOptions) *layout.PackageLayout {

@@ -6,6 +6,7 @@ package zarf
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,7 +48,7 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	source := &remoteSource{
 		ref:  ref,
 		arch: "amd64",
-		opts: bundleinternal.ConfigOptions{PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1},
+		opts: bundleinternal.ConfigOptions{PlainHTTP: true, TmpDir: os.TempDir(), Concurrency: 1},
 	}
 	rootDesc, err := remote.ResolveRoot(t.Context())
 	require.NoError(t, err)
@@ -59,7 +60,7 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rootDesc.Digest.String(), loaded.Digest)
 	assert.Equal(t, []string{"included"}, loaded.Components)
-	loader := NewSourcePackageLayoutLoader(bundleinternal.ConfigOptions{Architecture: "amd64", PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1}, t.TempDir())
+	loader := NewSourcePackageLayoutLoader(bundleinternal.ConfigOptions{Architecture: "amd64", PlainHTTP: true, TmpDir: os.TempDir(), Concurrency: 1}, t.TempDir())
 	pkg := &spec.Package{Name: "pkg", Source: "oci://" + ref, OptionalComponents: []string{"included"}}
 	intended, err := loader.LoadPackageSpec(t.Context(), pkg)
 	require.NoError(t, err)

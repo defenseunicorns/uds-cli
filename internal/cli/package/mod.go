@@ -6,19 +6,11 @@ package packagecli
 import (
 	"os"
 
+	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
-
-type commonOptions struct {
-	PlainHTTP     bool
-	SkipTLSVerify bool
-	TmpDir        string
-	CachePath     string
-	Concurrency   int
-	LogLevelName  string
-}
 
 // NewModCommand creates the package modification parent command.
 func NewModCommand(streams iostreams.IOStreams) *cobra.Command {
@@ -38,26 +30,25 @@ func NewModCommand(streams iostreams.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func completeCommonOptions(cmd *cobra.Command, opts *commonOptions) error {
+func completePackageOptions(cmd *cobra.Command, opts *disassemble.PackageOptions) (string, error) {
 	var err error
 	if opts.PlainHTTP, err = cmd.Flags().GetBool("plain-http"); err != nil {
-		return err
+		return "", err
 	}
 	if opts.SkipTLSVerify, err = cmd.Flags().GetBool("skip-tls-verify"); err != nil {
-		return err
+		return "", err
 	}
 	if opts.TmpDir, err = cmd.Flags().GetString("tmp-dir"); err != nil {
-		return err
+		return "", err
 	}
 	if opts.CachePath, err = cmd.Flags().GetString("cache"); err != nil {
-		return err
+		return "", err
 	}
 	if opts.Concurrency, err = cmd.Flags().GetInt("concurrency"); err != nil {
-		return err
+		return "", err
 	}
-	opts.LogLevelName = "info"
-	if cmd.Flags().Lookup("log-level") != nil {
-		opts.LogLevelName, err = cmd.Flags().GetString("log-level")
+	if cmd.Flags().Lookup("log-level") == nil {
+		return "info", nil
 	}
-	return err
+	return cmd.Flags().GetString("log-level")
 }

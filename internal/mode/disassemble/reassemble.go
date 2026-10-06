@@ -5,24 +5,29 @@ package disassemble
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
+	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
 	zarftypes "github.com/zarf-dev/zarf/src/types"
 )
 
 // Reassemble recreates a Zarf package from source produced by Disassemble.
-func Reassemble(ctx context.Context, opts ReassembleOptions) (*ReassembleResult, error) {
-	if strings.TrimSpace(opts.SourceDir) == "" {
-		return nil, errors.New("source directory is required")
+func Reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
+	if err := opts.validate(); err != nil {
+		return "", err
 	}
+	return internalzarf.WithTempDir(opts.TmpDir, func() (string, error) {
+		return reassemble(ctx, opts)
+	})
+}
 
+func reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
 	metadata, err := readDisassemblyMetadata(opts.SourceDir)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	remoteOptions := zarftypes.RemoteOptions{
 		PlainHTTP:             opts.PlainHTTP,
@@ -33,13 +38,13 @@ func Reassemble(ctx context.Context, opts ReassembleOptions) (*ReassembleResult,
 		RemoteOptions: remoteOptions,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("loading disassembled package definition: %w", err)
+		return "", fmt.Errorf("loading disassembled package definition: %w", err)
 	}
 	if !strings.HasSuffix(definition.Metadata.Version, disassembleVersionSuffix) {
-		return nil, fmt.Errorf("package version %q must end with %q", definition.Metadata.Version, disassembleVersionSuffix)
+		return "", fmt.Errorf("package version %q must end with %q", definition.Metadata.Version, disassembleVersionSuffix)
 	}
 	if definition.Metadata.Architecture != metadata.Architecture {
-		return nil, fmt.Errorf("package architecture %q does not match disassembly metadata architecture %q", definition.Metadata.Architecture, metadata.Architecture)
+		return "", fmt.Errorf("package architecture %q does not match disassembly metadata architecture %q", definition.Metadata.Architecture, metadata.Architecture)
 	}
 
 	created, err := packager.Create(ctx, opts.SourceDir, opts.Output, packager.CreateOptions{
@@ -53,7 +58,7 @@ func Reassemble(ctx context.Context, opts ReassembleOptions) (*ReassembleResult,
 		RemoteOptions:        remoteOptions,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating package from disassembled source: %w", err)
+		return "", fmt.Errorf("creating package from disassembled source: %w", err)
 	}
-	return &ReassembleResult{SourceDir: opts.SourceDir, OutputPath: created}, nil
+	return created, nil
 }

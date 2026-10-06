@@ -5,25 +5,25 @@ package packagecli
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
-	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
-	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 // DisassembleOptions holds options for package disassembly.
 type DisassembleOptions struct {
-	Source    string
-	OutputDir string
-	commonOptions
+	disassemble.Options
+	LogLevelName string
 
 	iostreams.IOStreams
+}
+
+type disassembleResult struct {
+	Source    string `json:"source" yaml:"source" text:"Source"`
+	OutputDir string `json:"outputDir" yaml:"outputDir" text:"Output Directory"`
 }
 
 // NewDisassembleOptions returns package disassembly options.
@@ -45,9 +45,6 @@ func newDisassembleCommand(o *DisassembleOptions) *cobra.Command {
 			if err := o.Complete(cmd, args); err != nil {
 				return err
 			}
-			if err := o.Validate(); err != nil {
-				return err
-			}
 			return o.Run(cmd.Context())
 		},
 	}
@@ -57,45 +54,19 @@ func newDisassembleCommand(o *DisassembleOptions) *cobra.Command {
 func (o *DisassembleOptions) Complete(cmd *cobra.Command, args []string) error {
 	o.Source = args[0]
 	o.OutputDir = args[1]
-	if err := completeCommonOptions(cmd, &o.commonOptions); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Validate validates package disassembly options.
-func (o *DisassembleOptions) Validate() error {
-	switch {
-	case strings.TrimSpace(o.Source) == "":
-		return errors.New("source is required")
-	case strings.TrimSpace(o.OutputDir) == "":
-		return errors.New("output directory is required")
-	case strings.TrimSpace(o.TmpDir) == "":
-		return errors.New("temporary directory is required")
-	case o.Concurrency < 1:
-		return errors.New("concurrency must be greater than zero")
-	default:
-		return nil
-	}
+	var err error
+	o.LogLevelName, err = completePackageOptions(cmd, &o.PackageOptions)
+	return err
 }
 
 // Run disassembles the source package and prints its result as text.
 func (o *DisassembleOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.LogLevelName)
-	zarf.ConfigureTempDir(o.TmpDir)
-	result, err := disassemble.Disassemble(ctx, disassemble.Options{
-		Source:               o.Source,
-		OutputDir:            o.OutputDir,
-		PlainHTTP:            o.PlainHTTP,
-		SkipTLSVerify:        o.SkipTLSVerify,
-		TmpDir:               o.TmpDir,
-		CachePath:            o.CachePath,
-		Concurrency:          o.Concurrency,
-		VerificationStrategy: layout.VerifyIfPossible,
-		Warn:                 o.Warn,
-	})
+	o.Options.Warn = o.IOStreams.Warn
+	outputDir, err := disassemble.Disassemble(ctx, o.Options)
 	if err != nil {
 		return err
 	}
+	result := &disassembleResult{Source: o.Source, OutputDir: outputDir}
 	return (&printer.TextPrinter{}).PrintObj(result, o.Out())
 }

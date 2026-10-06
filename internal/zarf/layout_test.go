@@ -145,7 +145,7 @@ func TestSourcePackageLayoutLoaderAdvisoryVerification(t *testing.T) {
 			streams, _, out, errOut := iostreams.NewTestIOStreams()
 			streams = logger.Bind(streams, "info")
 			loader := &SourcePackageLayoutLoader{
-				configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()},
+				configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: os.TempDir()},
 			}
 
 			result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{
@@ -372,7 +372,7 @@ func TestSourcePackageLayoutLoader_LoadPackageSpecFiltersByLocalOS(t *testing.T)
 	writeValidUnsignedZarfPackage(t, pkgDir)
 	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, layout.ZarfYAML), osFilteredZarfYAML(), 0o600))
 
-	loader := &SourcePackageLayoutLoader{configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()}}
+	loader := &SourcePackageLayoutLoader{configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: os.TempDir()}}
 	loaded, err := loader.LoadPackageSpec(t.Context(), &spec.Package{Name: "pkg", Source: pkgDir, OptionalComponents: []string{"optional"}})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"local-required", "optional"}, loaded.Components)

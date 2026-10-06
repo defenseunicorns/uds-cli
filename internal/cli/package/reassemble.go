@@ -5,28 +5,25 @@ package packagecli
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
-	"github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
 
 // ReassembleOptions holds options for package reassembly.
 type ReassembleOptions struct {
-	SourceDir            string
-	Output               string
-	MaxPackageSizeMB     int
-	SigningKeyPath       string
-	SigningKeyPassword   string
-	WithBuildMachineInfo bool
-	commonOptions
+	disassemble.ReassembleOptions
+	LogLevelName string
 
 	iostreams.IOStreams
+}
+
+type reassembleResult struct {
+	SourceDir  string `json:"sourceDir" yaml:"sourceDir" text:"Source Directory"`
+	OutputPath string `json:"outputPath" yaml:"outputPath" text:"Output Path"`
 }
 
 // NewReassembleOptions returns package reassembly options.
@@ -46,9 +43,6 @@ func newReassembleCommand(o *ReassembleOptions) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := o.Complete(cmd, args); err != nil {
-				return err
-			}
-			if err := o.Validate(); err != nil {
 				return err
 			}
 			return o.Run(cmd.Context())
@@ -86,43 +80,17 @@ func (o *ReassembleOptions) Complete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return completeCommonOptions(cmd, &o.commonOptions)
-}
-
-// Validate validates package reassembly options.
-func (o *ReassembleOptions) Validate() error {
-	switch {
-	case strings.TrimSpace(o.SourceDir) == "":
-		return errors.New("source directory is required")
-	case strings.TrimSpace(o.TmpDir) == "":
-		return errors.New("temporary directory is required")
-	case o.MaxPackageSizeMB < 0:
-		return errors.New("maximum package size must not be negative")
-	case o.Concurrency < 1:
-		return errors.New("concurrency must be greater than zero")
-	default:
-		return nil
-	}
+	o.LogLevelName, err = completePackageOptions(cmd, &o.PackageOptions)
+	return err
 }
 
 // Run reassembles the source directory and prints its result as text.
 func (o *ReassembleOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.LogLevelName)
-	zarf.ConfigureTempDir(o.TmpDir)
-	result, err := disassemble.Reassemble(ctx, disassemble.ReassembleOptions{
-		SourceDir:            o.SourceDir,
-		Output:               o.Output,
-		PlainHTTP:            o.PlainHTTP,
-		SkipTLSVerify:        o.SkipTLSVerify,
-		CachePath:            o.CachePath,
-		MaxPackageSizeMB:     o.MaxPackageSizeMB,
-		SigningKeyPath:       o.SigningKeyPath,
-		SigningKeyPassword:   o.SigningKeyPassword,
-		WithBuildMachineInfo: o.WithBuildMachineInfo,
-		Concurrency:          o.Concurrency,
-	})
+	outputPath, err := disassemble.Reassemble(ctx, o.ReassembleOptions)
 	if err != nil {
 		return err
 	}
+	result := &reassembleResult{SourceDir: o.SourceDir, OutputPath: outputPath}
 	return (&printer.TextPrinter{}).PrintObj(result, o.Out())
 }

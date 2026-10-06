@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
+	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -22,31 +23,46 @@ const componentsDir = "components"
 
 // Disassemble converts one packaged artifact into local source. Package inputs
 // are supported today; the source-shaped API leaves room for bundle inputs.
-func Disassemble(ctx context.Context, opts Options) (*Result, error) {
-	if strings.TrimSpace(opts.Source) == "" {
-		return nil, errors.New("source is required")
+func Disassemble(ctx context.Context, opts Options) (string, error) {
+	if err := opts.validate(); err != nil {
+		return "", err
 	}
-	if strings.TrimSpace(opts.OutputDir) == "" {
-		return nil, errors.New("output directory is required")
+	warnFn := opts.Warn
+	type warning struct {
+		message string
+		args    []any
 	}
+	var warnings []warning
+	opts.Warn = func(message string, args ...any) {
+		warnings = append(warnings, warning{message: message, args: args})
+	}
+	outputDir, err := internalzarf.WithTempDir(opts.TmpDir, func() (string, error) {
+		return disassemble(ctx, opts)
+	})
+	for _, warning := range warnings {
+		warn(warnFn, warning.message, warning.args...)
+	}
+	return outputDir, err
+}
 
+func disassemble(ctx context.Context, opts Options) (string, error) {
 	finalDir, err := filepath.Abs(opts.OutputDir)
 	if err != nil {
-		return nil, fmt.Errorf("resolving output directory: %w", err)
+		return "", fmt.Errorf("resolving output directory: %w", err)
 	}
 	if err := validateOutputDir(finalDir); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	tmpRoot, err := os.MkdirTemp(opts.TmpDir, "uds-dev-disassemble-*")
 	if err != nil {
-		return nil, fmt.Errorf("creating temporary directory: %w", err)
+		return "", fmt.Errorf("creating temporary directory: %w", err)
 	}
 	defer removeAllWithWarning(opts.Warn, "temporary directory", tmpRoot)
 
 	pkgLayout, err := loadPackageSource(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("loading source package: %w", err)
+		return "", fmt.Errorf("loading source package: %w", err)
 	}
 	defer func() {
 		if err := pkgLayout.Cleanup(); err != nil {
@@ -56,15 +72,15 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 
 	pkg := pkgLayout.Definition()
 	if pkg.Build.Differential {
-		return nil, errors.New("differential Zarf packages do not contain complete recreatable source")
+		return "", errors.New("differential Zarf packages do not contain complete recreatable source")
 	}
 	if pkg.Metadata.Architecture == v1alpha1.SkeletonArch {
-		return nil, errors.New("skeleton Zarf packages do not contain complete recreatable source")
+		return "", errors.New("skeleton Zarf packages do not contain complete recreatable source")
 	}
 	buildArchitecture := pkg.Build.Architecture
 	buildFlavor := pkg.Build.Flavor
 	if strings.TrimSpace(buildArchitecture) == "" {
-		return nil, errors.New("complete Zarf package build architecture is required")
+		return "", errors.New("complete Zarf package build architecture is required")
 	}
 	pkg.Build = api.BuildData{}
 	normalizeMetadata(&pkg.Metadata)
@@ -72,36 +88,36 @@ func Disassemble(ctx context.Context, opts Options) (*Result, error) {
 
 	stageDir, err := createOutputStage(finalDir)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer removeAllWithWarning(opts.Warn, "output staging directory", stageDir)
 
 	if err := localizePackageLevelAssets(ctx, pkgLayout, stageDir, &pkg); err != nil {
-		return nil, err
+		return "", err
 	}
 	for i := range pkg.Components {
 		componentTmpRoot := filepath.Join(tmpRoot, "disassemble-components", pkg.Components[i].Name)
 		if err := os.MkdirAll(componentTmpRoot, helpers.ReadWriteExecuteUser); err != nil {
-			return nil, fmt.Errorf("creating component temporary directory: %w", err)
+			return "", fmt.Errorf("creating component temporary directory: %w", err)
 		}
 		if err := localizeComponent(ctx, pkgLayout, stageDir, finalDir, componentTmpRoot, &pkg.Components[i]); err != nil {
-			return nil, err
+			return "", err
 		}
 	}
 
 	definitionPath := filepath.Join(stageDir, layout.ZarfYAML)
 	if err := writeSourceDefinition(definitionPath, pkg); err != nil {
-		return nil, fmt.Errorf("writing zarf.yaml: %w", err)
+		return "", fmt.Errorf("writing zarf.yaml: %w", err)
 	}
 	if err := writeDisassemblyMetadata(stageDir, buildArchitecture, buildFlavor); err != nil {
-		return nil, err
+		return "", err
 	}
 	if err := publishOutput(stageDir, finalDir); err != nil {
-		return nil, err
+		return "", err
 	}
 	warn(opts.Warn, "use disassembled source only as a last resort; port all edits to the upstream source as soon as possible")
 
-	return &Result{Source: opts.Source, OutputDir: opts.OutputDir}, nil
+	return opts.OutputDir, nil
 }
 
 func removeAllWithWarning(warnFn func(string, ...any), kind, path string) {

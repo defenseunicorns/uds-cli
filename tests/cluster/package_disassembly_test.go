@@ -50,8 +50,11 @@ func TestPackageDisassemblyLifecycle(t *testing.T) {
 	require.NoError(t, err)
 
 	worktree := filepath.Join(t.TempDir(), "disassembled")
+	tmpDir := t.TempDir()
 	_, err = disassemble.Disassemble(t.Context(), disassemble.Options{
-		Source: originalPath, OutputDir: worktree, TmpDir: t.TempDir(), Concurrency: 1,
+		PackageOptions: disassemble.PackageOptions{TmpDir: tmpDir, Concurrency: 1},
+		Source:         originalPath,
+		OutputDir:      worktree,
 	})
 	require.NoError(t, err)
 	definition, err := load.PackageDefinition(t.Context(), worktree, load.DefinitionOptions{})
@@ -71,7 +74,9 @@ func TestPackageDisassemblyLifecycle(t *testing.T) {
 	setLifecycleRepositoryRevision(t, component.Repositories[0].URL, "rebuilt")
 
 	reassembled, err := disassemble.Reassemble(t.Context(), disassemble.ReassembleOptions{
-		SourceDir: worktree, Output: packageDir, Concurrency: 1,
+		PackageOptions: disassemble.PackageOptions{TmpDir: tmpDir, Concurrency: 1},
+		SourceDir:      worktree,
+		Output:         packageDir,
 	})
 	require.NoError(t, err)
 
@@ -96,7 +101,7 @@ func TestPackageDisassemblyLifecycle(t *testing.T) {
 	var seenPodUIDs []types.UID
 	deployLifecyclePackage(t, originalPath, namespace, "original", &deployed)
 	seenPodUIDs = assertLifecycleState(t, k8s, namespace, fileTarget, "original", seenPodUIDs)
-	deployLifecyclePackage(t, reassembled.OutputPath, namespace, "rebuilt", &deployed)
+	deployLifecyclePackage(t, reassembled, namespace, "rebuilt", &deployed)
 	seenPodUIDs = assertLifecycleState(t, k8s, namespace, fileTarget, "rebuilt", seenPodUIDs)
 	deployLifecyclePackage(t, originalPath, namespace, "original", &deployed)
 	assertLifecycleState(t, k8s, namespace, fileTarget, "original", seenPodUIDs)
