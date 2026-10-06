@@ -7,15 +7,15 @@ import (
 	"context"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
-	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
+	"github.com/defenseunicorns/uds-cli/internal/zarf/modify"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
 
 // DisassembleOptions holds options for package disassembly.
 type DisassembleOptions struct {
-	disassemble.Options
+	modify.Options
 	LogLevelName string
 
 	iostreams.IOStreams
@@ -63,7 +63,7 @@ func (o *DisassembleOptions) Complete(cmd *cobra.Command, args []string) error {
 func (o *DisassembleOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.LogLevelName)
 	o.Options.Warn = o.IOStreams.Warn
-	outputDir, err := disassemble.Disassemble(ctx, o.Options)
+	outputDir, err := modify.Disassemble(ctx, o.Options)
 	if err != nil {
 		return err
 	}

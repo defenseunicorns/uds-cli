@@ -6,7 +6,7 @@ package packagecli
 import (
 	"os"
 
-	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
+	"github.com/defenseunicorns/uds-cli/internal/zarf/modify"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -30,7 +30,7 @@ func NewModCommand(streams iostreams.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func completePackageOptions(cmd *cobra.Command, opts *disassemble.PackageOptions) (string, error) {
+func completePackageOptions(cmd *cobra.Command, opts *modify.PackageOptions) (string, error) {
 	var err error
 	if opts.PlainHTTP, err = cmd.Flags().GetBool("plain-http"); err != nil {
 		return "", err

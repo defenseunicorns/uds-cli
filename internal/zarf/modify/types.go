@@ -1,7 +1,7 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-package disassemble
+package modify
 
 import (
 	"errors"
@@ -19,7 +19,7 @@ type PackageOptions struct {
 	Concurrency   int
 }
 
-// Options holds inputs for disassembling an artifact into local source.
+// Options holds inputs for disassembling a Zarf package into local source.
 type Options struct {
 	PackageOptions
 	Source               string

@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
+	"github.com/defenseunicorns/uds-cli/internal/zarf/modify"
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -40,7 +40,7 @@ const (
 )
 
 func TestPackageDisassemblyLifecycle(t *testing.T) {
-	namespace, k8s := testutil.AllocateTestNamespace(t, sharedClusterName, namespaceCleanupTimeout)
+	namespace, k8s := testutil.ReserveTestNamespace(t, namespaceCleanupTimeout)
 	packageDir := t.TempDir()
 	sourceDir, fileTarget := prepareLifecyclePackageSource(t)
 	originalPath, err := packager.Create(t.Context(), sourceDir, packageDir, packager.CreateOptions{
@@ -51,8 +51,8 @@ func TestPackageDisassemblyLifecycle(t *testing.T) {
 
 	worktree := filepath.Join(t.TempDir(), "disassembled")
 	tmpDir := t.TempDir()
-	_, err = disassemble.Disassemble(t.Context(), disassemble.Options{
-		PackageOptions: disassemble.PackageOptions{TmpDir: tmpDir, Concurrency: 1},
+	_, err = modify.Disassemble(t.Context(), modify.Options{
+		PackageOptions: modify.PackageOptions{TmpDir: tmpDir, Concurrency: 1},
 		Source:         originalPath,
 		OutputDir:      worktree,
 	})
@@ -73,8 +73,8 @@ func TestPackageDisassemblyLifecycle(t *testing.T) {
 	replaceLifecycleValue(t, filepath.Join(worktree, filepath.FromSlash(component.Files[0].Source)), "original", "rebuilt")
 	setLifecycleRepositoryRevision(t, component.Repositories[0].URL, "rebuilt")
 
-	reassembled, err := disassemble.Reassemble(t.Context(), disassemble.ReassembleOptions{
-		PackageOptions: disassemble.PackageOptions{TmpDir: tmpDir, Concurrency: 1},
+	reassembled, err := modify.Reassemble(t.Context(), modify.ReassembleOptions{
+		PackageOptions: modify.PackageOptions{TmpDir: tmpDir, Concurrency: 1},
 		SourceDir:      worktree,
 		Output:         packageDir,
 	})

@@ -1,8 +1,8 @@
 // Copyright 2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
-// Package disassemble converts packaged artifacts into recreatable local source.
-package disassemble
+// Package modify converts Zarf packages into recreatable local source and back.
+package modify
 
 import (
 	"context"
@@ -21,8 +21,7 @@ import (
 
 const componentsDir = "components"
 
-// Disassemble converts one packaged artifact into local source. Package inputs
-// are supported today; the source-shaped API leaves room for bundle inputs.
+// Disassemble converts one Zarf package into recreatable local source.
 func Disassemble(ctx context.Context, opts Options) (string, error) {
 	if err := opts.validate(); err != nil {
 		return "", err

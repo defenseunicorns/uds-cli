@@ -7,15 +7,15 @@ import (
 	"context"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
-	"github.com/defenseunicorns/uds-cli/internal/mode/disassemble"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
+	"github.com/defenseunicorns/uds-cli/internal/zarf/modify"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
 
 // ReassembleOptions holds options for package reassembly.
 type ReassembleOptions struct {
-	disassemble.ReassembleOptions
+	modify.ReassembleOptions
 	LogLevelName string
 
 	iostreams.IOStreams
@@ -87,7 +87,7 @@ func (o *ReassembleOptions) Complete(cmd *cobra.Command, args []string) error {
 // Run reassembles the source directory and prints its result as text.
 func (o *ReassembleOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.LogLevelName)
-	outputPath, err := disassemble.Reassemble(ctx, o.ReassembleOptions)
+	outputPath, err := modify.Reassemble(ctx, o.ReassembleOptions)
 	if err != nil {
 		return err
 	}
