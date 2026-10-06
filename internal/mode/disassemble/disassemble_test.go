@@ -140,7 +140,7 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Contains(t, string(generatedYAML), "\ncomponents:\n  - name: app\n")
 	disassemblyJSON, err := os.ReadFile(filepath.Join(outputDir, disassemblyMetadataDir, disassemblyMetadataFile))
 	require.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf("{\n  \"formatVersion\": \"v1alpha1\",\n  \"architecture\": %q,\n  \"flavor\": \"\"\n}\n", packageArchitecture), string(disassemblyJSON))
+	assert.JSONEq(t, fmt.Sprintf("{\n  \"formatVersion\": \"v1alpha1\",\n  \"architecture\": %q,\n  \"flavor\": \"\"\n}\n", packageArchitecture), string(disassemblyJSON))
 
 	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{
 		SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir(),
@@ -295,6 +295,7 @@ func TestDisassemblePreservesFlavorSelectors(t *testing.T) {
 	contents, err := os.ReadFile(definitionPath)
 	require.NoError(t, err)
 	contents = bytes.Replace(contents, []byte("    files:\n      - source: payload.txt\n        target: /tmp/payload.txt\n"), nil, 1)
+	//nolint:gosec // G703 treats the test-owned fixture path beneath t.TempDir as attacker-controlled.
 	require.NoError(t, os.WriteFile(definitionPath, contents, helpers.ReadWriteUser))
 	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
@@ -346,6 +347,7 @@ func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
 				contents, err := os.ReadFile(definitionPath)
 				require.NoError(t, err)
 				contents = bytes.Replace(contents, []byte("version: 1.0.0"), []byte("version: 1.0.0-disassembled"), 1)
+				//nolint:gosec // G703 treats the test-owned fixture path beneath t.TempDir as attacker-controlled.
 				require.NoError(t, os.WriteFile(definitionPath, contents, helpers.ReadWriteUser))
 				require.NoError(t, writeDisassemblyMetadata(sourceDir, "arm64", "offline"))
 				return sourceDir
@@ -495,6 +497,7 @@ func setPackageArchitecture(t *testing.T, sourceDir, architecture string) {
 	definition, err := os.ReadFile(definitionPath)
 	require.NoError(t, err)
 	definition = bytes.Replace(definition, []byte("architecture: amd64"), []byte("architecture: "+architecture), 1)
+	//nolint:gosec // G703 treats the test-owned fixture path beneath t.TempDir as attacker-controlled.
 	require.NoError(t, os.WriteFile(definitionPath, definition, 0o600))
 }
 

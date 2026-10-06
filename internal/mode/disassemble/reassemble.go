@@ -11,6 +11,7 @@ import (
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 	zarftypes "github.com/zarf-dev/zarf/src/types"
 )
 
@@ -46,12 +47,18 @@ func reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
 	if definition.Metadata.Architecture != metadata.Architecture {
 		return "", fmt.Errorf("package architecture %q does not match disassembly metadata architecture %q", definition.Metadata.Architecture, metadata.Architecture)
 	}
+	var signOpts *signing.SignBlobOptions
+	if opts.SigningKeyPath != "" {
+		defaults := signing.DefaultSignBlobOptions()
+		defaults.Key = opts.SigningKeyPath
+		defaults.Password = opts.SigningKeyPassword
+		signOpts = &defaults
+	}
 
 	created, err := packager.Create(ctx, opts.SourceDir, opts.Output, packager.CreateOptions{
 		Flavor:               metadata.Flavor,
 		MaxPackageSizeMB:     opts.MaxPackageSizeMB,
-		SigningKeyPath:       opts.SigningKeyPath,
-		SigningKeyPassword:   opts.SigningKeyPassword,
+		SignBlobOptions:      signOpts,
 		WithBuildMachineInfo: opts.WithBuildMachineInfo,
 		OCIConcurrency:       opts.Concurrency,
 		CachePath:            opts.CachePath,

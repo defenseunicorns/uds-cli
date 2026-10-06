@@ -40,7 +40,7 @@ func TestWithTempDirRejectsAnotherDirectory(t *testing.T) {
 		return struct{}{}, nil
 	})
 
-	require.ErrorContains(t, err, `Zarf temporary directory is already configured as "first", cannot change it to "second"`)
+	require.ErrorContains(t, err, `zarf temporary directory is already configured as "first", cannot change it to "second"`)
 	assert.False(t, called)
 	assert.Equal(t, "first", zarfconfig.CommonOptions.TempDirectory)
 }

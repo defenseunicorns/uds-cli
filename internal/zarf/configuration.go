@@ -42,7 +42,7 @@ func WithTempDir[T any](tmpDir string, run func() (T, error)) (T, error) {
 
 	if configured != tmpDir {
 		var zero T
-		return zero, fmt.Errorf("Zarf temporary directory is already configured as %q, cannot change it to %q", configured, tmpDir)
+		return zero, fmt.Errorf("zarf temporary directory is already configured as %q, cannot change it to %q", configured, tmpDir)
 	}
 
 	return run()
