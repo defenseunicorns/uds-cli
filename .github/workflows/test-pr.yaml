@@ -35,5 +35,3 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    with:
-      include_uds_core_smoke: ${{ github.event.pull_request.number == 1591 }}
