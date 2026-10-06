@@ -11,7 +11,7 @@ metadata {
 }
 
 package "uds_k3d_dev" {
-  source       = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.21.1"
+  source       = "oci://ghcr.io/defenseunicorns/packages/uds-k3d:0.21.2"
   signature_verification { verify = false }
   values_files = ["values/k3d.yaml"]
 }
