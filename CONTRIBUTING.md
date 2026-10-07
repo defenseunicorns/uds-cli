@@ -82,6 +82,12 @@ To build a local binary, run `uds run build`. This creates `build/uds`. Use `uds
 
 Commits run hk automatically. To run the complete repository check suite manually, use `uds run lint` (or `hk check --all`). CI runs this same hk configuration.
 
+When updating `.agents/skills/migrate-legacy-bundle-to-next/SKILL.md` or the
+documentation it references, run `uds run generate:migration-prompt` and commit
+the updated `internal/cli/bundle/assets/migration-prompt.md`. Run
+`uds run generate:check-migration-prompt` to check for drift locally. CI runs
+this check in its lint job; it is not part of the commit hook.
+
 ### CLI modes
 
 UDS CLI currently contains both Legacy and Next implementations.

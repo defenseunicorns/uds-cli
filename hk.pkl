@@ -49,11 +49,6 @@ local checks = new Mapping<String, Step> {
         check = "uds run schema:test"
         glob = List("cmd/**/*.go", "internal/**/*.go", "pkg/**/*.go", "hack/generate-schema.sh", "tasks/schema.yaml")
     }
-    ["migration-prompt"] {
-        check = "uds run generate:check-migration-prompt"
-        fix = "uds run generate:migration-prompt"
-        glob = List(".agents/skills/migrate-legacy-bundle-to-next/**", "docs/**/*.mdx", "internal/cli/bundle/assets/migration-prompt.md", "internal/cli/bundle/migrate*.go", "hack/migrationprompt/**", "tasks/generate.yaml", "tasks.yaml", "hk.pkl")
-    }
     ["license-check"] {
         check = "scan_dir=$(mktemp -d) && trap 'rm -rf \"$scan_dir\"' EXIT && git archive --format=tar HEAD -- . ':(exclude)vendor' | tar -x -C \"$scan_dir\" && cd \"$scan_dir\" && uds run lint:license"
         fix = "uds run lint:fix-license"
