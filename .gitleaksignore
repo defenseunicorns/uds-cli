@@ -1,3 +1,10 @@
 # Test fixtures containing intentionally fake secret-like values.
 testdata/legacy/packages/helm/unicorn-podinfo/values.yaml:generic-api-key:4
 tests/legacy/e2e/variable_test.go:generic-api-key:263
+# Example password in the externally cloned pod reload documentation.
+uds-docs/src/content/docs/core/main/how-to-guides/Platform Features/configure-pod-reload.mdx:generic-api-key:52
+uds-docs/src/content/docs/core/v1-10/how-to-guides/Platform Features/configure-pod-reload.mdx:generic-api-key:52
+uds-docs/src/content/docs/core/v1-11/how-to-guides/Platform Features/configure-pod-reload.mdx:generic-api-key:52
+uds-docs/src/content/docs/core/v1-12/how-to-guides/Platform Features/configure-pod-reload.mdx:generic-api-key:52
+uds-docs/src/content/docs/core/v1-13/how-to-guides/Platform Features/configure-pod-reload.mdx:generic-api-key:52
+uds-docs/src/content/docs/core/v1-14/how-to-guides/Platform Features/configure-pod-reload.mdx:generic-api-key:52

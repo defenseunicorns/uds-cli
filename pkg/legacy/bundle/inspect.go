@@ -17,7 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
-	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -155,13 +155,13 @@ func (b *Bundle) listImages() error {
 			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
 		)
 
-		filteredPackage, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(zarfPkg), inspectFilter)
+		filteredPackage, err := filters.Apply(convert.PackageFromV1alpha1(zarfPkg), inspectFilter)
 		if err != nil {
 			return err
 		}
 
 		// grab images from each filtered component
-		pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], gatherComponentImages(filteredPackage.AsV1alpha1().Components)...)
+		pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], gatherComponentImages(convert.PackageToV1alpha1(filteredPackage).Components)...)
 	}
 
 	pkgImgsOut, err := goyaml.Marshal(pkgImgMap)

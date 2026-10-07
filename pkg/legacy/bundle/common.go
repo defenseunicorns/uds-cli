@@ -414,6 +414,10 @@ func GetSuccessfullyDeployedPackageIDs() []string {
 }
 
 func deployedPackageIsSuccessful(pkg state.DeployedPackage) bool {
+	definition, err := pkg.Definition()
+	if err != nil {
+		return false
+	}
 	deployedComponents := make(map[string]state.DeployedComponent, len(pkg.DeployedComponents))
 	for _, deployedComponent := range pkg.DeployedComponents {
 		deployedComponents[deployedComponent.Name] = deployedComponent
@@ -422,8 +426,8 @@ func deployedPackageIsSuccessful(pkg state.DeployedPackage) bool {
 		}
 	}
 
-	for _, component := range pkg.Data.Components {
-		if !component.IsRequired() {
+	for _, component := range definition.Components {
+		if component.Optional {
 			continue
 		}
 

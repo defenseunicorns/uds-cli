@@ -133,7 +133,7 @@ func deployMonitorPackage(t *testing.T) {
 			t.Errorf("connect for monitor package cleanup: %v", err)
 			return
 		}
-		if err := packager.Remove(ctx, layout.PackageDefinition, packager.RemoveOptions{Cluster: client}); err != nil {
+		if err := packager.Remove(ctx, layout.Definition(), packager.RemoveOptions{Cluster: client}); err != nil {
 			t.Errorf("remove operator monitor test package: %v", err)
 		}
 	})

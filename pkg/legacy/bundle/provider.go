@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -74,11 +74,11 @@ func NewBundleProviderWithOptions(source, destination string, opts ProviderOptio
 			OS:           oci.MultiOS,
 		}
 		// get remote client
-		remote, err := fetcher.NewZarfOCIRemote(ctx, source, platform)
+		remote, err := fetcher.NewBundleOCIRemote(ctx, source, platform)
 		if err != nil {
 			return nil, err
 		}
-		op.OrasRemote = remote.OrasRemote
+		op.OrasRemote = remote
 
 		// get root manifest
 		root, err := op.FetchRoot(ctx)

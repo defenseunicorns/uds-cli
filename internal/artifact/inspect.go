@@ -6,16 +6,14 @@ package artifact
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
-	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content"
 )
@@ -118,17 +116,7 @@ func (s *MetadataSource) FetchSignatureEvidence(ctx context.Context) ([]byte, er
 
 // Inspect reads bundle definition and package signature metadata.
 func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
-	var source *MetadataSource
-	var cleanup func()
-	var err error
-	if udsoci.IsOCIReference(opts.Source) {
-		source, err = OpenMetadataSource(ctx, opts.Source, opts.Config)
-	} else {
-		source, cleanup, err = openExtractedLocalMetadataSource(ctx, opts)
-		if cleanup != nil {
-			defer cleanup()
-		}
-	}
+	source, err := OpenMetadataSource(ctx, opts.Source, opts.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -137,38 +125,10 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 		return nil, err
 	}
 	result.PackageSignatures, err = ReadPackageSignatures(ctx, source, result.Bundle)
-	return result, err
-}
-
-func openExtractedLocalMetadataSource(ctx context.Context, opts InspectOptions) (*MetadataSource, func(), error) {
-	workspace, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-inspect-*")
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w under %q: %w", ErrCreatingInspectionWorkspace, opts.Config.Options.TmpDir, err)
+		return result, err
 	}
-	cleanup := func() { _ = os.RemoveAll(workspace) }
-
-	if err := ExtractTarZst(ctx, opts.Streams, opts.Source, workspace); err != nil {
-		cleanup()
-		return nil, nil, fmt.Errorf("%w %q to %q: %w", ErrExtractingBundleArtifact, opts.Source, workspace, err)
-	}
-
-	ociDir := filepath.Join(workspace, "oci")
-	indexPath := filepath.Join(ociDir, "index.json")
-	indexBytes, err := os.ReadFile(indexPath)
-	if err != nil {
-		cleanup()
-		return nil, nil, fmt.Errorf("%w %q: %w", ErrReadingBundleIndex, indexPath, err)
-	}
-	store, err := udsoci.OpenReadOnlyStore(ociDir)
-	if err != nil {
-		cleanup()
-		return nil, nil, err
-	}
-	return &MetadataSource{
-		IndexBytes:     indexBytes,
-		ArtifactDigest: digest.FromBytes(indexBytes).String(),
-		Fetcher:        store,
-	}, cleanup, nil
+	return result, nil
 }
 
 // InspectBundleDefinition reads bundle definition metadata without package metadata.
@@ -275,12 +235,26 @@ func ReadZarfPackageNames(ctx context.Context, source *MetadataSource, b *spec.U
 	for _, name := range packageNames {
 		selected[name] = struct{}{}
 	}
+	metadata, batched, err := readBundleZarfMetadataBatch(ctx, idx, b, selected, source.Fetcher)
+	if err != nil {
+		if packageErr, ok := errors.AsType[packageMetadataError](err); ok {
+			return nil, packageErr.Err
+		}
+		return nil, err
+	}
 	zarfNames := make(map[string]string, len(b.Packages))
 	for _, pkg := range b.Packages {
 		if len(selected) > 0 {
 			if _, ok := selected[pkg.Name]; !ok {
 				continue
 			}
+		}
+		if batched {
+			packageMetadata := metadata[pkg.Name]
+			if packageMetadata.found && packageMetadata.zarfName != "" {
+				zarfNames[pkg.Name] = packageMetadata.zarfName
+			}
+			continue
 		}
 		entry, err := findPackageManifest(idx, pkg)
 		if err != nil {
@@ -303,8 +277,35 @@ func ReadPackageSignatures(ctx context.Context, source *MetadataSource, b *spec.
 	if err := json.Unmarshal(source.IndexBytes, &idx); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrParsingBundleIndex, err)
 	}
+	metadata, batched, err := readBundleZarfMetadataBatch(ctx, idx, b, nil, source.Fetcher)
+	if err != nil {
+		if packageErr, ok := errors.AsType[packageMetadataError](err); ok {
+			return nil, InspectingPackageSignatureError(packageErr)
+		}
+		return nil, err
+	}
 	summaries := make(map[string]PackageSignatureSummary, len(b.Packages))
 	for _, pkg := range b.Packages {
+		if batched {
+			entry, err := findPackageManifest(idx, pkg)
+			if err != nil {
+				return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
+			}
+			packageMetadata := metadata[pkg.Name]
+			summary := PackageSignatureSummary{
+				Signed:       PackageSigningStatusUnknown,
+				Verification: packageVerificationStatus(pkg.SignatureVerification, entry),
+			}
+			if packageMetadata.signed != nil {
+				if *packageMetadata.signed {
+					summary.Signed = PackageSigningStatusSigned
+				} else {
+					summary.Signed = PackageSigningStatusUnsigned
+				}
+			}
+			summaries[pkg.Name] = summary
+			continue
+		}
 		summary, err := inspectPackageSignature(ctx, idx, pkg, source.Fetcher)
 		if err != nil {
 			return nil, InspectingPackageSignatureError{Package: pkg.Name, Err: err}
@@ -312,6 +313,26 @@ func ReadPackageSignatures(ctx context.Context, source *MetadataSource, b *spec.
 		summaries[pkg.Name] = *summary
 	}
 	return summaries, nil
+}
+
+func readBundleZarfMetadataBatch(ctx context.Context, idx ocispec.Index, b *spec.UDSBundle, selected map[string]struct{}, fetcher content.Fetcher) (map[string]zarfPackageMetadata, bool, error) {
+	states := make([]bundlePackageMetadataState, 0, len(b.Packages))
+	for _, pkg := range b.Packages {
+		if len(selected) > 0 {
+			if _, ok := selected[pkg.Name]; !ok {
+				continue
+			}
+		}
+		state := bundlePackageMetadataState{packageName: pkg.Name}
+		entry, err := findPackageManifest(idx, pkg)
+		if err != nil {
+			state.err = err
+		} else {
+			state.manifest = entry
+		}
+		states = append(states, state)
+	}
+	return readZarfPackageMetadataBatch(ctx, states, fetcher)
 }
 
 func inspectPackageSignature(ctx context.Context, idx ocispec.Index, pkg spec.Package, fetcher content.Fetcher) (*PackageSignatureSummary, error) {

@@ -22,8 +22,15 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
+
+const libraryPackageMetadataWithoutSigning = `apiVersion: zarf.dev/v1alpha1
+kind: ZarfPackageConfig
+metadata:
+  name: package-with-unknown-signing-status
+  version: 1.0.0
+components: []
+`
 
 func TestCreateAndInspectPublicContract(t *testing.T) {
 	fixture := createLibraryBundle(t)
@@ -288,7 +295,7 @@ func libraryPackageComponents(t *testing.T, fixture libraryBundleFixture, packag
 
 	loaded, err := source.Loader.LoadPackageLayout(t.Context(), &source.Bundle.Packages[packageIndex], t.TempDir(), bundle.ZarfPackageLayoutLoadOptions{})
 	require.NoError(t, err)
-	definition := loaded.Layout.PackageDefinition.AsV1alpha1()
+	definition := loaded.Layout.PackageDefinition
 	assert.Equal(t, runtime.GOARCH, definition.Metadata.Architecture)
 	components := make([]string, len(definition.Components))
 	for i, component := range definition.Components {
@@ -307,7 +314,7 @@ func libraryPackageArchitecture(t *testing.T, artifactPath, architecture string)
 
 	loaded, err := source.Loader.LoadPackageLayout(t.Context(), &source.Bundle.Packages[0], t.TempDir(), bundle.ZarfPackageLayoutLoadOptions{})
 	require.NoError(t, err)
-	return loaded.Layout.PackageDefinition.AsV1alpha1().Metadata.Architecture
+	return loaded.Layout.PackageDefinition.Metadata.Architecture
 }
 
 func rewriteUnknownPackageMetadata(t *testing.T, root string) {
@@ -331,15 +338,16 @@ func rewriteUnknownPackageMetadata(t *testing.T, root string) {
 			if title != libraryBundleFileName && title != "zarf.yaml" {
 				continue
 			}
-			layerPath := filepath.Join(root, "oci", "blobs", "sha256", manifest.Layers[j].Digest.Hex())
-			contents, err := os.ReadFile(layerPath)
-			require.NoError(t, err)
+			var contents []byte
 			switch title {
 			case libraryBundleFileName:
+				layerPath := filepath.Join(root, "oci", "blobs", "sha256", manifest.Layers[j].Digest.Hex())
+				contents, err = os.ReadFile(layerPath)
+				require.NoError(t, err)
 				contents = removeLibraryPackageVerification(t, contents)
 				hclRewritten = true
 			case "zarf.yaml":
-				contents = removeLibraryPackageSignedMetadata(t, contents)
+				contents = []byte(libraryPackageMetadataWithoutSigning)
 				packageMetadataRewritten = true
 			}
 			writeLibraryBlob(t, root, &manifest.Layers[j], contents)
@@ -375,20 +383,6 @@ func removeLibraryPackageVerification(t *testing.T, contents []byte) []byte {
 	}
 	require.True(t, removed)
 	return file.Bytes()
-}
-
-func removeLibraryPackageSignedMetadata(t *testing.T, contents []byte) []byte {
-	t.Helper()
-	definition := map[string]any{}
-	require.NoError(t, yaml.Unmarshal(contents, &definition))
-	build, ok := definition["build"].(map[string]any)
-	require.True(t, ok)
-	_, found := build["signed"]
-	require.True(t, found)
-	delete(build, "signed")
-	updated, err := yaml.Marshal(definition)
-	require.NoError(t, err)
-	return updated
 }
 
 func writeLibraryBlob(t *testing.T, root string, descriptor *ocispec.Descriptor, contents []byte) {
