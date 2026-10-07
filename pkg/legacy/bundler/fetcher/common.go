@@ -17,21 +17,35 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
-func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...oci.Modifier) (*zoci.Remote, error) {
+func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...zarfoci.Modifier) (*zoci.Remote, error) {
 	plainHTTP, err := utils.NegotiatePlainHTTPForOCIRef(ctx, url, config.CommonOptions.Insecure)
 	if err != nil {
 		return nil, err
 	}
-	modifiers := append([]oci.Modifier{
-		oci.WithUserAgent("uds-cli/" + config.CLIVersion),
-		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
-		oci.WithPlainHTTP(plainHTTP),
+	modifiers := append([]zarfoci.Modifier{
+		zarfoci.WithUserAgent("uds-cli/" + config.CLIVersion),
+		zarfoci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
+		zarfoci.WithPlainHTTP(plainHTTP),
 	}, mods...)
 	return zoci.NewRemote(ctx, url, platform, modifiers...) //nolint:staticcheck // preserve the UDS user-agent override
+}
+
+// NewBundleOCIRemote returns the OCI client used for UDS bundle artifacts.
+func NewBundleOCIRemote(ctx context.Context, url string, platform ocispec.Platform) (*oci.OrasRemote, error) {
+	plainHTTP, err := utils.NegotiatePlainHTTPForOCIRef(ctx, url, config.CommonOptions.Insecure)
+	if err != nil {
+		return nil, err
+	}
+	return oci.NewOrasRemote(url, platform,
+		oci.WithUserAgent("uds-cli/"+config.CLIVersion),
+		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
+		oci.WithPlainHTTP(plainHTTP),
+	)
 }
 
 func packageManifestLayerDescriptor(sourceDesc ocispec.Descriptor) ocispec.Descriptor {

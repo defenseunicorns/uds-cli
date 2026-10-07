@@ -43,6 +43,7 @@ type ZarfPackageLayoutLoadOptions struct {
 // from pkg.Source, copy from an extracted bundle artifact, or populate dstDir
 // from another source. The adapter loads the staged package to preserve Zarf's
 // private deployment state before applying supported public layout mutations.
+// An empty Layout.PackageDefinition.Metadata.Name leaves the staged name intact.
 type ZarfPackageLayoutLoader interface {
 	LoadPackageLayout(ctx context.Context, pkg *spec.Package, dstDir string, opts ZarfPackageLayoutLoadOptions) (*ZarfPackageLayoutLoadResult, error)
 }
@@ -56,9 +57,13 @@ type ZarfPackageLayoutLoadResult struct {
 // PackageDeployHooks provides deployment process extensibility on a per-package basis.
 type PackageDeployHooks struct {
 	// PreDeploy enables customization just before a package deploys. It runs after
-	// layout loading and before the cluster deploy. Mutations to pkgLayout.PackageDefinition and
-	// packageOpts take effect immediately. A non-nil error aborts the deploy; the
-	// cluster deploy is not called and PostDeploy is skipped.
+	// layout loading and before the cluster deploy. Changes to
+	// pkgLayout.PackageDefinition.Metadata.Name, Metadata.Annotations, and
+	// Components are copied to the loaded Zarf layout before deployment. Other
+	// definition fields, including Metadata.Version and Variables, cannot be
+	// changed through this hook. Changes to packageOpts.Config, BundleDir,
+	// IsPartial, and Streams are applied before deployment. A non-nil error
+	// aborts the deploy; the cluster deploy is not called and PostDeploy is skipped.
 	//
 	// PreDeploy and PostDeploy are captured before PreDeploy runs, so changing
 	// packageOpts.PackageDeployHooks here has no effect. Use

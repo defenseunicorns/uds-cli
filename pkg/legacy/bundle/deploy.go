@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -163,7 +163,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		bundleAnnotations[AnnotationBundleVersion] = b.bundle.Metadata.Version
 
 		// Set the merged annotations back on the package
-		pkgLayout.PackageDefinition.SetAnnotations(bundleAnnotations)
+		pkgLayout.SetAnnotations(bundleAnnotations)
 
 		result, err := packager.Deploy(ctx, pkgLayout, deployOpts)
 		if err != nil {

@@ -41,6 +41,10 @@ local checks = new Mapping<String, Step> {
         fix = "go mod tidy"
         glob = List("**/*.go", "go.mod", "go.sum")
     }
+    ["renovate-config"] {
+        check = "uds run -f tasks/lint.yaml common:renovate"
+        glob = List("renovate.json")
+    }
     ["schema"] {
         check = "uds run schema:test"
         glob = List("cmd/**/*.go", "internal/**/*.go", "pkg/**/*.go", "hack/generate-schema.sh", "tasks/schema.yaml")

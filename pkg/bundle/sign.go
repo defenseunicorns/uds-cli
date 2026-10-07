@@ -164,7 +164,6 @@ func signingOptions(options SigningOptions) signing.SignBlobOptions {
 	signOpts := signing.DefaultSignBlobOptions()
 	signOpts.Key = options.Key
 	signOpts.Password = options.KeyPassword
-	signOpts.Keyless = options.Mode == SigningModeKeyless
 	signOpts.Fulcio.IdentityToken = options.IdentityToken
 	signOpts.Fulcio.URL = options.FulcioURL
 	signOpts.Fulcio.AuthFlow = options.FulcioAuthFlow

@@ -6,13 +6,13 @@ package zarf
 import (
 	"testing"
 
-	packageoci "github.com/defenseunicorns/pkg/oci"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	packageoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 )

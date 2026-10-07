@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/oci"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -94,7 +94,7 @@ func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher content.F
 	if err != nil {
 		return nil, false, err
 	}
-	pkg := filteredPackage.AsV1alpha1()
+	pkg := filteredPackage
 	components := pkg.Components
 	layers, err := zoci.AssembleLayers(ctx, root, fetcher, components)
 	if err != nil {
@@ -104,20 +104,20 @@ func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher content.F
 }
 
 // filteredPackageDefinition reads only zarf.yaml and applies the deployment component filter.
-func filteredPackageDefinition(ctx context.Context, root *oci.Manifest, fetcher content.Fetcher, filter filters.ComponentFilterStrategy) (api.PackageDefinition, int, error) {
+func filteredPackageDefinition(ctx context.Context, root *oci.Manifest, fetcher content.Fetcher, filter filters.ComponentFilterStrategy) (api.Package, int, error) {
 	pkg, err := zoci.FetchZarfYAML(ctx, root, fetcher)
 	if err != nil {
-		return api.PackageDefinition{}, 0, fmt.Errorf("fetching zarf.yaml: %w: %w", ErrFetchPackageMetadata, err)
+		return api.Package{}, 0, fmt.Errorf("fetching zarf.yaml: %w: %w", ErrFetchPackageMetadata, err)
 	}
-	filtered, err := filters.Apply(api.NewPackageDefinitionFromV1alpha1(pkg), filter)
+	filtered, err := filters.Apply(pkg, filter)
 	if err != nil {
-		return api.PackageDefinition{}, 0, fmt.Errorf("%w for package %q: %w", ErrApplyComponentFilter, pkg.Metadata.Name, err)
+		return api.Package{}, 0, fmt.Errorf("%w for package %q: %w", ErrApplyComponentFilter, pkg.Metadata.Name, err)
 	}
 	return filtered, len(pkg.Components), nil
 }
 
-func packageSpecFromDefinition(definition api.PackageDefinition, digest string) *PackageSpec {
-	pkg := definition.AsV1alpha1()
+func packageSpecFromDefinition(definition api.Package, digest string) *PackageSpec {
+	pkg := definition
 	components := make([]string, len(pkg.Components))
 	for i, component := range pkg.Components {
 		components[i] = component.Name

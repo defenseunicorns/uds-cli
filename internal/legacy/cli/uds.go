@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package cmd contains the CLI commands for UDS.
@@ -243,6 +243,7 @@ func addBundleCommands(rootCmd *cobra.Command) {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   lang.CmdBundleListShort,
+		Long:    "List deployed bundles in the cluster. If a deployed package cannot be read or has incomplete bundle annotations, the command reports an error instead of showing an incomplete list.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			configureZarf()

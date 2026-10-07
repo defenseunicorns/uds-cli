@@ -7,3 +7,7 @@ useDefault = true
 [[allowlists]]
 description = "vendored Go dependencies"
 paths = ['''^vendor/''']
+
+[[allowlists]]
+description = "generated files in the local documentation workspace"
+paths = ['''^uds-docs/(node_modules|dist|\.astro)/''']
