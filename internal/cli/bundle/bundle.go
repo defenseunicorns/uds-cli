@@ -40,7 +40,6 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 	bundleCmd.AddCommand(NewReconfigureCommand(streams))
 	bundleCmd.AddCommand(NewSignCommand(streams))
 	bundleCmd.AddCommand(NewVerifyCommand(streams))
-	bundleCmd.AddCommand(NewMigrateCommand(streams))
 
 	return bundleCmd
 }

@@ -62,7 +62,7 @@ func TestGenerateAndCheck(t *testing.T) {
 	require.Equal(t, first, second)
 
 	require.NoError(t, os.WriteFile(skill, []byte("---\nname: migration\n---\nUpdated instructions.\n"), 0o600))
-	require.ErrorContains(t, generate(root, true), "migration prompt is stale")
+	require.ErrorContains(t, generate(root, true), "migration skill is stale")
 	unchanged, err := os.ReadFile(asset)
 	require.NoError(t, err)
 	require.Equal(t, first, unchanged)
@@ -88,14 +88,14 @@ func TestDocumentationDependencies(t *testing.T) {
 	asset := filepath.Join(root, assetPath)
 	first, err := os.ReadFile(asset)
 	require.NoError(t, err)
-	prompt := string(first)
-	require.Contains(t, prompt, "[schema](#migration-doc-docs-reference-schema-mdx)")
-	require.Contains(t, prompt, "[workflow](#migration-doc-docs-how-to-guides-workflow-mdx)")
-	require.Contains(t, prompt, "Schema rules.")
-	require.Contains(t, prompt, "Workflow rules.")
-	require.Equal(t, 1, strings.Count(prompt, "## Included documentation: docs/reference/schema.mdx"))
-	require.Less(t, strings.Index(prompt, "Schema rules."), strings.Index(prompt, "Workflow rules."))
-	require.NotContains(t, prompt, "title: Schema")
+	generatedSkill := string(first)
+	require.Contains(t, generatedSkill, "[schema](#migration-doc-docs-reference-schema-mdx)")
+	require.Contains(t, generatedSkill, "[workflow](#migration-doc-docs-how-to-guides-workflow-mdx)")
+	require.Contains(t, generatedSkill, "Schema rules.")
+	require.Contains(t, generatedSkill, "Workflow rules.")
+	require.Equal(t, 1, strings.Count(generatedSkill, "## Included documentation: docs/reference/schema.mdx"))
+	require.Less(t, strings.Index(generatedSkill, "Schema rules."), strings.Index(generatedSkill, "Workflow rules."))
+	require.NotContains(t, generatedSkill, "title: Schema")
 	require.NoError(t, generate(root, true))
 
 	// Both body and metadata changes in an included doc must invalidate the asset.
@@ -104,7 +104,7 @@ func TestDocumentationDependencies(t *testing.T) {
 		strings.Replace(schema, "title: Schema", "title: Renamed schema", 1),
 	} {
 		writeSource("docs/reference/schema.mdx", update)
-		require.ErrorContains(t, generate(root, true), "migration prompt is stale")
+		require.ErrorContains(t, generate(root, true), "migration skill is stale")
 		unchanged, err := os.ReadFile(asset)
 		require.NoError(t, err)
 		require.Equal(t, first, unchanged)
@@ -112,7 +112,7 @@ func TestDocumentationDependencies(t *testing.T) {
 	writeSource("docs/reference/schema.mdx", schema)
 	require.NoError(t, generate(root, true))
 	writeSource(skillPath, strings.Replace(skill, "name: migration", "name: renamed", 1))
-	require.ErrorContains(t, generate(root, true), "migration prompt is stale")
+	require.ErrorContains(t, generate(root, true), "migration skill is stale")
 }
 
 func TestUnavailableDocumentation(t *testing.T) {
@@ -126,7 +126,7 @@ func TestUnavailableDocumentation(t *testing.T) {
 	}
 }
 
-func TestCommittedPromptIsCurrent(t *testing.T) {
+func TestCommittedSkillIsCurrent(t *testing.T) {
 	t.Parallel()
-	require.NoError(t, generate("../..", true), "run uds run generate:migration-prompt")
+	require.NoError(t, generate("../..", true), "run uds run generate:migration-skill")
 }

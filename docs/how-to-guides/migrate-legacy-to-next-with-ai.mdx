@@ -1,6 +1,6 @@
 ---
 title: Migrate a legacy bundle with an AI coding agent
-description: Use the self-contained migration prompt to create and verify a reviewable UDS CLI Next bundle.
+description: Use the self-contained migration skill to create and verify a reviewable UDS CLI Next bundle.
 sidebar:
   order: 3.410
 ---
@@ -37,17 +37,17 @@ optionally deploy to a non-production cluster.
 
 <Steps>
 
-1. **Print the migration prompt**
+1. **Print the migration skill**
 
    From your working directory, print the complete instructions:
 
    ```bash
-   CLI_FEATURES=NextMode=true uds bundle migrate prompt
+   CLI_FEATURES=NextMode=true uds tools migrate-bundle skill
    ```
 
-   The prompt includes the canonical migration skill and its referenced,
+   The output includes the canonical migration skill and its referenced,
    maintained documentation. Links to included documents point to sections
-   within the prompt.
+   within the output.
    You do not need a repository checkout, a separate skill file, or web access
    to obtain the instructions. The command only prints text.
 
@@ -55,16 +55,16 @@ optionally deploy to a non-production cluster.
 
    Start your coding agent in the same working directory.
 
-   Paste the migration prompt into your agent, replacing `uds-bundle.yaml` with your Legacy
+   Paste the printed skill into your agent, replacing `uds-bundle.yaml` with your Legacy
    bundle path. The agent writes the proposed files in your current working
    directory. Move any existing migration output files before starting, or choose
-   another output location in the prompt.
+   another output location in your request.
 
-   Alternatively, ask the agent to run the prompt command and follow its output.
+   Alternatively, ask the agent to run the skill command and follow its output.
    Replace `<path-to-legacy-bundle>/uds-bundle.yaml` with your local bundle path:
 
    ```text title="Agent request"
-   Run the command "CLI_FEATURES=NextMode=true uds bundle migrate prompt" and use its
+   Run the command "CLI_FEATURES=NextMode=true uds tools migrate-bundle skill" and use its
    printed instructions to migrate <path-to-legacy-bundle>/uds-bundle.yaml.
 
    Write the migrated files and migration report in the current working
@@ -82,7 +82,7 @@ optionally deploy to a non-production cluster.
    Compare the generated packages with the Legacy bundle and read the report.
    Ask the agent to explain anything marked for review. If your bundle uses
    overrides, the agent may need the packages' `zarf.yaml` files to check their
-   values mappings. Keep private keys and credentials out of the prompt.
+   values mappings. Keep private keys and credentials out of your agent request.
 
 3. **Review package verification**
 

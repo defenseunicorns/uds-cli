@@ -17,14 +17,14 @@ import (
 
 const (
 	skillPath = ".agents/skills/migrate-legacy-bundle-to-next/SKILL.md"
-	assetPath = "internal/cli/bundle/assets/migration-prompt.md"
+	assetPath = "internal/cli/tools/assets/migration-skill.md"
 )
 
 func main() {
 	check := flag.Bool("check", false, "check for drift without writing the generated asset")
 	flag.Parse()
 	if flag.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: go run ./hack/migrationprompt [--check]")
+		fmt.Fprintln(os.Stderr, "usage: go run ./hack/migrationskill [--check]")
 		os.Exit(1)
 	}
 	if err := generate(".", *check); err != nil {
@@ -38,7 +38,7 @@ func generate(root string, check bool) error {
 	if err != nil {
 		return fmt.Errorf("read migration skill: %w", err)
 	}
-	prompt, err := assemble(root, string(skill))
+	outputText, err := assemble(root, string(skill))
 	if err != nil {
 		return err
 	}
@@ -46,19 +46,19 @@ func generate(root string, check bool) error {
 	if check {
 		current, err := os.ReadFile(output)
 		if err != nil {
-			return fmt.Errorf("read generated migration prompt (run uds run generate:migration-prompt): %w", err)
+			return fmt.Errorf("read generated migration skill (run uds run generate:migration-skill): %w", err)
 		}
-		if !bytes.Equal(current, []byte(prompt)) {
-			return fmt.Errorf("migration prompt is stale; run uds run generate:migration-prompt and commit %s", assetPath)
+		if !bytes.Equal(current, []byte(outputText)) {
+			return fmt.Errorf("migration skill is stale; run uds run generate:migration-skill and commit %s", assetPath)
 		}
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
-		return fmt.Errorf("create migration prompt asset directory: %w", err)
+		return fmt.Errorf("create migration skill asset directory: %w", err)
 	}
 	// #nosec G703 -- root is the repository working directory (or a test temp directory); assetPath is constant, not user input.
-	if err := os.WriteFile(output, []byte(prompt), 0o600); err != nil {
-		return fmt.Errorf("write migration prompt: %w", err)
+	if err := os.WriteFile(output, []byte(outputText), 0o600); err != nil {
+		return fmt.Errorf("write migration skill: %w", err)
 	}
 	return nil
 }
@@ -106,17 +106,17 @@ func assemble(root, skill string) (string, error) {
 		links[route] = "#" + id
 		documents = append(documents, document{path: path, body: docBody, hash: fmt.Sprintf("%x", sha256.Sum256(content))})
 	}
-	var prompt strings.Builder
+	var output strings.Builder
 	// Hash complete sources as well as including their bodies, so frontmatter-only
 	// changes also require regeneration. No timestamp or environment data is emitted.
-	fmt.Fprintf(&prompt, "<!-- Generated from the canonical skill and its explicit documentation dependencies. Do not edit. Skill SHA256: %x -->\n\n", sha256.Sum256([]byte(skill)))
-	prompt.WriteString(rewriteLinks(body, links))
+	fmt.Fprintf(&output, "<!-- Generated from the canonical skill and its explicit documentation dependencies. Do not edit. Skill SHA256: %x -->\n\n", sha256.Sum256([]byte(skill)))
+	output.WriteString(rewriteLinks(body, links))
 	for _, doc := range documents {
-		fmt.Fprintf(&prompt, "\n<a id=%q></a>\n\n## Included documentation: %s\n\n", strings.TrimPrefix(links[doc.path], "#"), doc.path)
-		fmt.Fprintf(&prompt, "<!-- Source SHA256: %s -->\n\n", doc.hash)
-		prompt.WriteString(rewriteLinks(doc.body, links))
+		fmt.Fprintf(&output, "\n<a id=%q></a>\n\n## Included documentation: %s\n\n", strings.TrimPrefix(links[doc.path], "#"), doc.path)
+		fmt.Fprintf(&output, "<!-- Source SHA256: %s -->\n\n", doc.hash)
+		output.WriteString(rewriteLinks(doc.body, links))
 	}
-	return prompt.String(), nil
+	return output.String(), nil
 }
 
 func rewriteLinks(body string, links map[string]string) string {

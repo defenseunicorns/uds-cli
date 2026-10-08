@@ -13,7 +13,7 @@ uncertainties rather than guessing.
 
 Use these maintained documents as the source of truth for schema and migration
 behavior. Read only the sections relevant to the supplied bundle. In the binary's
-printed prompt, these links point to documentation included below; no repository
+printed skill, these links point to documentation included below; no repository
 checkout or web access is required. When using the repository skill directly,
 read the linked local files. Do not fetch documentation or missing inputs online.
 
