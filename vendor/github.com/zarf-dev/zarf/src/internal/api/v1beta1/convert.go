@@ -96,7 +96,7 @@ func componentToGeneric(c v1beta1.Component) api.Component {
 	for _, f := range c.Files {
 		gc.Files = append(gc.Files, api.File{
 			Source:           f.Source,
-			Checksum:         f.Checksum,
+			Checksum:         api.ParseFileChecksum(f.Checksum),
 			Destination:      f.Destination,
 			Executable:       f.Executable,
 			Symlinks:         f.Symlinks,
@@ -108,7 +108,7 @@ func componentToGeneric(c v1beta1.Component) api.Component {
 	for _, img := range c.Images {
 		gc.Images = append(gc.Images, api.Image{
 			Name:   img.Name,
-			Source: img.Source,
+			Source: api.ImageSource(img.Source),
 		})
 	}
 
@@ -411,7 +411,7 @@ func componentFromGeneric(c api.Component) v1beta1.Component {
 	for _, f := range c.Files {
 		bc.Files = append(bc.Files, v1beta1.File{
 			Source:           f.Source,
-			Checksum:         f.Checksum,
+			Checksum:         f.Checksum.String(),
 			Destination:      f.Destination,
 			Executable:       f.Executable,
 			Symlinks:         f.Symlinks,
@@ -421,9 +421,14 @@ func componentFromGeneric(c api.Component) v1beta1.Component {
 	}
 
 	for _, img := range c.Images {
+		source := img.Source
+		if source == api.ImageSourceRegistryDaemonFallback {
+			// The v1beta1 schema has no fallback source; its default is registry.
+			source = api.ImageSourceRegistry
+		}
 		bc.Images = append(bc.Images, v1beta1.Image{
 			Name:   img.Name,
-			Source: img.Source,
+			Source: v1beta1.ImageSource(source),
 		})
 	}
 

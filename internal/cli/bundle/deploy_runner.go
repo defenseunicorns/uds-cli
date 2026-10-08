@@ -23,11 +23,12 @@ type deployRunnerFunc func(
 ) (*bundlepkg.DeployResult, error)
 
 type deployOptions struct {
-	bundlePath string
-	packages   []string
-	force      bool
-	resume     bool
-	prompt     bool
+	skipArchitectureCheck bool
+	bundlePath            string
+	packages              []string
+	force                 bool
+	resume                bool
+	prompt                bool
 }
 
 type prepareDeploySourceFunc func(
@@ -115,11 +116,12 @@ func runDeployWith(
 	}
 
 	result, err := deps.deploy(ctx, deploySrc, bundlepkg.DeployOptions{
-		Config:   config,
-		Packages: opts.packages,
-		Force:    opts.force,
-		Resume:   opts.resume,
-		Streams:  streams,
+		SkipArchitectureCheck: opts.skipArchitectureCheck,
+		Config:                config,
+		Packages:              opts.packages,
+		Force:                 opts.force,
+		Resume:                opts.resume,
+		Streams:               streams,
 	})
 	if err != nil {
 		return result, err

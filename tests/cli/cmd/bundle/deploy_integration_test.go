@@ -8,12 +8,15 @@ package bundle_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
 
@@ -38,6 +41,7 @@ func (s *DeploySuite) TestDeployCommand_PackagesFlagInHelp() {
 	s.Contains(output, "--packages", "help output should document --packages flag")
 	s.Contains(output, "--force", "help output should document --force flag")
 	s.Contains(output, "--resume", "help output should document --resume flag")
+	s.Contains(output, "--skip-architecture-check")
 }
 
 func (s *DeploySuite) TestDevDeployCommand_HelpAndRouting() {
@@ -48,6 +52,7 @@ func (s *DeploySuite) TestDevDeployCommand_HelpAndRouting() {
 	s.Contains(output, "--force")
 	s.Contains(output, "--resume")
 	s.Contains(output, "--concurrency")
+	s.Contains(output, "--skip-architecture-check")
 	s.Contains(output, "--prompt")
 
 	bundlePath := testutil.TestDataPath("bundles/deploy/init")
@@ -218,4 +223,52 @@ func prepareClusterFreeVariablesBundle(t *testing.T) string {
 	//nolint:gosec // bundleFile is created below t.TempDir().
 	require.NoError(t, os.WriteFile(bundleFile, content, 0o600))
 	return bundlePath
+}
+
+func TestDeployArchitectureOverrideReachesZarf(t *testing.T) {
+	t.Setenv("CLI_SKIP_ARCHITECTURE_CHECK", "true")
+	dir := t.TempDir()
+	pkgDir := filepath.Join(dir, "init")
+	require.NoError(t, os.Mkdir(pkgDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfInitConfig\nmetadata:\n  name: init\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o600))
+	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(bundleFile, []byte(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name = "architecture-test"
+  version = "0.0.1"
+}
+package "init" {
+  source = "init"
+  signature_verification { verify = false }
+}
+`), 0o600))
+	configPath := filepath.Join(dir, "config.uds.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte("variables = { skip_architecture_check = true }\n"), 0o600))
+	artifact, err := bundlepkg.Create(t.Context(), bundleFile, bundlepkg.CreateOptions{
+		Config:  &bundlepkg.UDSBundleConfig{Options: &bundlepkg.ConfigOptions{Architecture: runtime.GOARCH, Concurrency: 1, TmpDir: t.TempDir()}},
+		Signing: bundlepkg.SigningOptions{Mode: bundlepkg.SigningModeUnsigned},
+		Streams: iostreams.IOStreams{},
+	})
+	require.NoError(t, err)
+	for _, route := range [][]string{
+		{"bundle", "dev", "deploy", dir},
+		{"bundle", "deploy", artifact.OutputPath, "--skip-signature-verification"},
+	} {
+		for _, flag := range []string{"", "--skip-architecture-check=false", "--skip-architecture-check"} {
+			args := append([]string{}, route...)
+			args = append(args, "--config", configPath)
+			if flag != "" {
+				args = append(args, flag)
+			}
+			_, err := executeCLI(t, "", args...)
+			if flag == "--skip-architecture-check" {
+				require.ErrorContains(t, err, "--skip-architecture-check is not supported for init packages")
+				continue
+			}
+			require.NoError(t, err, "environment and config variables must not enable the override")
+		}
+	}
 }

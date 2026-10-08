@@ -120,8 +120,11 @@ func (s *DeploySource) Close() error {
 
 // DeployOptions contains options for deploying an entire bundle.
 type DeployOptions struct {
-	Config   *UDSBundleConfig
-	Packages []string
+	// SkipArchitectureCheck permits application images on nodes with a different architecture.
+	// The operator must configure node emulation. Zarf rejects this option for init packages.
+	SkipArchitectureCheck bool
+	Config                *UDSBundleConfig
+	Packages              []string
 	// Force bypasses ValidateDeploySafety, allowing selected packages to deploy
 	// even when required dependencies are absent.
 	Force bool
@@ -350,12 +353,13 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 		bundleDir = filepath.Dir(source.BundlePath)
 	}
 	internal := internalzarf.DeployOptions{
-		Config:             toZarfConfig(opts.Config),
-		BundlePath:         bundlePath,
-		BundleDir:          bundleDir,
-		Packages:           opts.Packages,
-		Resume:             opts.Resume,
-		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
+		SkipArchitectureCheck: opts.SkipArchitectureCheck,
+		Config:                toZarfConfig(opts.Config),
+		BundlePath:            bundlePath,
+		BundleDir:             bundleDir,
+		Packages:              opts.Packages,
+		Resume:                opts.Resume,
+		PackageDeployHooks:    toZarfPackageHooks(opts.PackageDeployHooks),
 	}
 	if opts.BundleDeployHooks.PreDeploy != nil {
 		internal.BundleDeployHooks.PreDeploy = func(ctx context.Context, b *spec.UDSBundle, internalOpts *internalzarf.DeployOptions) error {

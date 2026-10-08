@@ -272,7 +272,7 @@ func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 
 	component := zarfLayout.AsV1beta1().Components[0]
 	assert.Equal(t, "updated/image:v1", component.Images[0].Name)
-	assert.Equal(t, "daemon", component.Images[0].Source)
+	assert.Equal(t, v1beta1.ImageSourceDaemon, component.Images[0].Source)
 	assert.Len(t, component.Import.Local, 2)
 	assert.Len(t, component.Import.Remote, 1)
 	assert.Equal(t, v1beta1.ServiceRegistry, component.Service)
@@ -285,7 +285,7 @@ func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
 	assert.Equal(t, "beta-package", converted.Definition().Metadata.Name)
 
 	component := converted.AsV1beta1().Components[0]
-	assert.Equal(t, "daemon", component.Images[0].Source)
+	assert.Equal(t, v1beta1.ImageSourceDaemon, component.Images[0].Source)
 	assert.Len(t, component.Import.Local, 2)
 	assert.Len(t, component.Import.Remote, 1)
 	assert.Equal(t, v1beta1.ServiceRegistry, component.Service)
@@ -614,4 +614,39 @@ func TestExtractedArtifactPackageLayoutLoaderPackageStagingRoot(t *testing.T) {
 			assert.Equal(t, tt.want, loader.PackageStagingRoot(t.Context()))
 		})
 	}
+}
+
+func TestDeployOptionsPropagateArchitectureOverrideToPackages(t *testing.T) {
+	for _, skip := range []bool{false, true} {
+		opts := toZarfDeployOptions(DeployOptions{Config: validValidationConfig(), SkipArchitectureCheck: skip}, nil)
+		called := false
+		opts.PackageDeployFn = func(_ context.Context, _ *spec.Package, packageOpts internalzarf.DeployPackageOptions) error {
+			called = true
+			assert.Equal(t, skip, packageOpts.SkipArchitectureCheck)
+			return nil
+		}
+		b := &spec.UDSBundle{
+			UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+			Metadata: spec.Metadata{Name: "bundle"},
+			Packages: []spec.Package{{Name: "app", Source: "oci://example.com/app:v1"}},
+		}
+		_, err := internalzarf.NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), b, opts)
+		require.NoError(t, err)
+		assert.True(t, called)
+	}
+}
+
+func TestDeployRejectsArchitectureOverrideForInit(t *testing.T) {
+	pkgDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfInitConfig\nmetadata:\n  name: init\n  architecture: amd64\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o600))
+	_, err := Deploy(t.Context(), &DeploySource{
+		Bundle: &spec.UDSBundle{
+			UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+			Metadata: spec.Metadata{Name: "bundle"},
+			Packages: []spec.Package{{Name: "init", Source: pkgDir}},
+		},
+	}, DeployOptions{Config: validValidationConfig(), SkipArchitectureCheck: true})
+	require.ErrorIs(t, err, ErrDeployBundle)
+	require.ErrorContains(t, err, "--skip-architecture-check is not supported for init packages")
 }

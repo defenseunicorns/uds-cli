@@ -3209,7 +3209,7 @@ github.com/yuin/gopher-lua/pm
 ## explicit; go 1.18
 github.com/zalando/go-keyring
 github.com/zalando/go-keyring/secret_service
-# github.com/zarf-dev/zarf v0.87.0
+# github.com/zarf-dev/zarf v0.87.0 => github.com/JeffResc/zarf v0.0.0-20261007213332-c5a9784f8b08
 ## explicit; go 1.26.6
 github.com/zarf-dev/zarf/src/api
 github.com/zarf-dev/zarf/src/api/convert
@@ -3225,6 +3225,7 @@ github.com/zarf-dev/zarf/src/internal/agent/http/admission
 github.com/zarf-dev/zarf/src/internal/agent/operations
 github.com/zarf-dev/zarf/src/internal/api/v1alpha1
 github.com/zarf-dev/zarf/src/internal/api/v1beta1
+github.com/zarf-dev/zarf/src/internal/checksum
 github.com/zarf-dev/zarf/src/internal/dns
 github.com/zarf-dev/zarf/src/internal/git
 github.com/zarf-dev/zarf/src/internal/gitea
@@ -4835,3 +4836,4 @@ sigs.k8s.io/structured-merge-diff/v6/value
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v3
 sigs.k8s.io/yaml/kyaml
+# github.com/zarf-dev/zarf => github.com/JeffResc/zarf v0.0.0-20261007213332-c5a9784f8b08

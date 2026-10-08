@@ -218,21 +218,22 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 	}
 
 	return packager.DeployOptions{
-		ForceConflicts:     b.cfg.DeployOpts.ForceConflicts,
-		Timeout:            timeout,
-		SetVariables:       pkgVars,
-		ValuesOverridesMap: valuesOverrides,
-		Retries:            b.cfg.DeployOpts.Retries,
-		NamespaceOverride:  pkg.Namespace,
-		RemoteOptions:      remoteOpts,
-		TakeOwnership:      false,
-		Connected:          config.Dev,
-		OCIConcurrency:     config.CommonOptions.OCIConcurrency,
-		GitServer:          newGitServerInfo(pkgVars, pkgKind),
-		RegistryInfo:       registryInfo,
-		ArtifactServer:     newArtifactServerInfo(pkgVars, pkgKind),
-		StorageClass:       newStorageClass(pkgVars, pkgKind),
-		IsInteractive:      !config.CommonOptions.Confirm,
+		SkipArchitectureCheck: b.cfg.DeployOpts.SkipArchitectureCheck,
+		ForceConflicts:        b.cfg.DeployOpts.ForceConflicts,
+		Timeout:               timeout,
+		SetVariables:          pkgVars,
+		ValuesOverridesMap:    valuesOverrides,
+		Retries:               b.cfg.DeployOpts.Retries,
+		NamespaceOverride:     pkg.Namespace,
+		RemoteOptions:         remoteOpts,
+		TakeOwnership:         false,
+		Connected:             config.Dev,
+		OCIConcurrency:        config.CommonOptions.OCIConcurrency,
+		GitServer:             newGitServerInfo(pkgVars, pkgKind),
+		RegistryInfo:          registryInfo,
+		ArtifactServer:        newArtifactServerInfo(pkgVars, pkgKind),
+		StorageClass:          newStorageClass(pkgVars, pkgKind),
+		IsInteractive:         !config.CommonOptions.Confirm,
 	}, nil
 }
 
@@ -406,9 +407,10 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	}
 
 	// validate bundle's arch against cluster
-	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
-	if err != nil {
-		return "", "", "", err
+	if !b.cfg.DeployOpts.SkipArchitectureCheck {
+		if err := ValidateArch(config.GetArch(b.bundle.Build.Architecture)); err != nil {
+			return "", "", "", err
+		}
 	}
 
 	b.prefetchPackageMetadata(provider)

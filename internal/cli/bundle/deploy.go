@@ -22,14 +22,15 @@ import (
 
 // DeployOptions holds options for artifact deployment.
 type DeployOptions struct {
-	BundlePath   string
-	Packages     []string
-	Force        bool
-	Resume       bool
-	Variables    []string
-	Config       *bundle.UDSBundleConfig
-	Verification VerifyOptions
-	Printer      printer.ResourcePrinter
+	SkipArchitectureCheck bool
+	BundlePath            string
+	Packages              []string
+	Force                 bool
+	Resume                bool
+	Variables             []string
+	Config                *bundle.UDSBundleConfig
+	Verification          VerifyOptions
+	Printer               printer.ResourcePrinter
 
 	flags      CLIFlags
 	pullBundle func(context.Context, string, string, bundle.PullOptions) (*bundle.PullResult, error)
@@ -82,16 +83,17 @@ inputs and must use uds bundle dev deploy instead.`,
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.Variables)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.SkipArchitectureCheck, &o.Variables)
 	addVerificationFlags(cmd, &o.Verification, true)
 
 	return cmd
 }
 
-func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, resume *bool, variables *[]string) {
+func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, resume *bool, skipArchitectureCheck *bool, variables *[]string) {
 	cmd.Flags().StringSliceVarP(packages, "packages", "p", nil, "specific packages to deploy (comma-separated)")
 	cmd.Flags().BoolVarP(force, "force", "f", false, "deploy packages even if their dependencies are not selected")
 	cmd.Flags().BoolVarP(resume, "resume", "r", false, "skip packages already deployed successfully")
+	cmd.Flags().BoolVar(skipArchitectureCheck, "skip-architecture-check", false, "allow application images to deploy to nodes with a different architecture; requires node emulation support, intended for development and testing, not recommended for production")
 	cmd.Flags().StringArrayVarP(variables, "set", "s", nil, "set a deploy-time variable using key=value")
 }
 
@@ -213,11 +215,12 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 			}
 		}
 		result, err = runner(ctx, o.IOStreams, baseConfig, deployOptions{
-			bundlePath: o.BundlePath,
-			packages:   o.Packages,
-			force:      o.Force,
-			resume:     o.Resume,
-			prompt:     o.flags.Prompt,
+			skipArchitectureCheck: o.SkipArchitectureCheck,
+			bundlePath:            o.BundlePath,
+			packages:              o.Packages,
+			force:                 o.Force,
+			resume:                o.Resume,
+			prompt:                o.flags.Prompt,
 		})
 	}
 	if err != nil {
@@ -266,11 +269,12 @@ func (o *DeployOptions) runOCIArtifact(ctx context.Context, runner deployRunnerF
 	}
 
 	return runner(ctx, o.IOStreams, o.Config, deployOptions{
-		bundlePath: artifactPath,
-		packages:   o.Packages,
-		force:      o.Force,
-		resume:     o.Resume,
-		prompt:     o.flags.Prompt,
+		skipArchitectureCheck: o.SkipArchitectureCheck,
+		bundlePath:            artifactPath,
+		packages:              o.Packages,
+		force:                 o.Force,
+		resume:                o.Resume,
+		prompt:                o.flags.Prompt,
 	})
 }
 

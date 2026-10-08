@@ -321,6 +321,7 @@ $ zarf package mirror-resources zarf-package-my-app-amd64-1.0.0.tar.zst --repos 
 	CmdPackageDeployInvalidCLIVersionWarn      = "CLIVersion is set to '%s' which can cause issues with package creation and deployment. To avoid such issues, please set the value to the valid semantic version for this version of Zarf."
 	CmdPackageDeployFlagNamespace              = "[Alpha] Override the namespace for package deployment. Requires the package to have only one distinct namespace defined."
 	CmdPackageDeployFlagValuesFiles            = CmdPackageCreateFlagValuesFiles
+	CmdPackageDeployFlagSkipArchitectureCheck  = "Allow application images to deploy to nodes with a different architecture. Requires node emulation support; intended for development and testing, not recommended for production."
 	CmdPackageDeployFlagSkipValuesSchema       = "Skip validation of package values against the values schema."
 
 	CmdPackageMirrorFlagComponents = "Comma-separated list of components to mirror.  This list will be respected regardless of a component's 'required' or 'default' status.  Globbing component names with '*' and deselecting components with a leading '-' are also supported."
@@ -570,7 +571,7 @@ $ zarf package pull oci://ghcr.io/zarf-dev/packages/dos-games:1.3.0 -a skeleton`
 	CmdDevFlagRegistry                     = "Override the ###ZARF_REGISTRY### value"
 	CmdDevFlagFindImagesWhy                = "Prints the source manifest for the specified image"
 	CmdDevFlagFindImagesSkipCosign         = "Skip searching for cosign artifacts related to discovered images"
-	CmdDevFlagFindImagesUpdate             = "Update the images in the zarf.yaml file if needed. Formatting such as comments and newlines may change."
+	CmdDevFlagFindImagesUpdate             = "Update the images in the zarf file if needed. Formatting such as comments and newlines may change."
 	CmdDevFlagGenerateSchemaUpdate         = "Update the existing schema. Formatting such as ordering and newlines may change."
 	CmdDevFlagGenerateSchemaDeleteNotFound = "Remove existing schema keys when they are not found in the mapped values"
 

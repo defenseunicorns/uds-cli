@@ -181,3 +181,18 @@ func TestNewDevCommand_ContainsDeploy(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "deploy", found.Name())
 }
+
+func TestDevDeployOptions_Run_PassesArchitectureOverride(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+	o := NewDevDeployOptions(streams)
+	o.BundlePath = "."
+	o.SkipArchitectureCheck = true
+	called := false
+	o.runDeploy = func(_ context.Context, _ iostreams.IOStreams, _ *bundlepkg.UDSBundleConfig, opts deployOptions) (*bundlepkg.DeployResult, error) {
+		called = true
+		assert.True(t, opts.skipArchitectureCheck)
+		return nil, nil
+	}
+	require.NoError(t, o.Run(t.Context()))
+	assert.True(t, called)
+}

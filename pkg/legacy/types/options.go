@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package types contains all the types used by UDS.
@@ -28,13 +28,15 @@ type BundleCreateOptions struct {
 
 // BundleDeployOptions is the options for the bundler.Deploy() function
 type BundleDeployOptions struct {
-	Resume         bool
-	Source         string
-	Config         string
-	Packages       []string
-	PublicKeyPath  string
-	ForceConflicts bool
-	SetVariables   map[string]string `json:"setVariables" jsonschema:"description=Key-Value map of variable names and their corresponding values that will be used by Zarf packages in a bundle"`
+	// SkipArchitectureCheck permits application package architecture mismatches through explicit opt-in.
+	SkipArchitectureCheck bool `yaml:"-" json:"-"`
+	Resume                bool
+	Source                string
+	Config                string
+	Packages              []string
+	PublicKeyPath         string
+	ForceConflicts        bool
+	SetVariables          map[string]string `json:"setVariables" jsonschema:"description=Key-Value map of variable names and their corresponding values that will be used by Zarf packages in a bundle"`
 	// Variables and SharedVariables are read in from uds-config.yaml
 	Variables       map[string]map[string]interface{} `yaml:"variables,omitempty"`
 	SharedVariables map[string]interface{}            `yaml:"shared,omitempty"`

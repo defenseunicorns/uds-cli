@@ -1,10 +1,11 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package cmd contains the CLI commands for UDS.
 package cmd
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
@@ -61,4 +62,28 @@ func TestPublishForceUploadFlag(t *testing.T) {
 	flag := publishCmd.Flags().Lookup("force-upload")
 	require.NotNil(t, flag)
 	require.Equal(t, "false", flag.DefValue)
+}
+
+func TestDeployArchitectureOverrideRequiresCLIOptIn(t *testing.T) {
+	t.Setenv("UDS_SKIP_ARCHITECTURE_CHECK", "true")
+	t.Setenv("UDS_DEPLOY_SKIP_ARCHITECTURE_CHECK", "true")
+	for _, path := range [][]string{{"deploy"}, {"dev", "deploy"}} {
+		t.Run(strings.Join(path, "/"), func(t *testing.T) {
+			root := NewRootCommand()
+			v.Set("deploy.skip-architecture-check", true)
+			cmd, _, err := root.Find(path)
+			require.NoError(t, err)
+			require.NoError(t, applyViperFlags(cmd))
+			require.False(t, bundleCfg.DeployOpts.SkipArchitectureCheck)
+			require.Equal(t, "false", cmd.Flags().Lookup("skip-architecture-check").DefValue)
+			require.NoError(t, cmd.ParseFlags([]string{"--skip-architecture-check"}))
+			require.True(t, bundleCfg.DeployOpts.SkipArchitectureCheck)
+			require.NoError(t, unmarshalAndValidateConfig([]byte("retries: 2\n"), &bundleCfg))
+			require.True(t, bundleCfg.DeployOpts.SkipArchitectureCheck)
+			require.NoError(t, cmd.ParseFlags([]string{"--skip-architecture-check=false"}))
+			require.False(t, bundleCfg.DeployOpts.SkipArchitectureCheck)
+			require.Error(t, unmarshalAndValidateConfig([]byte("skiparchitecturecheck: true\n"), &bundleCfg))
+			require.False(t, bundleCfg.DeployOpts.SkipArchitectureCheck)
+		})
+	}
 }

@@ -2,6 +2,9 @@ module github.com/defenseunicorns/uds-cli
 
 go 1.26.6
 
+// Temporary fork for https://github.com/zarf-dev/zarf/pull/5451.
+replace github.com/zarf-dev/zarf => github.com/JeffResc/zarf v0.0.0-20261007213332-c5a9784f8b08
+
 require (
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/AlecAivazis/survey/v2 v2.3.7

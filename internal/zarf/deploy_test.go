@@ -22,7 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
 type stagingRetryLoader struct {
@@ -683,4 +685,24 @@ func TestDeployBundleRebindsLoggerAfterPreDeployHook(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotContains(t, errOut.String(), "deploying bundle")
+}
+
+func TestDeployPackagePassesArchitectureOverrideToZarf(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "app")
+	for _, skip := range []bool{false, true} {
+		called := false
+		err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{Name: "app", Source: pkgDir}, DeployPackageOptions{
+			Config:                newDeployTestConfig(1),
+			BundleDir:             t.TempDir(),
+			SkipArchitectureCheck: skip,
+			ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+				called = true
+				assert.Equal(t, skip, opts.SkipArchitectureCheck)
+				return nil
+			},
+		})
+		require.NoError(t, err)
+		assert.True(t, called)
+	}
 }

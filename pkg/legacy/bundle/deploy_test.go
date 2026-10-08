@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -6,6 +6,7 @@ package bundle
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,10 +20,15 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/valuesources"
+	"github.com/mholt/archives"
+	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 	"helm.sh/helm/v4/pkg/cli/values"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 type ConfigVariables map[string]map[string]interface{}
@@ -1072,5 +1078,73 @@ func Test_newStorageClass(t *testing.T) {
 			actual := newStorageClass(pkgVars, tt.pkgKind)
 			require.Equal(t, tt.expected, actual)
 		})
+	}
+}
+
+func TestPreDeployValidationArchitectureOverride(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/version":
+			_, err := fmt.Fprint(w, `{"gitVersion":"v1.37.0"}`)
+			if err != nil {
+				t.Error(err)
+			}
+		case "/api/v1/nodes":
+			_, err := fmt.Fprint(w, `{"apiVersion":"v1","kind":"NodeList","items":[{"metadata":{"name":"arm64-node"},"status":{"nodeInfo":{"architecture":"arm64"}}}]}`)
+			if err != nil {
+				t.Error(err)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	kubeconfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+	require.NoError(t, clientcmd.WriteToFile(clientcmdapi.Config{
+		Clusters:       map[string]*clientcmdapi.Cluster{"test": {Server: server.URL}},
+		Contexts:       map[string]*clientcmdapi.Context{"test": {Cluster: "test"}},
+		CurrentContext: "test",
+	}, kubeconfigPath))
+	t.Setenv("KUBECONFIG", kubeconfigPath)
+	originalArch := config.CLIArch
+	config.CLIArch = ""
+	t.Cleanup(func() { config.CLIArch = originalArch })
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, config.BlobsDir), 0o700))
+	metadata := []byte("kind: UDSBundle\nmetadata:\n  name: architecture-test\nbuild:\n  architecture: amd64\npackages: []\n")
+	metadataDigest := digest.FromBytes(metadata)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, config.BlobsDir, metadataDigest.Encoded()), metadata, 0o600))
+	manifest, err := json.Marshal(ocispec.Manifest{Layers: []ocispec.Descriptor{{
+		Digest: metadataDigest, Size: int64(len(metadata)), Annotations: map[string]string{ocispec.AnnotationTitle: config.BundleYAML},
+	}}})
+	require.NoError(t, err)
+	manifestDigest := digest.FromBytes(manifest)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, config.BlobsDir, manifestDigest.Encoded()), manifest, 0o600))
+	index, err := json.Marshal(ocispec.Index{Manifests: []ocispec.Descriptor{{Digest: manifestDigest, Size: int64(len(manifest))}}})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.json"), index, 0o600))
+	files, err := archives.FilesFromDisk(t.Context(), nil, map[string]string{
+		filepath.Join(dir, "index.json"):                              "index.json",
+		filepath.Join(dir, config.BlobsDir, metadataDigest.Encoded()): filepath.Join(config.BlobsDir, metadataDigest.Encoded()),
+		filepath.Join(dir, config.BlobsDir, manifestDigest.Encoded()): filepath.Join(config.BlobsDir, manifestDigest.Encoded()),
+	})
+	require.NoError(t, err)
+	bundlePath := filepath.Join(t.TempDir(), "uds-bundle-architecture-test-amd64-0.0.1.tar.zst")
+	out, err := os.Create(bundlePath)
+	require.NoError(t, err)
+	require.NoError(t, config.BundleArchiveFormat.Archive(t.Context(), out, files))
+	require.NoError(t, out.Close())
+
+	for _, skip := range []bool{false, true} {
+		b := &Bundle{tmp: t.TempDir(), cfg: &types.BundleConfig{DeployOpts: types.BundleDeployOptions{Source: bundlePath, SkipArchitectureCheck: skip}}}
+		name, _, _, err := b.PreDeployValidation()
+		if !skip {
+			require.ErrorContains(t, err, "arch amd64 does not match cluster arch")
+			continue
+		}
+		require.NoError(t, err)
+		require.Equal(t, "architecture-test", name)
 	}
 }

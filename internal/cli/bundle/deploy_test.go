@@ -249,11 +249,13 @@ func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {
 			runner := func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, opts deployOptions) (*bundle.DeployResult, error) {
 				runnerCalls++
 				assert.FileExists(t, opts.bundlePath)
+				assert.True(t, opts.skipArchitectureCheck)
 				return tt.result, nil
 			}
 
 			o := NewDeployOptions(streams)
 			o.BundlePath = "oci://example.com/test:1.0.0"
+			o.SkipArchitectureCheck = true
 			o.Verification.SkipSignatureVerification = true
 			o.pullBundle = puller.PullBundle
 			o.runDeploy = runner
@@ -456,3 +458,19 @@ func (r *brokenReader) Read(_ []byte) (int, error) {
 }
 
 var _ io.Reader = (*brokenReader)(nil)
+
+func TestDeployOptions_Run_LocalPassesArchitectureOverride(t *testing.T) {
+	streams, _, _, _ := iostreams.NewTestIOStreams()
+	o := NewDeployOptions(streams)
+	o.BundlePath = "bundle.tar.zst"
+	o.SkipArchitectureCheck = true
+	o.Verification.SkipSignatureVerification = true
+	called := false
+	o.runDeploy = func(_ context.Context, _ iostreams.IOStreams, _ *bundle.UDSBundleConfig, opts deployOptions) (*bundle.DeployResult, error) {
+		called = true
+		assert.True(t, opts.skipArchitectureCheck)
+		return nil, nil
+	}
+	require.NoError(t, o.Run(t.Context()))
+	assert.True(t, called)
+}

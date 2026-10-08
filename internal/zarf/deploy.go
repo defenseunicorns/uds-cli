@@ -44,6 +44,8 @@ type BundleDeployHooks struct {
 
 // DeployOptions contains private options for deploying a bundle.
 type DeployOptions struct {
+	// SkipArchitectureCheck permits application package architecture mismatches.
+	SkipArchitectureCheck bool
 	// Config is the resolved deployment configuration.
 	Config *UDSBundleConfig
 	// BundlePath identifies the bundle definition.
@@ -78,6 +80,8 @@ type Deployer interface {
 
 // DeployPackageOptions contains options for deploying a single package.
 type DeployPackageOptions struct {
+	// SkipArchitectureCheck is passed to Zarf's deployment compatibility check.
+	SkipArchitectureCheck bool
 	// Config is the merged configuration and is always non-nil.
 	Config *UDSBundleConfig
 	// BundleDir resolves package-relative paths.
@@ -218,11 +222,12 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		bundleDir = opts.BundleDir
 	}
 	pkgOpts := DeployPackageOptions{
-		Config:             opts.Config,
-		BundleDir:          bundleDir,
-		PackageDeployHooks: opts.PackageDeployHooks,
-		Streams:            s,
-		bundlePath:         opts.BundlePath,
+		SkipArchitectureCheck: opts.SkipArchitectureCheck,
+		Config:                opts.Config,
+		BundleDir:             bundleDir,
+		PackageDeployHooks:    opts.PackageDeployHooks,
+		Streams:               s,
+		bundlePath:            opts.BundlePath,
 	}
 
 	s.Info("deploying bundle", "packages", deployCount, "levels", len(levels), "concurrency", concurrency)
@@ -327,10 +332,11 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	}()
 
 	deployOpts := packager.DeployOptions{
-		Values:            zarfValues, // Helm chart values from values_files
-		SetVariables:      setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
-		IsInteractive:     false,
-		NamespaceOverride: pkg.Namespace, // empty string is fine - Zarf ignores it
+		SkipArchitectureCheck: opts.SkipArchitectureCheck,
+		Values:                zarfValues, // Helm chart values from values_files
+		SetVariables:          setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
+		IsInteractive:         false,
+		NamespaceOverride:     pkg.Namespace, // empty string is fine - Zarf ignores it
 	}
 
 	log.Info("deploying zarf package to cluster", "name", pkg.Name)

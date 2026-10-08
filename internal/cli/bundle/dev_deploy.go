@@ -18,13 +18,14 @@ const bundleDefinitionDeployDiagnostic = "WARNING: deploying directly from a bun
 
 // DevDeployOptions holds options for bundle definition deployment.
 type DevDeployOptions struct {
-	BundlePath string
-	Packages   []string
-	Force      bool
-	Resume     bool
-	Variables  []string
-	Config     *bundlepkg.UDSBundleConfig
-	Printer    printer.ResourcePrinter
+	SkipArchitectureCheck bool
+	BundlePath            string
+	Packages              []string
+	Force                 bool
+	Resume                bool
+	Variables             []string
+	Config                *bundlepkg.UDSBundleConfig
+	Printer               printer.ResourcePrinter
 
 	flags     CLIFlags
 	runDeploy deployRunnerFunc
@@ -72,7 +73,7 @@ local and OCI bundle artifacts must use uds bundle deploy instead.`,
 		},
 	}
 
-	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.Variables)
+	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.SkipArchitectureCheck, &o.Variables)
 
 	return cmd
 }
@@ -126,11 +127,12 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 		runner = runDeploy
 	}
 	result, err := runner(ctx, o.IOStreams, baseConfig, deployOptions{
-		bundlePath: resolveBundlePath(o.BundlePath),
-		packages:   o.Packages,
-		force:      o.Force,
-		resume:     o.Resume,
-		prompt:     o.flags.Prompt,
+		skipArchitectureCheck: o.SkipArchitectureCheck,
+		bundlePath:            resolveBundlePath(o.BundlePath),
+		packages:              o.Packages,
+		force:                 o.Force,
+		resume:                o.Resume,
+		prompt:                o.flags.Prompt,
 	})
 	if err != nil {
 		return err

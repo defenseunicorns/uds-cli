@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/transform"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -38,6 +39,8 @@ const (
 	PkgValidateErrManifestNameLength      = "manifest %q exceed the maximum length of %d characters"
 	PkgValidateErrNoComponents            = "package does not contain any compatible components"
 	PkgValidateErrGitURLWithRef           = "git URL %q must not contain an embedded ref; use the ref field instead"
+	PkgValidateErrFileChecksumAlgorithm   = "component %q file %q has unsupported checksum algorithm %q (expected sha256 or sha512)"
+	PkgValidateErrImageConflictingSources = "image %q has conflicting sources %q and %q"
 )
 
 // ValidationErrors contains all errors found during package validation.
@@ -70,12 +73,31 @@ func ValidatePackage(pkg v1beta1.Package) ValidationErrors {
 		errs = append(errs, errors.New(PkgValidateErrNoComponents))
 	}
 	uniqueComponentNames := make(map[string]bool)
+	seenSources := make(map[string]v1beta1.ImageSource)
 	for _, component := range pkg.Components {
 		// ensure component name is unique
 		if _, ok := uniqueComponentNames[component.Name]; ok {
 			errs = append(errs, fmt.Errorf(PkgValidateErrComponentNameNotUnique, component.Name))
 		}
 		uniqueComponentNames[component.Name] = true
+		for _, image := range component.Images {
+			ref, err := transform.ParseImageRef(image.Name)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("invalid image %q: %w", image.Name, err))
+				continue
+			}
+			source := image.Source
+			if source == "" {
+				source = v1beta1.ImageSourceRegistry
+			}
+			if previous, exists := seenSources[ref.Reference]; exists {
+				if previous != source {
+					errs = append(errs, fmt.Errorf(PkgValidateErrImageConflictingSources, ref.Reference, previous, source))
+				}
+				continue
+			}
+			seenSources[ref.Reference] = source
+		}
 
 		errs = append(errs, ValidateComponent(component)...)
 	}
@@ -87,6 +109,12 @@ func ValidatePackage(pkg v1beta1.Package) ValidationErrors {
 // standalone component configs. The component name is used in diagnostics.
 func ValidateComponent(component v1beta1.Component) ValidationErrors {
 	var errs ValidationErrors
+	for _, file := range component.Files {
+		if algorithm, _, hasPrefix := strings.Cut(file.Checksum, ":"); hasPrefix &&
+			algorithm != string(api.ChecksumSHA256) && algorithm != string(api.ChecksumSHA512) {
+			errs = append(errs, fmt.Errorf(PkgValidateErrFileChecksumAlgorithm, component.Name, file.Source, algorithm))
+		}
+	}
 	for _, repository := range component.Repositories {
 		if err := validateGitURL(repository.URL); err != nil {
 			errs = append(errs, err)

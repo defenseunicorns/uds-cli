@@ -138,3 +138,12 @@ func TestNewDeployOptionsUsesPackageNamespace(t *testing.T) {
 	require.True(t, deployOpts.ForceConflicts)
 	require.Equal(t, 2, deployOpts.Retries)
 }
+
+func TestNewDeployOptionsPassesArchitectureOverride(t *testing.T) {
+	for _, skip := range []bool{false, true} {
+		bndl := Bundle{cfg: &types.BundleConfig{DeployOpts: types.BundleDeployOptions{SkipArchitectureCheck: skip}}}
+		opts, err := bndl.newDeployOptions(t.Context(), types.Package{Name: "app"}, nil, nil, v1alpha1.ZarfPackageConfig, state.RegistryInfo{})
+		require.NoError(t, err)
+		require.Equal(t, skip, opts.SkipArchitectureCheck)
+	}
+}
