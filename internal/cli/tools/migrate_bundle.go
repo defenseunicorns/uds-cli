@@ -5,7 +5,9 @@ package tools
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -29,11 +31,13 @@ func NewMigrateBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 
 // NewMigrationSkillCommand creates the migration skill command.
 func NewMigrationSkillCommand(streams iostreams.IOStreams) *cobra.Command {
-	return &cobra.Command{
+	var outputPath string
+	cmd := &cobra.Command{
 		Use:   "skill",
-		Short: "Print the Legacy-to-Next migration skill",
+		Short: "Output the Legacy-to-Next migration skill",
 		Long: `Print the canonical Legacy-to-Next migration skill and its included
-documentation for an AI coding agent. This command only prints text;
+documentation for an AI coding agent, or write it to a new file with -o.
+Existing files are not overwritten. This command only outputs instructions;
 it does not migrate files or run bundle operations. No repository checkout or
 web access is required to obtain the instructions.
 
@@ -53,9 +57,30 @@ Example request to your coding agent:
   directory. Preserve the Legacy input. Do not run any other UDS commands
   or use a cluster.`,
 		Args: cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			_, err := fmt.Fprint(streams.Out(), migrationSkill)
-			return err
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if outputPath == "" {
+				if cmd.Flags().Changed("output") {
+					return errors.New("output path must not be empty")
+				}
+				_, err := fmt.Fprint(streams.Out(), migrationSkill)
+				return err
+			}
+
+			file, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			if err != nil {
+				return fmt.Errorf("create migration skill file %q: %w", outputPath, err)
+			}
+			_, writeErr := fmt.Fprint(file, migrationSkill)
+			closeErr := file.Close()
+			if writeErr != nil {
+				return fmt.Errorf("write migration skill file %q: %w", outputPath, writeErr)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("close migration skill file %q: %w", outputPath, closeErr)
+			}
+			return nil
 		},
 	}
+	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "write the skill to a new file instead of stdout")
+	return cmd
 }

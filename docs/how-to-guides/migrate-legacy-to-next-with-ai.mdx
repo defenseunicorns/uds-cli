@@ -49,16 +49,23 @@ optionally deploy to a non-production cluster.
    maintained documentation. Links to included documents point to sections
    within the output.
    You do not need a repository checkout, a separate skill file, or web access
-   to obtain the instructions. The command only prints text.
+   to obtain the instructions. The command only prints text unless you give it
+   an output path. To save the skill in a new file instead of printing it, run:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds tools migrate-bundle skill -o /tmp/migration-skill.md
+   ```
+
+   The target directory must exist. The command does not replace an existing file.
 
 2. **Generate the Next files**
 
    Start your coding agent in the same working directory.
 
-   Paste the printed skill into your agent, replacing `uds-bundle.yaml` with your Legacy
-   bundle path. The agent writes the proposed files in your current working
-   directory. Move any existing migration output files before starting, or choose
-   another output location in your request.
+   Paste the printed skill into your agent, or give it the saved file. Replace
+   `uds-bundle.yaml` with your Legacy bundle path. The agent writes the proposed
+   files in your current working directory. Move any existing migration output
+   files before starting, or choose another output location in your request.
 
    Alternatively, ask the agent to run the skill command and follow its output.
    Replace `<path-to-legacy-bundle>/uds-bundle.yaml` with your local bundle path:
