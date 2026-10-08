@@ -1,0 +1,139 @@
+---
+title: Customize Zarf init in a bundle
+description: Configure Zarf init settings when deploying a bundle using environment variables or uds-config.yaml.
+sidebar:
+  order: 3.300
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## What you'll accomplish
+
+Configure the container registry, Git server, artifact server, or storage class that Zarf uses when initializing a cluster through a UDS bundle. Supply the `INIT_*` values at deployment time through `UDS_INIT_*` environment variables or `uds-config.yaml`.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A compiled bundle containing a Zarf init package (`kind: ZarfInitConfig`) before packages that depend on it
+- A target Kubernetes cluster selected through your kubeconfig that you have not yet initialized with Zarf
+- Access to the external services you configure, including credentials with push access and any separate pull credentials
+
+## Before you begin
+
+These settings apply when UDS deploys the Zarf init package. You do not need to declare them as Helm overrides or as variables in the bundle definition. For a config file, use the init package's `name` from the `packages` list in `uds-bundle.yaml`; this can differ from the name in the underlying `zarf.yaml`.
+
+The following keys configure init. In an environment variable, prepend `UDS_` to the key: for example, `INIT_GIT_URL` becomes `UDS_INIT_GIT_URL`.
+
+| Config key | Purpose |
+| --- | --- |
+| `INIT_REGISTRY_URL` | Container registry address, such as `registry.example.com:5000`, without a URL scheme. |
+| `INIT_REGISTRY_MODE` | Registry access mode: `nodeport`, `proxy`, or `external`. Zarf's `proxy` mode requires its RegistryProxy feature. Use `external` for an external registry. |
+| `INIT_REGISTRY_PUSH_USERNAME` | Username with permission to push images. |
+| `INIT_REGISTRY_PUSH_PASSWORD` | Password for the registry push user. |
+| `INIT_REGISTRY_PULL_USERNAME` | Username with permission to pull images. |
+| `INIT_REGISTRY_PULL_PASSWORD` | Password for the registry pull user. |
+| `INIT_REGISTRY_SECRET` | Secret value used by the internal registry, rather than a Kubernetes Secret name. |
+| `INIT_REGISTRY_NODEPORT` | Internal registry port, supplied as an integer. In `nodeport` mode, this is a Kubernetes NodePort. |
+| `INIT_GIT_URL` | Git server URL, such as `https://git.example.com`. |
+| `INIT_GIT_PUSH_USERNAME` | Username with permission to push Git repositories. |
+| `INIT_GIT_PUSH_PASSWORD` | Password or access token for the Git push user. |
+| `INIT_GIT_PULL_USERNAME` | Username with permission to pull Git repositories. |
+| `INIT_GIT_PULL_PASSWORD` | Password or access token for the Git pull user. |
+| `INIT_ARTIFACT_URL` | Artifact server URL. |
+| `INIT_ARTIFACT_PUSH_USERNAME` | Username with permission to push to the artifact server. |
+| `INIT_ARTIFACT_PUSH_TOKEN` | Token for the artifact server push user. |
+| `INIT_STORAGE_CLASS` | Storage class for Zarf's init configuration and variable templating. |
+
+Supply only the settings you need. Zarf supplies defaults for omitted settings; for an external registry or Git server, Zarf uses the push credentials for pulling if you omit separate pull credentials. You must provision the external services and any storage class you name before deployment.
+
+## Steps
+
+<Steps>
+
+1. **Choose how to supply the init settings**
+
+   The examples configure an external registry, an external Git server, and a storage class. Replace the service addresses, usernames, credential placeholders, and `standard` with values for your environment. Omit any settings you do not need. Keep credentials out of source control.
+
+   <Tabs>
+   <TabItem label="Environment variables">
+
+   Export each setting with the `UDS_` prefix. UDS removes the prefix before passing the value to Zarf init.
+
+   ```bash
+   export UDS_INIT_REGISTRY_URL="registry.example.com:5000"
+   export UDS_INIT_REGISTRY_MODE="external"
+   export UDS_INIT_REGISTRY_PUSH_USERNAME="registry-push-user"
+   export UDS_INIT_REGISTRY_PUSH_PASSWORD="replace-with-registry-push-password"
+   export UDS_INIT_REGISTRY_PULL_USERNAME="registry-pull-user"
+   export UDS_INIT_REGISTRY_PULL_PASSWORD="replace-with-registry-pull-password"
+   export UDS_INIT_GIT_URL="https://git.example.com"
+   export UDS_INIT_GIT_PUSH_USERNAME="git-push-user"
+   export UDS_INIT_GIT_PUSH_PASSWORD="replace-with-git-push-token"
+   export UDS_INIT_GIT_PULL_USERNAME="git-pull-user"
+   export UDS_INIT_GIT_PULL_PASSWORD="replace-with-git-pull-token"
+   export UDS_INIT_STORAGE_CLASS="standard"
+   ```
+
+   </TabItem>
+   <TabItem label="uds-config.yaml">
+
+   Place `uds-config.yaml` in your working directory. Replace `init` below with the init package's name in `uds-bundle.yaml`. Use `INIT_*` keys without the `UDS_` prefix under that package's `variables` entry.
+
+   ```yaml title="uds-config.yaml"
+   variables:
+     init:
+       INIT_REGISTRY_URL: "registry.example.com:5000"
+       INIT_REGISTRY_MODE: "external"
+       INIT_REGISTRY_PUSH_USERNAME: "registry-push-user"
+       INIT_REGISTRY_PUSH_PASSWORD: "replace-with-registry-push-password"
+       INIT_REGISTRY_PULL_USERNAME: "registry-pull-user"
+       INIT_REGISTRY_PULL_PASSWORD: "replace-with-registry-pull-password"
+       INIT_GIT_URL: "https://git.example.com"
+       INIT_GIT_PUSH_USERNAME: "git-push-user"
+       INIT_GIT_PUSH_PASSWORD: "replace-with-git-push-token"
+       INIT_GIT_PULL_USERNAME: "git-pull-user"
+       INIT_GIT_PULL_PASSWORD: "replace-with-git-pull-token"
+       INIT_STORAGE_CLASS: "standard"
+   ```
+
+   To use a different file location, set `UDS_CONFIG` to its path before deploying:
+
+   ```bash
+   export UDS_CONFIG="/absolute/path/to/uds-config.yaml"
+   ```
+
+   If you do not set `UDS_CONFIG`, UDS searches your working directory and then `~/.uds` for `uds-config.yaml`.
+
+   </TabItem>
+   </Tabs>
+
+   You can also use `shared` in `uds-config.yaml` to supply variables to all packages. Package-specific `variables` override `shared`; `UDS_*` environment variables override both. Values supplied with `--set` take precedence over environment variables. Check for existing environment or command-line overrides if UDS does not use the value you expect.
+
+2. **Deploy the bundle**
+
+   Replace the tarball path with your compiled bundle. Run this command in the shell where you exported the environment variables, or from the directory containing `uds-config.yaml`:
+
+   ```bash
+   uds deploy ./uds-bundle-example-amd64-1.0.0.tar.zst
+   ```
+
+   Review the deployment plan and confirm the deployment. UDS masks credential values in the plan. UDS passes the init settings to Zarf when it deploys the init package; subsequent packages use the cluster's Zarf configuration.
+
+</Steps>
+
+## Verification
+
+Confirm that the init package and subsequent packages finish deploying. For the example above, check that Zarf pushes package images and Git repositories to your external services and that workloads can pull them with the configured credentials. If you configured a storage class, check the storage class on persistent volume claims created by the init package.
+
+## Troubleshooting
+
+### Init settings do not take effect
+
+Check that the bundle includes a `ZarfInitConfig` package and that your config's package name matches its entry in `uds-bundle.yaml`. Use `UDS_INIT_*` for environment variables and `INIT_*` for config keys. Remove conflicting `UDS_INIT_*` values or `--set` arguments when testing a config file. These settings configure Zarf init; supplying them to a regular Zarf package does not update the cluster's init configuration.
+
+If you have already initialized the cluster, Zarf retains its configured service addresses and credentials when you deploy init again. Use this guide when first initializing the cluster; redeploying the bundle with new `INIT_*` credentials does not replace the existing credentials.
+
+## Related documentation
+
+- [Use bundle overrides](/cli/how-to-guides/use-bundle-overrides/) - configure other package variables and Helm values, including variable precedence.
+- [uds deploy](/cli/reference/commands/uds_deploy/) - deployment arguments and flags.
