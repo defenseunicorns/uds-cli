@@ -33,7 +33,7 @@ func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, out
 				return fmt.Errorf("resolving manifest %s file %d name: %w", manifest.Name, idx, err)
 			}
 			src := filepath.Join(manifestDir, layout.ManifestFileName(manifest.Name, idx))
-			rel := filepath.ToSlash(filepath.Join("manifests", manifest.Name, fmt.Sprintf("%d-%s", idx, name)))
+			rel := filepath.ToSlash(filepath.Join("manifests", manifest.Name, "files", fmt.Sprintf("%d-%s", idx, name)))
 			if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel)); err != nil {
 				return fmt.Errorf("copying manifest %s file %d: %w", manifest.Name, idx, err)
 			}
@@ -46,7 +46,7 @@ func localizeManifests(ctx context.Context, pkgLayout *layout.PackageLayout, out
 				return fmt.Errorf("resolving manifest %s kustomization %d name: %w", manifest.Name, idx, err)
 			}
 			src := filepath.Join(manifestDir, layout.KustomizationFileName(manifest.Name, idx))
-			rel := filepath.ToSlash(filepath.Join("manifests", manifest.Name, fmt.Sprintf("%d-%s", idx, name)))
+			rel := filepath.ToSlash(filepath.Join("manifests", manifest.Name, "kustomizations", fmt.Sprintf("%d-%s", idx, name)))
 			if err := helpers.CreatePathAndCopy(src, filepath.Join(outputDir, rel, "rendered.yaml")); err != nil {
 				return fmt.Errorf("copying manifest kustomization %s %d: %w", manifest.Name, idx, err)
 			}
