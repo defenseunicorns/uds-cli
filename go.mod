@@ -27,7 +27,7 @@ require (
 	github.com/zarf-dev/zarf v0.87.0
 	github.com/zclconf/go-cty v1.19.0
 	golang.org/x/mod v0.41.0
-	golang.org/x/sync v0.23.0
+	golang.org/x/sync v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v4 v4.3.0
 	k8s.io/api v0.37.1
