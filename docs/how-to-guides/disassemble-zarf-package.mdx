@@ -47,6 +47,8 @@ By the end of this guide, you will have edited source and a recreated package th
 
    The generated `app-source/zarf.yaml` references local assets and preserves the package API version and architecture. Existing versions receive the `-disassembled` suffix; an unversioned package receives the version `disassembled`. The `.uds/disassembly.json` file records the metadata format version, source architecture, and source flavor required for reassembly.
 
+   Raw manifests are recovered under `components/<component>/manifests/<manifest>/files/`. Recovered Kustomize sources are under `components/<component>/manifests/<manifest>/kustomizations/`, so a file and a Kustomize directory with the same basename have separate paths.
+
    > [!CAUTION]
    > Do not edit `.uds/disassembly.json`. Reassembly rejects unsupported metadata versions and architecture drift between that file and `zarf.yaml`.
 

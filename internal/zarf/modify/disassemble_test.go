@@ -110,8 +110,8 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	require.Len(t, pkg.Components[0].Manifests, 1)
 	manifest := pkg.Components[0].Manifests[0]
 	require.Len(t, manifest.Files, 2)
-	assert.Contains(t, manifest.Files[0], filepath.ToSlash("manifests/raw/0-configmap.yaml"))
-	assert.Contains(t, manifest.Files[1], filepath.ToSlash("manifests/raw/1-experimental-install.yaml"))
+	assert.Contains(t, manifest.Files[0], filepath.ToSlash("manifests/raw/files/0-configmap.yaml"))
+	assert.Contains(t, manifest.Files[1], filepath.ToSlash("manifests/raw/files/1-experimental-install.yaml"))
 	require.Len(t, manifest.Kustomize.Files, 1)
 	assert.True(t, manifest.EnableTemplating)
 	rendered, err := os.ReadFile(filepath.Join(outputDir, manifest.Kustomize.Files[0], "rendered.yaml"))
@@ -167,6 +167,48 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Equal(t, "roundtrip", reassembled.AsV1alpha1().Metadata.Name)
 	assert.Equal(t, "1.2.3-disassembled", reassembled.AsV1alpha1().Metadata.Version)
 	assert.Equal(t, packageArchitecture, reassembled.AsV1alpha1().Build.Architecture)
+}
+
+func TestDisassembleRoundTripsCollidingManifestBasenames(t *testing.T) {
+	sourceDir := prepareRoundTripFixture(t)
+	manifestPath := filepath.Join(sourceDir, "manifests", "configmap.yaml")
+	wantManifest, err := os.ReadFile(manifestPath)
+	require.NoError(t, err)
+	require.NoError(t, os.Rename(manifestPath, filepath.Join(sourceDir, "manifests", "kustomize")))
+	definitionPath := filepath.Join(sourceDir, layout.ZarfYAML)
+	contents, err := os.ReadFile(definitionPath)
+	require.NoError(t, err)
+	contents = bytes.ReplaceAll(contents, []byte("manifests/configmap.yaml"), []byte("manifests/kustomize"))
+	//nolint:gosec // G703 treats the fixture path beneath t.TempDir as attacker-controlled.
+	require.NoError(t, os.WriteFile(definitionPath, contents, 0o600))
+
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
+	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
+	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
+	outputDir := filepath.Join(t.TempDir(), "output")
+	_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
+	require.NoError(t, err)
+
+	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+	require.NoError(t, err)
+	manifest := generated.Components[0].Manifests[0]
+	gotManifest, err := os.ReadFile(filepath.Join(outputDir, manifest.Files[0]))
+	require.NoError(t, err)
+	assert.Equal(t, wantManifest, gotManifest)
+	rendered, err := os.ReadFile(filepath.Join(outputDir, manifest.Kustomize.Files[0], "rendered.yaml"))
+	require.NoError(t, err)
+
+	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
+	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
+	manifestDir, err := reassembled.GetComponentDir(t.Context(), t.TempDir(), "app", layout.ManifestsComponentDir)
+	require.NoError(t, err)
+	gotManifest, err = os.ReadFile(filepath.Join(manifestDir, layout.ManifestFileName(manifest.Name, 0)))
+	require.NoError(t, err)
+	assert.Equal(t, wantManifest, gotManifest)
+	gotRendered, err := os.ReadFile(filepath.Join(manifestDir, layout.KustomizationFileName(manifest.Name, 0)))
+	require.NoError(t, err)
+	assert.Equal(t, rendered, gotRendered)
 }
 
 func TestDisassemblePullsOCIPackage(t *testing.T) {
@@ -241,7 +283,7 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	component := generatedBeta.Components[0]
 	assert.Equal(t, v1beta1.ServiceAgent, component.Service)
 	require.Len(t, component.Manifests, 1)
-	assert.Contains(t, component.Manifests[0].Kustomize.Files[0], "components/app/manifests/raw/0-kustomize")
+	assert.Contains(t, component.Manifests[0].Kustomize.Files[0], "components/app/manifests/raw/kustomizations/0-kustomize")
 	assert.False(t, component.Manifests[0].Kustomize.AllowAnyDirectory)
 	assert.False(t, component.Manifests[0].Kustomize.EnablePlugins)
 	assert.True(t, component.Manifests[0].EnableTemplating)
