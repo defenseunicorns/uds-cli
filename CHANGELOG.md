@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.39.1](https://github.com/defenseunicorns/uds-cli/compare/v0.39.0...v0.39.1) (2026-10-09)
+
+
+### Miscellaneous
+
+* **deps:** update application dependencies to v0.24.0 ([#1596](https://github.com/defenseunicorns/uds-cli/issues/1596)) ([7a70538](https://github.com/defenseunicorns/uds-cli/commit/7a705381999d4a1dc75aaa9691b8fcd3c7d001dd))
+* **deps:** update support-deps ([#1588](https://github.com/defenseunicorns/uds-cli/issues/1588)) ([5b724fb](https://github.com/defenseunicorns/uds-cli/commit/5b724fb3dfb132d5459faa8024fd1a73bf0a626c))
+* **deps:** update support-deps ([#1593](https://github.com/defenseunicorns/uds-cli/issues/1593)) ([a53fb24](https://github.com/defenseunicorns/uds-cli/commit/a53fb2444514660f805cbf28635fc2df5964683d))
+
 ## [0.39.0](https://github.com/defenseunicorns/uds-cli/compare/v0.38.0...v0.39.0) (2026-10-06)
 
 
