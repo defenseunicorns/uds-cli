@@ -57,7 +57,7 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 	rootCmd.AddCommand(cmdversion.NewVersionCommand(streams))
 	rootCmd.AddCommand(bundle.NewBundleCommand(streams))
 	rootCmd.AddCommand(core.NewCoreCommand(streams))
-	rootCmd.AddCommand(tools.NewToolsCommand())
+	rootCmd.AddCommand(tools.NewToolsCommand(streams))
 	// Hidden root-level zarf command for internal Zarf callbacks.
 	// Zarf's ActionsCommandZarfPrefix is set to "zarf" (single word) at build time,
 	// so callbacks run as "uds zarf tools kubectl ..." which routes here.

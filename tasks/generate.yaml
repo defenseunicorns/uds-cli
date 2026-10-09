@@ -1,0 +1,14 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+tasks:
+  - name: migration-skill
+    description: generate the embedded migration skill from the skill and its referenced docs
+    actions:
+      - cmd: go run ./hack/migrationskill
+
+  - name: check-migration-skill
+    description: check the embedded migration skill for drift without modifying files
+    actions:
+      - cmd: go test ./hack/migrationskill
+      - cmd: go run ./hack/migrationskill --check

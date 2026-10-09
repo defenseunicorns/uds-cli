@@ -40,6 +40,9 @@ jobs:
       - name: Lint the repository
         run: uds run lint
 
+      - name: Check generated migration skill
+        run: uds run generate:check-migration-skill
+
       - name: Verify vendored dependencies
         shell: bash
         run: |
