@@ -10,17 +10,19 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/core"
+	packagecli "github.com/defenseunicorns/uds-cli/internal/cli/package"
 	"github.com/defenseunicorns/uds-cli/internal/cli/tools"
 	cmdversion "github.com/defenseunicorns/uds-cli/internal/cli/version"
 	cmdzarf "github.com/defenseunicorns/uds-cli/internal/cli/zarf"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/internal/mode"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
 )
 
-// NewRootCommand creates the root command for uds.
-func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
+// NewRootCommand creates the root command for uds with the selected features.
+func NewRootCommand(streams iostreams.IOStreams, features mode.FeatureSet) *cobra.Command {
 	var logLevel string
 
 	rootCmd := &cobra.Command{
@@ -58,6 +60,9 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 	rootCmd.AddCommand(bundle.NewBundleCommand(streams))
 	rootCmd.AddCommand(core.NewCoreCommand(streams))
 	rootCmd.AddCommand(tools.NewToolsCommand())
+	if features.Enabled(mode.FeaturePackageMod) {
+		rootCmd.AddCommand(packagecli.NewPackageCommand(streams))
+	}
 	// Hidden root-level zarf command for internal Zarf callbacks.
 	// Zarf's ActionsCommandZarfPrefix is set to "zarf" (single word) at build time,
 	// so callbacks run as "uds zarf tools kubectl ..." which routes here.

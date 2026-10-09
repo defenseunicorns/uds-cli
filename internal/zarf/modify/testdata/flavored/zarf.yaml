@@ -1,0 +1,16 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: ZarfPackageConfig
+metadata:
+  name: flavored
+  version: 1.0.0
+  architecture: amd64
+components:
+  - name: app
+    required: true
+    only:
+      flavor: offline
+    files:
+      - source: payload.txt
+        target: /tmp/payload.txt

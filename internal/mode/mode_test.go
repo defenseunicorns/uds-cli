@@ -18,18 +18,21 @@ func TestResolve(t *testing.T) {
 		want     string
 		wantArgs []string
 	}{
-		{"default", []string{"create"}, "", Legacy, "NextMode=false", []string{"create"}},
-		{"environment", []string{"create"}, "NextMode=true", Next, "NextMode=true", []string{"create"}},
-		{"implicit environment true", []string{"create"}, "NextMode", Next, "NextMode=true", []string{"create"}},
-		{"flag precedence", []string{"create", "--features", "NextMode=false"}, "NextMode=true", Legacy, "NextMode=false", []string{"create"}},
-		{"equals form", []string{"--features=NextMode=true", "create"}, "", Next, "NextMode=true", []string{"create"}},
-		{"implicit true", []string{"--features=NextMode", "create"}, "", Next, "NextMode=true", []string{"create"}},
-		{"Zarf suffix preserved", []string{"zarf", "--features=values=false", "version"}, "NextMode=true", Next, "NextMode=true", []string{"zarf", "--features=values=false", "version"}},
-		{"Zarf alias suffix preserved", []string{"z", "tools", "future-tool", "--features", "values=false"}, "NextMode=true", Next, "NextMode=true", []string{"z", "tools", "future-tool", "--features", "values=false"}},
-		{"tools zarf suffix preserved", []string{"tools", "zarf", "version", "--features=values=false"}, "NextMode=true", Next, "NextMode=true", []string{"tools", "zarf", "version", "--features=values=false"}},
-		{"root features before Zarf", []string{"--features=NextMode=true", "zarf", "--features", "values=false"}, "", Next, "NextMode=true", []string{"zarf", "--features", "values=false"}},
-		{"UDS feature skips task arguments", []string{"run", "zarf"}, "NextMode=false", Legacy, "NextMode=false", []string{"run", "zarf"}},
-		{"double dash", []string{"create", "--", "--features=NextMode=true"}, "", Legacy, "NextMode=false", []string{"create", "--", "--features=NextMode=true"}},
+		{"default", []string{"create"}, "", Legacy, "NextMode=false,PackageMod=false", []string{"create"}},
+		{"environment", []string{"create"}, "NextMode=true", Next, "NextMode=true,PackageMod=false", []string{"create"}},
+		{"package mod environment", []string{"create"}, "PackageMod", Legacy, "NextMode=false,PackageMod=true", []string{"create"}},
+		{"implicit environment true", []string{"create"}, "NextMode", Next, "NextMode=true,PackageMod=false", []string{"create"}},
+		{"flag precedence", []string{"create", "--features", "NextMode=false"}, "NextMode=true", Legacy, "NextMode=false,PackageMod=false", []string{"create"}},
+		{"equals form", []string{"--features=NextMode=true", "create"}, "", Next, "NextMode=true,PackageMod=false", []string{"create"}},
+		{"implicit true", []string{"--features=NextMode", "create"}, "", Next, "NextMode=true,PackageMod=false", []string{"create"}},
+		{"package mod CLI", []string{"--features=PackageMod=true", "create"}, "", Legacy, "NextMode=false,PackageMod=true", []string{"create"}},
+		{"combined features", []string{"--features=NextMode,PackageMod", "create"}, "", Next, "NextMode=true,PackageMod=true", []string{"create"}},
+		{"Zarf suffix preserved", []string{"zarf", "--features=values=false", "version"}, "NextMode=true", Next, "NextMode=true,PackageMod=false", []string{"zarf", "--features=values=false", "version"}},
+		{"Zarf alias suffix preserved", []string{"z", "tools", "future-tool", "--features", "values=false"}, "NextMode=true", Next, "NextMode=true,PackageMod=false", []string{"z", "tools", "future-tool", "--features", "values=false"}},
+		{"tools zarf suffix preserved", []string{"tools", "zarf", "version", "--features=values=false"}, "NextMode=true", Next, "NextMode=true,PackageMod=false", []string{"tools", "zarf", "version", "--features=values=false"}},
+		{"root features before Zarf", []string{"--features=NextMode=true", "zarf", "--features", "values=false"}, "", Next, "NextMode=true,PackageMod=false", []string{"zarf", "--features", "values=false"}},
+		{"UDS feature skips task arguments", []string{"run", "zarf"}, "NextMode=false", Legacy, "NextMode=false,PackageMod=false", []string{"run", "zarf"}},
+		{"double dash", []string{"create", "--", "--features=NextMode=true"}, "", Legacy, "NextMode=false,PackageMod=false", []string{"create", "--", "--features=NextMode=true"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -145,7 +145,7 @@ func TestSourcePackageLayoutLoaderAdvisoryVerification(t *testing.T) {
 			streams, _, out, errOut := iostreams.NewTestIOStreams()
 			streams = logger.Bind(streams, "info")
 			loader := &SourcePackageLayoutLoader{
-				configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()},
+				configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: os.TempDir()},
 			}
 
 			result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{
@@ -245,7 +245,7 @@ func TestCopyFileContentsBetweenRoots_PreservesExistingTmpPath(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, root.Close()) })
 
-	require.NoError(t, copyFileContentsBetweenRoots(t.Context(), root, "source", root, "target"))
+	require.NoError(t, CopyFileContentsBetweenRoots(t.Context(), root, "source", root, "target"))
 	tmpData, err := root.ReadFile("target.tmp")
 	require.NoError(t, err)
 	assert.Equal(t, "existing", string(tmpData))
@@ -301,7 +301,7 @@ func TestCopyFileContents_ObservesCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	err = copyFileContentsBetweenRoots(ctx, root, "src", root, "dst")
+	err = CopyFileContentsBetweenRoots(ctx, root, "src", root, "dst")
 	require.ErrorIs(t, err, context.Canceled)
 	assert.NoFileExists(t, filepath.Join(workspaceDir, "dst"))
 }
@@ -372,7 +372,7 @@ func TestSourcePackageLayoutLoader_LoadPackageSpecFiltersByLocalOS(t *testing.T)
 	writeValidUnsignedZarfPackage(t, pkgDir)
 	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, layout.ZarfYAML), osFilteredZarfYAML(), 0o600))
 
-	loader := &SourcePackageLayoutLoader{configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: t.TempDir()}}
+	loader := &SourcePackageLayoutLoader{configOpts: bundleinternal.ConfigOptions{Architecture: "amd64", TmpDir: os.TempDir()}}
 	loaded, err := loader.LoadPackageSpec(t.Context(), &spec.Package{Name: "pkg", Source: pkgDir, OptionalComponents: []string{"optional"}})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"local-required", "optional"}, loaded.Components)

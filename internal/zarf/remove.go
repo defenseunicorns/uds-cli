@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -274,7 +275,9 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 	// Artifact-backed removal supplies the deployed Zarf name so this loads
 	// package state from the cluster. Source removal discovers the name from the
 	// author-provided package source; OCI sources fetch only the metadata layer.
-	zarfPkg, err := packager.GetPackageFromSourceOrCluster(ctx, c, packageSource, pkg.Namespace, loadOpts)
+	zarfPkg, err := WithTempDir(opts.Config.Options.TmpDir, func() (api.Package, error) {
+		return packager.GetPackageFromSourceOrCluster(ctx, c, packageSource, pkg.Namespace, loadOpts)
+	})
 	if err != nil {
 		return fmt.Errorf("package %q from %s: %w: %w", pkg.Name, packageSource, ErrLoadPackage, err)
 	}
@@ -293,7 +296,9 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 		NamespaceOverride: pkg.Namespace,
 	}
 
-	if err := packager.Remove(ctx, zarfPkg, removeOpts); err != nil {
+	if err := withTempDir(opts.Config.Options.TmpDir, func() error {
+		return packager.Remove(ctx, zarfPkg, removeOpts)
+	}); err != nil {
 		return fmt.Errorf("package %q: %w: %w", pkg.Name, ErrRemovePackage, err)
 	}
 

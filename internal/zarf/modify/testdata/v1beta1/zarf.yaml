@@ -1,0 +1,25 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: beta-roundtrip
+  version: 2.0.0
+  architecture: amd64
+components:
+  - name: app
+    selector:
+      flavor: offline
+    service: agent
+    files:
+      - source: payload.txt
+        destination: /tmp/payload.txt
+    manifests:
+      - name: raw
+        enableTemplating: true
+        kustomize:
+          files:
+            - kustomize
+          allowAnyDirectory: true
+          enablePlugins: true
