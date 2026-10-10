@@ -27,6 +27,7 @@ type ConfigOptions struct {
 	Architecture  string
 	PlainHTTP     bool
 	SkipTLSVerify bool
+	CacheDir      string
 	TmpDir        string
 	Concurrency   int
 }
