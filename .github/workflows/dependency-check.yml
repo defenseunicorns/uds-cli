@@ -42,7 +42,7 @@ jobs:
         run: jq . grype-scan.json
 
       - name: Upload Grype Scan Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: grype-scan-report
@@ -70,7 +70,7 @@ jobs:
           output-file: govulncheck.json
 
       - name: Upload Govulncheck Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: govulncheck-report
           path: govulncheck.json
