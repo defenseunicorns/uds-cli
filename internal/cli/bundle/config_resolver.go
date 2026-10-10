@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
@@ -173,6 +174,10 @@ func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOSt
 	}
 
 	options := r.resolveOptions(userCfg, flags)
+	options.CacheDir, err = expandCacheDir(options.CacheDir)
+	if err != nil {
+		return nil, "", err
+	}
 	if _, err := logger.ParseLevel(options.LogLevel); err != nil {
 		return nil, "", fmt.Errorf("invalid log level %q: %w", options.LogLevel, err)
 	}
@@ -187,6 +192,20 @@ func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOSt
 		SignatureVerification: userSignatureVerification(userCfg),
 		Variables:             variables,
 	}, flags.ConfigPath, nil
+}
+
+func expandCacheDir(path string) (string, error) {
+	if path != "~" && !strings.HasPrefix(path, "~/") {
+		return path, nil
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("expanding cache directory %q: %w", path, err)
+	}
+	if path == "~" {
+		return homeDir, nil
+	}
+	return filepath.Join(homeDir, path[2:]), nil
 }
 
 // applyBundleDefaults merges adjacent or materialized bundle defaults beneath

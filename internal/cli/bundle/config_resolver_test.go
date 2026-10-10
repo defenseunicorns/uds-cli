@@ -664,6 +664,42 @@ options {
 	assert.Equal(t, "/cli-cache", resolved.Options.CacheDir)
 }
 
+func TestResolve_ExpandsHomeRelativeCacheDir(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		hclPath  string
+		flagPath string
+		want     string
+	}{
+		{name: "HCL", hclPath: "~/.my-cache", want: filepath.Join(homeDir, ".my-cache")},
+		{name: "CLI override", hclPath: "~/.hcl-cache", flagPath: "~/.cli-cache", want: filepath.Join(homeDir, ".cli-cache")},
+		{name: "home directory", flagPath: "~", want: homeDir},
+		{name: "relative path remains relative", flagPath: "cache/~literal", want: "cache/~literal"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), "config.uds.hcl")
+			require.NoError(t, os.WriteFile(configPath, []byte("options { UDSCacheDir = \""+tt.hclPath+"\" }"), 0o600))
+
+			cmd := &cobra.Command{}
+			registerTestFlags(cmd)
+			cmd.Flags().String("config", "", "config path")
+			require.NoError(t, cmd.Flags().Set("config", configPath))
+			if tt.flagPath != "" {
+				require.NoError(t, cmd.Flags().Set("uds-cache", tt.flagPath))
+			}
+
+			resolved, _, err := NewConfigResolver().Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, resolved.Options.CacheDir)
+		})
+	}
+}
+
 func TestResolveBaseAndApplyBundleDefaults(t *testing.T) {
 	r := NewConfigResolver()
 	bundleDir := t.TempDir()
