@@ -32,6 +32,27 @@ func TestDefaults(t *testing.T) {
 	require.Equal(t, os.TempDir(), opts.TmpDir)
 }
 
+func TestResolve_MissingHomeDirectory(t *testing.T) {
+	t.Setenv("HOME", "")
+	if _, err := os.UserHomeDir(); err == nil {
+		t.Skip("platform can determine the home directory without HOME")
+	}
+
+	r := NewConfigResolver()
+	assert.Equal(t, "~/.uds-cache", r.Defaults().CacheDir)
+
+	cmd := &cobra.Command{}
+	registerTestFlags(cmd)
+	_, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
+	require.ErrorContains(t, err, "expanding cache directory")
+
+	cacheDir := filepath.Join(t.TempDir(), "cache")
+	require.NoError(t, cmd.Flags().Set("uds-cache", cacheDir))
+	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
+	require.NoError(t, err)
+	assert.Equal(t, cacheDir, resolved.Options.CacheDir)
+}
+
 func TestApplySetVariables(t *testing.T) {
 	config := &bundle.UDSBundleConfig{Variables: bundle.Variables{
 		"domain":   "from-config.example",
