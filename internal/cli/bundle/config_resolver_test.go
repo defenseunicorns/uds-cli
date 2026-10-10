@@ -640,7 +640,7 @@ func TestResolve_WithHCLConfig(t *testing.T) {
 options {
   architecture = "arm64"
   concurrency  = 5
-  UDSCacheDir  = "/configured-cache"
+  uds_cache   = "/configured-cache"
 }
 
 variables = {
@@ -670,7 +670,7 @@ func TestResolve_UDSCacheFlagOverridesHCL(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.uds.hcl")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 options {
-  UDSCacheDir = "/configured-cache"
+  uds_cache = "/configured-cache"
 }
 `), 0o600))
 
@@ -704,7 +704,7 @@ func TestResolve_ExpandsHomeRelativeCacheDir(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configPath := filepath.Join(t.TempDir(), "config.uds.hcl")
-			require.NoError(t, os.WriteFile(configPath, []byte("options { UDSCacheDir = \""+tt.hclPath+"\" }"), 0o600))
+			require.NoError(t, os.WriteFile(configPath, []byte("options { uds_cache = \""+tt.hclPath+"\" }"), 0o600))
 
 			cmd := &cobra.Command{}
 			registerTestFlags(cmd)
