@@ -8,14 +8,19 @@ package bundle_test
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	fixtureartifact "github.com/defenseunicorns/uds-cli/tests/fixtures/artifact"
+	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	godigest "github.com/opencontainers/go-digest"
@@ -168,6 +173,103 @@ func libraryRegistryConfig(config *bundle.UDSBundleConfig) *bundle.UDSBundleConf
 	return &copy
 }
 
+func TestCreateRemotePackageCacheReuse(t *testing.T) {
+	for _, useCache := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cache=%t", useCache), func(t *testing.T) {
+			var downloads atomic.Int64
+			var blockDownloads atomic.Bool
+			registryHandler := registry.New()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+					downloads.Add(1)
+					if blockDownloads.Load() {
+						http.Error(w, "blob downloads disabled for cache reuse test", http.StatusForbidden)
+						return
+					}
+				}
+				registryHandler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
+			packagePath := createLibraryPackage(t, t.TempDir(), "cached-package")
+			ref := "oci://" + publishLibraryPackage(t, packagePath, strings.TrimPrefix(server.URL, "http://"))
+			config := libraryRegistryConfig(libraryFixtureConfig(t))
+			cacheDir := filepath.Join(t.TempDir(), "cache")
+			if useCache {
+				config.Options.CacheDir = cacheDir
+			}
+
+			create := func() *bundle.CreateResult {
+				t.Helper()
+				root := t.TempDir()
+				bundleFile := filepath.Join(root, libraryBundleFileName)
+				require.NoError(t, os.WriteFile(bundleFile, []byte(fmt.Sprintf(`uds {
+  bundle_api_version = "uds.dev/v1alpha1"
+}
+metadata {
+  name = "cache-reuse"
+  version = "1.0.0"
+}
+package "cached-package" {
+  source = %q
+  signature_verification { verify = false }
+}
+`, ref)), 0o600))
+				created, err := bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
+					Config:  config,
+					Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
+				})
+				require.NoError(t, err)
+				require.FileExists(t, created.OutputPath)
+				return created
+			}
+
+			create()
+			coldDownloads := downloads.Load()
+			require.Positive(t, coldDownloads)
+			if useCache {
+				// Next gives Zarf <uds-cache>/bundle-oci as CachePath; Zarf adds
+				// its usual images/ subdirectory. This redirects Zarf's OCI cache
+				// to one Next-specific location. The sibling images/ and layers/
+				// paths are Zarf's default location and Legacy's cache, respectively.
+				require.DirExists(t, filepath.Join(cacheDir, "bundle-oci", "images", "blobs", "sha256"))
+				assert.NoDirExists(t, filepath.Join(cacheDir, "images"), "Next must not populate Zarf's default cache location")
+				assert.NoDirExists(t, filepath.Join(cacheDir, "layers"), "Next must not populate Legacy's layer cache")
+				blockDownloads.Store(true)
+			}
+
+			warm := create()
+			if useCache {
+				assert.Equal(t, coldDownloads, downloads.Load(), "the second create must reuse cached blobs")
+			} else {
+				assert.Greater(t, downloads.Load(), coldDownloads, "an unset library cache directory must leave caching disabled")
+				assert.NoDirExists(t, cacheDir)
+			}
+			prepared, err := bundle.PrepareDeploySource(t.Context(), iostreams.IOStreams{}, warm.OutputPath, t.TempDir(), runtime.GOARCH)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, prepared.Close()) })
+			require.Len(t, prepared.Bundle.Packages, 1)
+			loaded, err := prepared.Loader.LoadPackageLayout(t.Context(), &prepared.Bundle.Packages[0], t.TempDir(), bundle.ZarfPackageLayoutLoadOptions{})
+			require.NoError(t, err)
+			assert.Equal(t, "cached-package", loaded.Layout.PackageDefinition.Metadata.Name)
+		})
+	}
+}
+
+func TestCreateLocalPackagesDoesNotOpenRemoteCache(t *testing.T) {
+	// The fixture uses local Zarf packages that already contain the content
+	// needed to assemble the bundle. With no remote retrieval to cache, create
+	// must leave the configured remote cache directory uncreated.
+	fixture := createLibraryBundle(t)
+	cacheDir := filepath.Join(t.TempDir(), "cache")
+	fixture.Config.Options.CacheDir = cacheDir
+	_, err := bundle.Create(t.Context(), fixture.BundleFile, bundle.CreateOptions{
+		Config:  fixture.Config,
+		Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
+	})
+	require.NoError(t, err)
+	assert.NoDirExists(t, cacheDir)
+}
+
 func TestCreateOptionalComponentCanBeExcluded(t *testing.T) {
 	fixture := createLibraryBundleWithoutOptionalComponent(t)
 	inspected, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: fixture.ArtifactPath, Config: fixture.Config})
@@ -204,6 +306,7 @@ func TestCreateVerifiesSignedPackageFromOCI(t *testing.T) {
 	packagePath := createLibraryPackageWithSigning(t, packageRoot, "signed-oci", privateKey)
 	ref := "oci://" + publishLibraryPackage(t, packagePath, startLibraryRegistry(t))
 	config := libraryRegistryConfig(libraryFixtureConfig(t))
+	config.Options.CacheDir = filepath.Join(t.TempDir(), "cache")
 
 	root := t.TempDir()
 	bundleFile := writePackageVerificationBundle(t, root, ref, publicKey)

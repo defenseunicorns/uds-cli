@@ -69,10 +69,19 @@ func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zo
 	if err != nil {
 		return nil, err
 	}
-	return zoci.NewRemoteWithOptions(ctx, ref, platform, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{
-		PlainHTTP:             plainHTTP,
-		InsecureSkipTLSVerify: s.opts.SkipTLSVerify,
-	}})
+	// Zarf appends images/ to CachePath, so this client's OCI cache lives at
+	// <uds-cache>/bundle-oci/images/ instead of <uds-cache>/images/.
+	cachePath := udsoci.BundleCachePath(s.opts.CacheDir)
+	if cachePath != "" {
+		s.streams.Debug("using package OCI cache", "path", cachePath)
+	}
+	return zoci.NewRemoteWithOptions(ctx, ref, platform, zoci.RemoteClientOptions{
+		CachePath: cachePath,
+		RemoteOptions: zarfTypes.RemoteOptions{
+			PlainHTTP:             plainHTTP,
+			InsecureSkipTLSVerify: s.opts.SkipTLSVerify,
+		},
+	})
 }
 
 func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters.ComponentFilterStrategy) (*resolvedLayers, error) {

@@ -27,6 +27,15 @@ type Store struct {
 	root string
 }
 
+// BundleCachePath returns the parent of Zarf's shared OCI cache store for Next
+// bundles. An empty UDS cache directory leaves caching disabled.
+func BundleCachePath(cacheDir string) string {
+	if cacheDir == "" {
+		return ""
+	}
+	return filepath.Join(cacheDir, "bundle-oci")
+}
+
 // CreateStore opens a mutable OCI layout at root, creating it when necessary.
 //
 // Use CreateStore when the caller owns the layout and may write blobs, update tags,
