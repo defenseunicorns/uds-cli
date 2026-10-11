@@ -65,11 +65,10 @@ honors its remote's cache.
 
 ### Upstream behavior and validation
 
-Upstream owns cached blob fetching and storage. Assume the behavior of merged
-[Zarf PR #5439](https://github.com/zarf-dev/zarf/pull/5439): another process
-populating the same blob must not fail a competing read. Validate concurrent
-UDS operations once the dependency contains that fix. Do not add a separate
-UDS publication algorithm, private cache, seeding workflow, or copy-back step.
+Upstream owns cached blob fetching and storage. Another process populating the
+same blob must not fail a competing read. Validate this requirement through
+concurrent UDS operations. Do not add a separate UDS publication algorithm,
+private cache, seeding workflow, or copy-back step.
 
 When the remote remains available, cache-specific failures should not prevent
 an operation from succeeding. Audit upstream behavior and identify any unmet
