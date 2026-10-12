@@ -64,8 +64,15 @@ registry operations. Cache reuse does not make pulls offline or bypass bundle
 signature verification. Preserve the canonical index bytes and signature
 evidence in the output archive independently of the cache.
 
-Subsequent changes will configure bundle remote reads for inspect, OCI-source
-deploy, and OCI-source remove through `internal/oci`. Local graph copies may
+Inspect and OCI-source remove use the same cache-aware source for bundle
+definitions, package metadata, and signature evidence. Metadata-only reads do
+not download package payloads. Inspect with a verification policy retains its
+existing full-content pull and verification path. Local archive metadata reads
+do not open the remote cache. The shared metadata helper also enables caching
+for deploy's preliminary unsigned-bundle check.
+
+Subsequent changes will configure the remaining OCI-source deploy reads
+through `internal/oci`. Local graph copies may
 continue using ORAS; remote reads must consume a cache-aware source.
 Audit the upstream helpers actually used rather than assuming every helper
 honors its remote's cache.

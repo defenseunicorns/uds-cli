@@ -265,6 +265,107 @@ func TestInspectUnknownPackageMetadata(t *testing.T) {
 	}
 }
 
+func TestRemoteBundleMetadataCacheReuse(t *testing.T) {
+	for _, operation := range []string{"inspect", "inspect with verification skipped", "remove preparation"} {
+		for _, useCache := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/cache=%t", operation, useCache), func(t *testing.T) {
+				fixture := createLibraryBundle(t)
+				entries, err := fixtureartifact.Read(t.Context(), fixture.ArtifactPath)
+				require.NoError(t, err)
+				manifests, err := entries.PackageManifestDigests()
+				require.NoError(t, err)
+				payloads := make(map[string]struct{})
+				for digest := range manifests {
+					var manifest ocispec.Manifest
+					require.NoError(t, json.Unmarshal(entries.Small["oci/blobs/sha256/"+strings.TrimPrefix(digest, "sha256:")], &manifest))
+					for _, layer := range manifest.Layers {
+						if layer.Annotations[ocispec.AnnotationTitle] != "zarf.yaml" {
+							payloads[layer.Digest.String()] = struct{}{}
+						}
+					}
+				}
+				require.NotEmpty(t, payloads)
+				var downloads, payloadDownloads atomic.Int64
+				var blockDownloads atomic.Bool
+				handler := registry.New()
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+						if _, payload := payloads[filepath.Base(r.URL.Path)]; payload {
+							payloadDownloads.Add(1)
+							http.Error(w, "package payloads must not be read for metadata", http.StatusForbidden)
+							return
+						}
+						downloads.Add(1)
+						if blockDownloads.Load() {
+							http.Error(w, "metadata blob downloads blocked", http.StatusForbidden)
+							return
+						}
+					}
+					handler.ServeHTTP(w, r)
+				}))
+				t.Cleanup(server.Close)
+				// Bundle evidence exercises inspect's preliminary duplicate-
+				// signature check as well as the shared metadata reader. No
+				// verification policy is requested: verified inspect deliberately
+				// retains its full-content verification workflow.
+				privateKey, _ := libraryKeyPair(t)
+				require.NoError(t, bundle.Sign(t.Context(), bundle.SignOptions{
+					Source: fixture.ArtifactPath, Config: fixture.Config, TmpDir: t.TempDir(),
+					Signing: bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: privateKey},
+				}))
+				config := libraryRegistryConfig(fixture.Config)
+				cacheDir := filepath.Join(t.TempDir(), "cache")
+				if useCache {
+					config.Options.CacheDir = cacheDir
+				}
+				ref := strings.TrimPrefix(server.URL, "http://") + "/library/metadata:v1"
+				_, err = bundle.Push(t.Context(), fixture.ArtifactPath, ref, bundle.PushOptions{Config: config})
+				require.NoError(t, err)
+				read := func() {
+					t.Helper()
+					if operation == "remove preparation" {
+						// Deliberately fail package selection after metadata preparation
+						// but before cluster access. This tests the public remove path
+						// without removing anything or requiring a Kubernetes cluster.
+						result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: ref}, bundle.RemoveOptions{
+							Config: config, Packages: []string{"not-in-bundle"}, Force: true, SkipSignatureVerification: true,
+						})
+						require.ErrorIs(t, err, bundle.ErrRemoveBundle)
+						require.ErrorContains(t, err, "unknown packages")
+						assert.Nil(t, result)
+						return
+					}
+					result, err := bundle.Inspect(t.Context(), bundle.InspectOptions{
+						Source: ref, Config: config, SkipSignatureVerification: operation == "inspect with verification skipped",
+					})
+					require.NoError(t, err)
+					assert.Equal(t, "library-fixture", result.Name)
+					require.Len(t, result.Packages, 2)
+					assert.Equal(t, "base", result.Packages[0].Name)
+					assert.Equal(t, "app", result.Packages[1].Name)
+				}
+				read()
+				coldDownloads := downloads.Load()
+				require.Positive(t, coldDownloads)
+				if useCache {
+					blockDownloads.Store(true)
+				}
+				read()
+				assert.Zero(t, payloadDownloads.Load(), "metadata reads must never download package payloads")
+				if useCache {
+					assert.Equal(t, coldDownloads, downloads.Load(), "a fresh metadata read must reuse cached blobs")
+					for digest := range payloads {
+						assert.NoFileExists(t, filepath.Join(cacheDir, "bundle-oci", "images", "blobs", "sha256", strings.TrimPrefix(digest, "sha256:")))
+					}
+				} else {
+					assert.Greater(t, downloads.Load(), coldDownloads)
+					assert.NoDirExists(t, cacheDir)
+				}
+			})
+		}
+	}
+}
+
 func libraryRegistryConfig(config *bundle.UDSBundleConfig) *bundle.UDSBundleConfig {
 	copy := *config
 	options := *config.Options

@@ -105,7 +105,7 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 
 	status := BundleSignatureStatusNotChecked
 	if opts.SkipSignatureVerification {
-		if err := checkSkippedSignatureEvidence(ctx, opts); err != nil {
+		if err := checkSkippedSignatureEvidence(ctx, opts, streams); err != nil {
 			return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 		}
 		status = BundleSignatureStatusSkipped
@@ -199,7 +199,7 @@ func (o InspectOptions) verificationPolicy() VerificationPolicy {
 	return *o.Config.SignatureVerification
 }
 
-func checkSkippedSignatureEvidence(ctx context.Context, opts InspectOptions) error {
+func checkSkippedSignatureEvidence(ctx context.Context, opts InspectOptions, streams iostreams.IOStreams) error {
 	if !udsoci.IsOCIReference(opts.Source) {
 		signatureEntries, err := artifact.CountTarZstEntries(ctx, opts.Source, bundleSignatureFileName)
 		if err != nil {
@@ -211,7 +211,10 @@ func checkSkippedSignatureEvidence(ctx context.Context, opts InspectOptions) err
 		return nil
 	}
 
-	repo, err := udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(opts.Source), toInternalConfigOptions(*opts.Config.Options))
+	// Skipping verification still checks for duplicate signature evidence.
+	// This preliminary read must use the cache too, not bypass it before the
+	// metadata inspection that follows.
+	repo, err := udsoci.NewRemoteReadSource(ctx, opts.Source, toInternalConfigOptions(*opts.Config.Options), streams)
 	if err != nil {
 		return fmt.Errorf("checking bundle signature evidence: %w", err)
 	}
