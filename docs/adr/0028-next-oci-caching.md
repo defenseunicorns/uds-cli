@@ -110,6 +110,23 @@ creates, unchanged package verification, and the resulting artifact's ability
 to supply package content. Add cross-operation reuse and concurrency coverage
 as the remaining integrations and dependency updates land.
 
+Concurrent cache-read tests start separate Go test processes using the public
+bundle APIs: two creates, two pulls, or one of each. Their workspaces are private;
+only the cache is shared. With cached content already present and blob downloads
+blocked, both operations must produce usable artifacts without changing cached
+blob bytes. This tests cross-process integration, not just goroutine safety.
+
+The duplicate-writer acceptance test is explicitly opt-in while the upstream
+fix is absent from the vendored dependency. It removes one cached package blob,
+holds both registry responses until both processes have missed that blob, and
+lets one writer publish before the other receives its response. Both operations
+must succeed with usable artifacts. The current dependency fails this scenario;
+a pull can even return an artifact that subsequently fails content verification.
+The test does not accept that behavior as success. A default-suite skip does not
+satisfy the concurrent-write requirement. Run and enable it in the normal suite
+after the upstream fix lands. This focused race does not certify simultaneous
+initial cache creation or concurrent mutable-index updates.
+
 ### Cleanup and diagnostics
 
 `uds tools clear-cache` removes content under `<uds-cache>/bundle-oci` only,
