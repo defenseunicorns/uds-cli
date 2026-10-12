@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
@@ -72,16 +73,28 @@ func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zo
 	// Zarf appends images/ to CachePath, so this client's OCI cache lives at
 	// <uds-cache>/bundle-oci/images/ instead of <uds-cache>/images/.
 	cachePath := udsoci.BundleCachePath(s.opts.CacheDir)
+	cacheStorePath := filepath.Join(cachePath, zoci.ImageCacheDirectory)
 	if cachePath != "" {
-		s.streams.Debug("using package OCI cache", "path", cachePath)
+		s.streams.Debug("initializing package OCI cache", "path", cacheStorePath)
+	} else {
+		s.streams.Debug("package OCI caching disabled", "reason", "no cache directory configured")
 	}
-	return zoci.NewRemoteWithOptions(ctx, ref, platform, zoci.RemoteClientOptions{
+	remote, err := zoci.NewRemoteWithOptions(ctx, ref, platform, zoci.RemoteClientOptions{
 		CachePath: cachePath,
 		RemoteOptions: zarfTypes.RemoteOptions{
 			PlainHTTP:             plainHTTP,
 			InsecureSkipTLSVerify: s.opts.SkipTLSVerify,
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	if cachePath != "" {
+		// Upstream opens or creates the store; this does not claim that this
+		// process created it or that any content has been reused yet.
+		s.streams.Debug("package OCI cache initialized", "path", cacheStorePath)
+	}
+	return remote, nil
 }
 
 func (s *remoteSource) resolveFilteredLayers(ctx context.Context, filter filters.ComponentFilterStrategy) (*resolvedLayers, error) {

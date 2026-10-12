@@ -71,6 +71,10 @@ During bundle creation, remote Zarf package reads use an OCI cache under
 reuse content from previous creates. Local package sources do not populate
 this cache. Cache reuse does not replace package signature verification.
 
+Set `log_level = "debug"` or pass `--log-level debug` to see the package OCI
+cache store path and initialization diagnostics on stderr. These messages
+confirm cache setup, not individual layer hits or misses.
+
 ## `signature_verification`
 
 This block defines the consumer's trust policy for a bundle artifact. It is separate from the package signature policy in each `package` block of `bundle.uds.hcl`, and it is separate from the signing options used by `bundle create` and `bundle sign`.
