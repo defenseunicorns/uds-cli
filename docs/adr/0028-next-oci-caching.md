@@ -96,6 +96,15 @@ requirement for upstream resolution. The currently vendored cache propagates
 cache-store initialization and write failures; this integration does not
 promise fallback that upstream does not provide.
 
+Public-library characterization tests cover both remote package retrieval during
+create and bundle pull with an unusable cache store or blocked temporary blob
+ingest directory. They demonstrate the current failure, error propagation,
+absence of a published output artifact, and temporary workspace cleanup. The
+same remote operation succeeds with caching disabled and the obstruction still
+present. These tests document an unresolved upstream fallback requirement; they
+must be revisited when upstream behavior changes, not treated as a requirement
+that cache failures should always stop UDS operations.
+
 Integration tests must demonstrate initial population, reuse across independent
 creates, unchanged package verification, and the resulting artifact's ability
 to supply package content. Add cross-operation reuse and concurrency coverage
