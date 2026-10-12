@@ -79,7 +79,7 @@ func PublishBundleSignature(ctx context.Context, target oras.Target, subject oci
 	return nil
 }
 
-func signatureData(ctx context.Context, source oras.Target, ref ocispec.Descriptor) ([]byte, error) {
+func signatureData(ctx context.Context, source content.Fetcher, ref ocispec.Descriptor) ([]byte, error) {
 	manifestBytes, err := FetchBytes(ctx, source, ref)
 	if err != nil {
 		return nil, fmt.Errorf("fetching signature artifact: %w", err)
@@ -99,7 +99,7 @@ func signatureData(ctx context.Context, source oras.Target, ref ocispec.Descript
 }
 
 // FetchBundleSignature discovers and fetches Sigstore evidence for subject.
-func FetchBundleSignature(ctx context.Context, source oras.Target, subject ocispec.Descriptor) ([]byte, error) {
+func FetchBundleSignature(ctx context.Context, source oras.ReadOnlyTarget, subject ocispec.Descriptor) ([]byte, error) {
 	store, ok := source.(content.ReadOnlyGraphStorage)
 	if !ok {
 		return nil, fmt.Errorf("registry target does not support signature discovery")
@@ -117,7 +117,7 @@ func FetchBundleSignature(ctx context.Context, source oras.Target, subject ocisp
 	return signatureData(ctx, source, refs[0])
 }
 
-func signatureReferences(ctx context.Context, target oras.Target, store content.ReadOnlyGraphStorage, subject ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+func signatureReferences(ctx context.Context, target oras.ReadOnlyTarget, store content.ReadOnlyGraphStorage, subject ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 	refs, err := registry.Referrers(ctx, store, subject, MediaTypeBundleSignature)
 	if err == nil && len(refs) != 0 {
 		return refs, nil

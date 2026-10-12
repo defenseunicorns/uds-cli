@@ -32,7 +32,7 @@ location, command integration, cleanup, and tests.
 Use `<uds-cache>/bundle-oci` as the `CachePath` supplied to Zarf's
 `zoci.NewRemoteWithOptions`. Zarf opens its OCI store in the `images/`
 subdirectory, so cached blobs reside beneath
-`<uds-cache>/bundle-oci/images/blobs/`. Bundle remote reads will use that same
+`<uds-cache>/bundle-oci/images/blobs/`. Bundle pull reads use that same
 store through upstream `oci/cache.New`.
 
 Keep this cache separate from Legacy's `<uds-cache>/layers` and Zarf's default
@@ -40,7 +40,7 @@ Keep this cache separate from Legacy's `<uds-cache>/layers` and Zarf's default
 
 The CLI resolves configuration in this order: the `~/.uds-cache` default,
 `options.uds_cache` in `config.uds.hcl`, then an explicit `--uds-cache` flag.
-Create the cache on demand when constructing a remote package client. Local
+Create the cache on demand when constructing a remote read source. Local
 package sources do not open the remote cache. Public library callers provide
 `ConfigOptions.CacheDir`; an empty value leaves caching disabled.
 
@@ -57,9 +57,16 @@ package metadata reads. Those callers use the same cache when configured.
 Keep package staging and the final bundle layout operation-owned; the cache
 does not replace either layout.
 
-Subsequent changes will configure bundle remote reads for pull, inspect,
-OCI-source deploy, and OCI-source remove through `internal/oci`. Local graph
-copies may continue using ORAS; remote reads must consume a cache-aware source.
+For bundle pull, retain one cache-aware source through bundle index resolution,
+signature evidence fetching, and copying the selected architecture's graph into
+the operation-owned layout. Tag resolution and signature discovery remain
+registry operations. Cache reuse does not make pulls offline or bypass bundle
+signature verification. Preserve the canonical index bytes and signature
+evidence in the output archive independently of the cache.
+
+Subsequent changes will configure bundle remote reads for inspect, OCI-source
+deploy, and OCI-source remove through `internal/oci`. Local graph copies may
+continue using ORAS; remote reads must consume a cache-aware source.
 Audit the upstream helpers actually used rather than assuming every helper
 honors its remote's cache.
 

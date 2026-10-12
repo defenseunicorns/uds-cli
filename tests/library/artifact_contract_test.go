@@ -150,6 +150,106 @@ func TestInspectStatusConstants(t *testing.T) {
 	assert.Equal(t, "unknown", bundle.PackageVerificationStatusUnknown)
 }
 
+func TestPullRemoteBundleCacheReuse(t *testing.T) {
+	for _, useCache := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cache=%t", useCache), func(t *testing.T) {
+			var downloads atomic.Int64
+			var blockDownloads atomic.Bool
+			handler := registry.New()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+					downloads.Add(1)
+					if blockDownloads.Load() {
+						http.Error(w, "blob downloads disabled for cache reuse test", http.StatusForbidden)
+						return
+					}
+				}
+				handler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
+			fixture := createLibraryBundle(t)
+			privateKey, publicKey := libraryKeyPair(t)
+			require.NoError(t, bundle.Sign(t.Context(), bundle.SignOptions{
+				Source:  fixture.ArtifactPath,
+				Signing: bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: privateKey},
+				Config:  fixture.Config,
+				TmpDir:  t.TempDir(),
+			}))
+			config := libraryRegistryConfig(fixture.Config)
+			cacheDir := filepath.Join(t.TempDir(), "cache")
+			if useCache {
+				config.Options.CacheDir = cacheDir
+			}
+			ref := strings.TrimPrefix(server.URL, "http://") + "/library/cached-pull:v1"
+			_, err := bundle.Push(t.Context(), fixture.ArtifactPath, ref, bundle.PushOptions{Config: config})
+			require.NoError(t, err)
+			policy := bundle.VerificationPolicy{PublicKey: publicKey}
+			pull := func() *bundle.PullResult {
+				t.Helper()
+				result, err := bundle.Pull(t.Context(), ref, t.TempDir(), bundle.PullOptions{Config: config, Verification: policy})
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.FileExists(t, result.OutputPath)
+				return result
+			}
+			cold := pull()
+			coldDownloads := downloads.Load()
+			require.Positive(t, coldDownloads)
+			if useCache {
+				require.DirExists(t, filepath.Join(cacheDir, "bundle-oci", "images", "blobs", "sha256"))
+				assert.NoDirExists(t, filepath.Join(cacheDir, "images"))
+				assert.NoDirExists(t, filepath.Join(cacheDir, "layers"))
+				// Leave registry resolution and signature discovery available,
+				// but forbid blob downloads. A fresh pull destination cannot
+				// supply those bytes: they must come from the persistent cache.
+				blockDownloads.Store(true)
+			}
+			warm := pull()
+			assert.NotEqual(t, filepath.Dir(cold.OutputPath), filepath.Dir(warm.OutputPath))
+			if useCache {
+				assert.Equal(t, coldDownloads, downloads.Load(), "the second pull must reuse cached blobs")
+				// Warm bytes do not authorize a different verification key.
+				// Since downloads remain blocked, rejection exercises cached
+				// signature evidence rather than a fresh network download.
+				_, wrongPublicKey := libraryKeyPair(t)
+				failedDir := t.TempDir()
+				failed, err := bundle.Pull(t.Context(), ref, failedDir, bundle.PullOptions{
+					Config:       config,
+					Verification: bundle.VerificationPolicy{PublicKey: wrongPublicKey},
+				})
+				require.ErrorIs(t, err, bundle.ErrPullBundle)
+				assert.ErrorContains(t, err, "verifying bundle signature", "failure must be verification, not an unavailable download")
+				assert.Nil(t, failed)
+				artifacts, err := filepath.Glob(filepath.Join(failedDir, "*.tar.zst"))
+				require.NoError(t, err)
+				assert.Empty(t, artifacts)
+				assert.Equal(t, coldDownloads, downloads.Load())
+			} else {
+				assert.Greater(t, downloads.Load(), coldDownloads)
+				assert.NoDirExists(t, cacheDir)
+			}
+			original, err := fixtureartifact.Read(t.Context(), fixture.ArtifactPath)
+			require.NoError(t, err)
+			pulled, err := fixtureartifact.Read(t.Context(), warm.OutputPath)
+			require.NoError(t, err)
+			assert.Equal(t, original.BlobPaths(), pulled.BlobPaths())
+			assert.Equal(t, original.Small["oci/index.json"], pulled.Small["oci/index.json"])
+			require.NoError(t, bundle.Verify(t.Context(), bundle.VerifyOptions{Source: warm.OutputPath, Policy: policy, Config: config, TmpDir: t.TempDir()}))
+			// Load actual package content from the downloaded artifact through
+			// the public API, not from the remote source or shared cache.
+			prepared, err := bundle.PrepareDeploySource(t.Context(), iostreams.IOStreams{}, warm.OutputPath, t.TempDir(), runtime.GOARCH)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, prepared.Close()) })
+			for i := range prepared.Bundle.Packages {
+				pkg := &prepared.Bundle.Packages[i]
+				loaded, err := prepared.Loader.LoadPackageLayout(t.Context(), pkg, t.TempDir(), bundle.ZarfPackageLayoutLoadOptions{})
+				require.NoError(t, err)
+				assert.Equal(t, pkg.Name, loaded.Layout.PackageDefinition.Metadata.Name)
+			}
+		})
+	}
+}
+
 func TestInspectUnknownPackageMetadata(t *testing.T) {
 	fixture := createLibraryBundle(t)
 	unknown := rewriteLibraryArtifact(t, fixture.ArtifactPath, func(root string) {
