@@ -9,12 +9,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/google/go-containerregistry/pkg/registry"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -218,6 +224,123 @@ func TestDeployOptions_Run_LocalArtifactDoesNotPull(t *testing.T) {
 	err := o.Run(t.Context())
 	require.ErrorContains(t, err, "extracting bundle artifact")
 	assert.Zero(t, puller.bundleCalls)
+}
+
+func TestDeployOptions_Run_OCIUsesSharedCache(t *testing.T) {
+	for _, primeWith := range []string{"deploy", "pull"} {
+		t.Run("cache primed by "+primeWith, func(t *testing.T) {
+			var downloads atomic.Int64
+			var blockDownloads atomic.Bool
+			handler := registry.New()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+					downloads.Add(1)
+					if blockDownloads.Load() {
+						http.Error(w, "blob downloads blocked for deploy cache test", http.StatusForbidden)
+						return
+					}
+				}
+				handler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
+			keys, err := cosign.GenerateKeyPair(nil)
+			require.NoError(t, err)
+			keyDir := t.TempDir()
+			privateKey := filepath.Join(keyDir, "cosign.key")
+			publicKey := filepath.Join(keyDir, "cosign.pub")
+			require.NoError(t, os.WriteFile(privateKey, keys.PrivateBytes, 0o600))
+			require.NoError(t, os.WriteFile(publicKey, keys.PublicBytes, 0o600))
+			artifactPath := createTestArtifact(t)
+			cacheDir, tmpDir := t.TempDir(), t.TempDir()
+			config := testInspectConfig()
+			config.Options.CacheDir = cacheDir
+			config.Options.TmpDir = tmpDir
+			config.Options.PlainHTTP = true
+			policy := bundle.VerificationPolicy{PublicKey: string(keys.PublicBytes)}
+			require.NoError(t, bundle.Sign(t.Context(), bundle.SignOptions{
+				Source: artifactPath, Config: config, TmpDir: tmpDir,
+				Signing: bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: privateKey},
+			}))
+			ref := "oci://" + strings.TrimPrefix(server.URL, "http://") + "/test/deploy-cache:v1"
+			_, err = bundle.Push(t.Context(), artifactPath, ref, bundle.PushOptions{Config: config})
+			require.NoError(t, err)
+			var artifactPaths []string
+			runnerCalls := 0
+			run := func(publicKeyPath string) error {
+				t.Helper()
+				streams, _, _, errOut := iostreams.NewTestIOStreams()
+				root := NewBundleCommand(streams)
+				cmd, _, err := root.Find([]string{"deploy"})
+				require.NoError(t, err)
+				o := NewDeployOptions(streams)
+				require.NoError(t, o.Complete(cmd, []string{ref}))
+				o.flags = CLIFlags{
+					CacheDir: cacheDir, CacheDirChanged: true,
+					TmpDir: tmpDir, TmpDirChanged: true,
+					PlainHTTP: true, PlainHTTPChanged: true,
+					LogLevel: "debug", LogLevelChanged: true,
+				}
+				o.Verification.PublicKey = publicKeyPath
+				o.Packages = []string{"pkg"}
+				o.Force, o.Resume = true, true
+				// Keep the production pull path, replacing only the final
+				// cluster-facing step. The callback proves a usable, verified
+				// local artifact reaches deployment, without deploying anything.
+				o.runDeploy = func(ctx context.Context, streams iostreams.IOStreams, cfg *bundle.UDSBundleConfig, opts deployOptions) (*bundle.DeployResult, error) {
+					runnerCalls++
+					artifactPaths = append(artifactPaths, opts.bundlePath)
+					assert.Equal(t, cacheDir, cfg.Options.CacheDir)
+					assert.Equal(t, []string{"pkg"}, opts.packages)
+					assert.True(t, opts.force)
+					assert.True(t, opts.resume)
+					require.FileExists(t, opts.bundlePath)
+					require.NoError(t, bundle.Verify(ctx, bundle.VerifyOptions{Source: opts.bundlePath, Config: cfg, Policy: policy, TmpDir: tmpDir, Streams: streams}))
+					prepared, err := bundle.PrepareDeploySource(ctx, streams, opts.bundlePath, tmpDir, cfg.Options.Architecture)
+					require.NoError(t, err)
+					require.NoError(t, prepared.Close())
+					return &bundle.DeployResult{BundleName: "inspect-test"}, nil
+				}
+				err = o.Run(t.Context())
+				assert.Contains(t, errOut.String(), "bundle OCI cache initialized")
+				// Success and signature failure both discard the operation's
+				// temporary workspace. The shared cache must survive cleanup.
+				entries, readErr := os.ReadDir(tmpDir)
+				require.NoError(t, readErr)
+				assert.Empty(t, entries)
+				assert.DirExists(t, filepath.Join(cacheDir, "bundle-oci", "images", "blobs", "sha256"))
+				return err
+			}
+			if primeWith == "deploy" {
+				require.NoError(t, run(publicKey))
+			} else {
+				_, err := bundle.Pull(t.Context(), ref, t.TempDir(), bundle.PullOptions{Config: config, Verification: policy})
+				require.NoError(t, err)
+			}
+			coldDownloads := downloads.Load()
+			require.Positive(t, coldDownloads)
+			blockDownloads.Store(true)
+			beforeWarm := runnerCalls
+			require.NoError(t, run(publicKey))
+			assert.Equal(t, beforeWarm+1, runnerCalls)
+			assert.Equal(t, coldDownloads, downloads.Load(), "deploy must reuse the cache populated by the earlier operation")
+			for _, path := range artifactPaths {
+				assert.NoFileExists(t, path, "deployment workspaces must not persist")
+			}
+			if len(artifactPaths) == 2 {
+				assert.NotEqual(t, filepath.Dir(artifactPaths[0]), filepath.Dir(artifactPaths[1]), "each deploy must use its own workspace")
+			}
+			wrongKeys, err := cosign.GenerateKeyPair(nil)
+			require.NoError(t, err)
+			wrongPublicKey := filepath.Join(keyDir, "wrong.pub")
+			require.NoError(t, os.WriteFile(wrongPublicKey, wrongKeys.PublicBytes, 0o600))
+			beforeFailure := runnerCalls
+			err = run(wrongPublicKey)
+			require.ErrorIs(t, err, bundle.ErrPullBundle)
+			require.ErrorContains(t, err, "verifying bundle signature")
+			assert.Equal(t, beforeFailure, runnerCalls, "verification failure must prevent the deployment callback")
+			assert.Equal(t, coldDownloads, downloads.Load(), "wrong-key rejection must exercise cached evidence")
+		})
+	}
 }
 
 func TestDeployOptions_Run_OCIWorkspaceAndOutputLifecycle(t *testing.T) {

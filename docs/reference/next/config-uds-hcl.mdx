@@ -79,6 +79,11 @@ cache without downloading package payloads. Inspect with a verification policy
 still retrieves and verifies the full bundle content through the cached pull
 path. Local archive metadata reads do not open this cache.
 
+Deploying an OCI-source bundle uses the same cached pull path, then stages
+packages from the downloaded artifact. It retrieves the whole bundle for the
+selected architecture before applying package selection or resume behavior.
+Deployment workspace cleanup leaves the shared cache intact.
+
 Set `log_level = "debug"` or pass `--log-level debug` to see the OCI
 cache store path and initialization diagnostics on stderr. These messages
 confirm cache setup, not individual layer hits or misses.
