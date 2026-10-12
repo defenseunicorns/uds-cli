@@ -370,6 +370,138 @@ func TestCreateLocalPackagesDoesNotOpenRemoteCache(t *testing.T) {
 	assert.NoDirExists(t, cacheDir)
 }
 
+func TestCreateAndPullSharePackageCache(t *testing.T) {
+	for _, createFirst := range []bool{true, false} {
+		name := "pull then create"
+		if createFirst {
+			name = "create then pull"
+		}
+		t.Run(name, func(t *testing.T) {
+			var blockPackageDownloads atomic.Bool
+			var blockedDownloads atomic.Int64
+			var downloads atomic.Int64
+			packageLayers := map[string]struct{}{}
+			handler := registry.New()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+					downloads.Add(1)
+					// The atomic flag publishes the completed, immutable digest
+					// set. The handler does not read it while setup is filling it.
+					if blockPackageDownloads.Load() {
+						if _, shared := packageLayers[filepath.Base(r.URL.Path)]; shared {
+							blockedDownloads.Add(1)
+							http.Error(w, "shared package layer downloads blocked", http.StatusForbidden)
+							return
+						}
+					}
+				}
+				handler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
+			host := strings.TrimPrefix(server.URL, "http://")
+			privateKey, publicKey := libraryKeyPair(t)
+			packagePath := createLibraryPackageWithSigning(t, t.TempDir(), "shared-cache", privateKey)
+			packageRef := "oci://" + publishLibraryPackage(t, packagePath, host)
+			config := libraryRegistryConfig(libraryFixtureConfig(t))
+			config.Options.CacheDir = filepath.Join(t.TempDir(), "cache")
+			create := func(cfg *bundle.UDSBundleConfig) (*bundle.CreateResult, error) {
+				t.Helper()
+				// Each create gets a fresh workspace. The original artifact
+				// and its package staging cannot satisfy a later create.
+				bundleFile := writePackageVerificationBundle(t, t.TempDir(), packageRef, publicKey)
+				return bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
+					Config:  cfg,
+					Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
+				})
+			}
+			bootstrap := *config
+			bootstrapOptions := *config.Options
+			bootstrap.Options = &bootstrapOptions
+			if !createFirst {
+				// Build the fixture without warming the shared cache. Only
+				// the upcoming bundle pull may populate that cache.
+				bootstrap.Options.CacheDir = ""
+			}
+			created, err := create(&bootstrap)
+			require.NoError(t, err)
+			if !createFirst {
+				require.NoDirExists(t, config.Options.CacheDir)
+			}
+			entries, err := fixtureartifact.Read(t.Context(), created.OutputPath)
+			require.NoError(t, err)
+			manifests, err := entries.PackageManifestDigests()
+			require.NoError(t, err)
+			require.Len(t, manifests, 1)
+			for digest := range manifests {
+				var manifest ocispec.Manifest
+				require.NoError(t, json.Unmarshal(entries.Small["oci/blobs/sha256/"+strings.TrimPrefix(digest, "sha256:")], &manifest))
+				for _, layer := range manifest.Layers {
+					packageLayers[layer.Digest.String()] = struct{}{}
+				}
+			}
+			require.NotEmpty(t, packageLayers)
+			bundleRef := host + "/bundles/shared-cache:v1"
+			_, err = bundle.Push(t.Context(), created.OutputPath, bundleRef, bundle.PushOptions{Config: config})
+			require.NoError(t, err)
+			pull := func(cfg *bundle.UDSBundleConfig) (*bundle.PullResult, error) {
+				t.Helper()
+				return bundle.Pull(t.Context(), bundleRef, t.TempDir(), bundle.PullOptions{Config: cfg, SkipSignatureVerification: true})
+			}
+			if !createFirst {
+				beforePull := downloads.Load()
+				_, err := pull(config)
+				require.NoError(t, err)
+				require.Greater(t, downloads.Load(), beforePull)
+			}
+			for digest := range packageLayers {
+				require.FileExists(t, filepath.Join(config.Options.CacheDir, "bundle-oci", "images", "blobs", "sha256", strings.TrimPrefix(digest, "sha256:")))
+			}
+			// Bundle definitions are not fetched during package retrieval.
+			// Block only the shared package layers, leaving bundle-specific
+			// content, tag resolution, and registry discovery available.
+			blockPackageDownloads.Store(true)
+			var reusedArtifact string
+			if createFirst {
+				pulled, err := pull(config)
+				require.NoError(t, err)
+				reusedArtifact = pulled.OutputPath
+			} else {
+				warm, err := create(config)
+				require.NoError(t, err)
+				reusedArtifact = warm.OutputPath
+			}
+			assert.Zero(t, blockedDownloads.Load(), "the second operation must reuse package layers without downloading them")
+			inspected, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: reusedArtifact, Config: config})
+			require.NoError(t, err)
+			require.Len(t, inspected.Packages, 1)
+			require.NotNil(t, inspected.Packages[0].Signature)
+			assert.Equal(t, bundle.PackageVerificationStatusVerified, inspected.Packages[0].Signature.Verification)
+			reusedEntries, err := fixtureartifact.Read(t.Context(), reusedArtifact)
+			require.NoError(t, err)
+			assert.Equal(t, entries.BlobPaths(), reusedEntries.BlobPaths())
+			assert.Equal(t, entries.Small["oci/index.json"], reusedEntries.Small["oci/index.json"])
+
+			// Control: with a different, empty cache the exact same operation
+			// must fail. This proves the download blocker is effective and the
+			// successful case was not satisfied by some unrelated local store.
+			coldConfig := *config
+			coldOptions := *config.Options
+			coldOptions.CacheDir = t.TempDir()
+			coldConfig.Options = &coldOptions
+			if createFirst {
+				failed, err := pull(&coldConfig)
+				require.ErrorIs(t, err, bundle.ErrPullBundle)
+				assert.Nil(t, failed)
+			} else {
+				failed, err := create(&coldConfig)
+				require.ErrorIs(t, err, bundle.ErrCreateBundle)
+				assert.Nil(t, failed)
+			}
+			assert.Positive(t, blockedDownloads.Load(), "an empty cache must attempt a blocked package download")
+		})
+	}
+}
+
 func TestCreateOptionalComponentCanBeExcluded(t *testing.T) {
 	fixture := createLibraryBundleWithoutOptionalComponent(t)
 	inspected, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: fixture.ArtifactPath, Config: fixture.Config})
