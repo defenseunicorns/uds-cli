@@ -132,7 +132,7 @@ jobs:
         run: uds run build-cli-linux-amd
 
       - name: Upload UDS CLI binary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: uds-binary
           path: build/uds
@@ -221,9 +221,9 @@ jobs:
 
       - name: Cache the Next test Zarf tool
         if: matrix.supplied
-        uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          version: 2026.10.3
+          version: 2026.10.9
           install_args: zarf@${{ steps.zarf-version.outputs.version }}
           cache: true
 
@@ -305,9 +305,9 @@ jobs:
         run: echo "version=$(go list -m -json github.com/zarf-dev/zarf | jq -r '.Version | ltrimstr("v")')" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Next test Zarf tool
-        uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          version: 2026.10.3
+          version: 2026.10.9
           install_args: zarf@${{ steps.zarf-version.outputs.version }}
           cache: true
 
