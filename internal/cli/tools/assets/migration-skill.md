@@ -1,4 +1,4 @@
-<!-- Generated from the canonical skill and its explicit documentation dependencies. Do not edit. Skill SHA256: 61b32afad411e1baa15e7bb6ae8884a20ea4719985b77c644a13d188d2b5610e -->
+<!-- Generated from the canonical skill and its explicit documentation dependencies. Do not edit. Skill SHA256: a1272d8b6f9cfe086155826a7e4bd98b4bfb66e4aea4a6344ee32281aec59ce3 -->
 
 # Migrate a Legacy bundle to UDS CLI Next
 
@@ -12,7 +12,8 @@ Use these maintained documents as the source of truth for schema and migration
 behavior. Read only the sections relevant to the supplied bundle. In the binary's
 printed skill, these links point to documentation included below; no repository
 checkout or web access is required. When using the repository skill directly,
-read the linked local files. Do not fetch documentation or missing inputs online.
+resolve the links relative to this SKILL.md and read the linked local files.
+Do not fetch documentation or missing inputs online.
 
 | Need | Maintained document |
 | --- | --- |

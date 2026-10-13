@@ -73,7 +73,7 @@ func TestGenerateAndCheck(t *testing.T) {
 func TestDocumentationDependencies(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	skill := "---\nname: migration\n---\nRead [schema](docs/reference/schema.mdx), [schema again](docs/reference/schema.mdx), and [workflow](docs/how-to-guides/workflow.mdx).\n"
+	skill := "---\nname: migration\n---\nRead [schema](../../../docs/reference/schema.mdx), [schema again](../../../docs/reference/../reference/schema.mdx), and [workflow](../../../docs/how-to-guides/workflow.mdx).\n"
 	writeSource := func(path, content string) {
 		t.Helper()
 		path = filepath.Join(root, path)
@@ -90,6 +90,7 @@ func TestDocumentationDependencies(t *testing.T) {
 	require.NoError(t, err)
 	generatedSkill := string(first)
 	require.Contains(t, generatedSkill, "[schema](#migration-doc-docs-reference-schema-mdx)")
+	require.Contains(t, generatedSkill, "[schema again](#migration-doc-docs-reference-schema-mdx)")
 	require.Contains(t, generatedSkill, "[workflow](#migration-doc-docs-how-to-guides-workflow-mdx)")
 	require.Contains(t, generatedSkill, "Schema rules.")
 	require.Contains(t, generatedSkill, "Workflow rules.")
@@ -117,13 +118,32 @@ func TestDocumentationDependencies(t *testing.T) {
 
 func TestUnavailableDocumentation(t *testing.T) {
 	t.Parallel()
-	for _, path := range []string{"docs/missing.mdx", "docs/../../outside.mdx", "docs/schema.txt"} {
+	for _, path := range []string{"../../../docs/missing.mdx", "../../../docs/../../outside.mdx", "../../../docs/schema.txt", "/docs/schema.mdx", "docs/schema.mdx"} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 			_, err := assemble(t.TempDir(), "---\nname: migration\n---\nRead [reference]("+path+").\n")
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestRepositorySkillDocumentationLinks(t *testing.T) {
+	t.Parallel()
+	skillFile := filepath.Join("../..", skillPath)
+	skill, err := os.ReadFile(skillFile)
+	require.NoError(t, err)
+	body, err := skillBody(string(skill))
+	require.NoError(t, err)
+	links := markdownLink.FindAllStringSubmatch(body, -1)
+	require.NotEmpty(t, links)
+	for _, link := range links {
+		// Resolve from SKILL.md itself, as a direct repository reader would.
+		require.FileExists(t, filepath.Join(filepath.Dir(skillFile), filepath.FromSlash(link[2])))
+	}
+	generated, err := assemble("../..", string(skill))
+	require.NoError(t, err)
+	require.NotContains(t, generated, "](../../../docs/")
+	require.Equal(t, len(links), strings.Count(generated, "## Included documentation:"))
 }
 
 func TestCommittedSkillIsCurrent(t *testing.T) {

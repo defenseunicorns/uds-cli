@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -81,14 +82,20 @@ func assemble(root, skill string) (string, error) {
 	var documents []document
 	links := make(map[string]string)
 	for _, match := range markdownLink.FindAllStringSubmatch(body, -1) {
-		path := match[2]
-		if !strings.HasPrefix(path, "docs/") {
+		link := match[2]
+		target, err := url.Parse(link)
+		if err != nil {
+			return "", fmt.Errorf("parse migration documentation link %q: %w", link, err)
+		}
+		if target.IsAbs() || target.Host != "" || strings.HasPrefix(link, "#") {
 			continue
 		}
-		if !filepath.IsLocal(path) || filepath.ToSlash(filepath.Clean(path)) != path || !strings.HasSuffix(path, ".mdx") {
-			return "", fmt.Errorf("unsupported migration documentation path %q; use a repository-root docs/*.mdx path", path)
+		path := filepath.ToSlash(filepath.Clean(filepath.Join(filepath.Dir(skillPath), filepath.FromSlash(target.Path))))
+		if filepath.IsAbs(target.Path) || !filepath.IsLocal(path) || !strings.HasPrefix(path, "docs/") || !strings.HasSuffix(path, ".mdx") || target.RawQuery != "" || target.Fragment != "" {
+			return "", fmt.Errorf("unsupported migration documentation path %q; use a skill-relative path to a repository docs/*.mdx file", link)
 		}
-		if _, exists := links[path]; exists {
+		if anchor, exists := links[path]; exists {
+			links[link] = anchor
 			continue
 		}
 		// #nosec G703 -- only clean, repository-local docs paths from the canonical skill are accepted.
@@ -102,6 +109,7 @@ func assemble(root, skill string) (string, error) {
 		}
 		id := "migration-doc-" + strings.NewReplacer("/", "-", ".", "-").Replace(path)
 		links[path] = "#" + id
+		links[link] = "#" + id
 		route := "/cli/" + strings.TrimSuffix(strings.TrimPrefix(path, "docs/"), ".mdx") + "/"
 		links[route] = "#" + id
 		documents = append(documents, document{path: path, body: docBody, hash: fmt.Sprintf("%x", sha256.Sum256(content))})
