@@ -85,8 +85,9 @@ Commits run hk automatically. To run the complete repository check suite manuall
 When updating `.agents/skills/migrate-legacy-bundle-to-next/SKILL.md` or the
 documentation it references, run `uds run generate:migration-skill` and commit
 the updated `internal/cli/tools/assets/migration-skill.md`. Run
-`uds run generate:check-migration-skill` to check for drift locally. CI runs
-this check in its lint job; it is not part of the commit hook.
+`uds run generate:check-migration-skill` to check for drift locally. The hk
+`check` hook also runs this check during `uds run lint` and in CI; the
+`pre-commit` hook does not.
 
 ### CLI modes
 
