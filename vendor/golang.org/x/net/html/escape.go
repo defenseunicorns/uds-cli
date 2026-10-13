@@ -1,4 +1,4 @@
-// Copyright 2010 The Go Authors. All rights reserved.
+// Copyright 2010-2026 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -154,10 +154,7 @@ func unescapeEntity(s []byte, attribute bool) (rune, rune, int) {
 	} else if x := entity2[entityName]; x[0] != 0 {
 		return x[0], x[1], i
 	} else if !attribute {
-		maxLen := len(entityName) - 1
-		if maxLen > longestEntityWithoutSemicolon {
-			maxLen = longestEntityWithoutSemicolon
-		}
+		maxLen := min(len(entityName)-1, longestEntityWithoutSemicolon)
 		for j := maxLen; j > 1; j-- {
 			if x := entity[entityName[:j]]; x != 0 {
 				return x, 0, j + 1
