@@ -70,9 +70,15 @@ existing full-content pull and verification path. Local archive metadata reads
 do not open the remote cache. The shared metadata helper also enables caching
 for deploy's preliminary unsigned-bundle check.
 
-Subsequent changes will configure the remaining OCI-source deploy reads
-through `internal/oci`. Local graph copies may
-continue using ORAS; remote reads must consume a cache-aware source.
+OCI-source deploy inherits caching through `bundle.Pull`, then stages packages
+from the downloaded artifact in an operation-owned workspace. It retrieves the
+whole selected architecture's bundle before applying deployment package
+selection and resume behavior; caching does not introduce selective package
+downloads. Verification failures must stop before package deployment, and
+workspace cleanup must preserve the shared cache.
+
+Local graph copies may continue using ORAS; remote reads must consume a
+cache-aware source.
 Audit the upstream helpers actually used rather than assuming every helper
 honors its remote's cache.
 
