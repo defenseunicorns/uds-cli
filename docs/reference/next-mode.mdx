@@ -197,6 +197,7 @@ Use these commands to create, inspect, transfer, deploy, and manage Next-mode bu
 | `uds bundle sign <bundle-artifact>` | Sign a created bundle artifact. |
 | `uds bundle verify <bundle-artifact>` | Verify a created bundle artifact signature. |
 | `uds bundle reconfigure <source> --defaults <defaults-file>` | Reconfigure bundle defaults from a local artifact or OCI reference and produce a derivative artifact. |
+| `uds tools clear-cache` | Remove Next bundle OCI cache content without touching Legacy's cache. |
 
 ### Global bundle flags
 
@@ -236,6 +237,32 @@ actions are never retried by this fallback.
 This fallback does not apply to every upstream cache error or provide a guarantee
 of safe concurrent cache population. Cancellation, package verification failures,
 and unrelated errors do not trigger a retry.
+
+## Clearing the Next cache
+
+`uds tools clear-cache` removes all content beneath `<uds-cache>/bundle-oci`
+while preserving that directory, Legacy's `<uds-cache>/layers`, and Zarf's
+default `<uds-cache>/images`. A missing cache is a successful no-op and does not
+create directories. The command rejects a `bundle-oci` path that is a file or
+symlink. Symlinks inside the cache are removed without deleting their targets.
+
+The cache directory follows the same precedence as bundle operations:
+`~/.uds-cache`, then `options.uds_cache` in the file supplied with `--config`,
+then an explicit `--uds-cache` override. Both flags belong to `clear-cache`;
+they do not change Zarf passthrough commands.
+
+```bash
+CLI_FEATURES=NextMode=true uds tools clear-cache --prompt
+```
+
+Cleanup is silent by default. Use `--prompt` to confirm the target directory
+before cleanup or `--log-level debug` to see removed entries. Declining the
+prompt leaves the cache unchanged.
+
+> [!CAUTION]
+> Cache cleanup is not safe during concurrent use. Stop operations using the
+> Next cache before running this command; it does not detect active processes.
+> Filesystem errors are returned and can leave the cache partially cleared.
 
 ## Deploying a bundle
 

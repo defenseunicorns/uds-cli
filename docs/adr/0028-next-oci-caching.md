@@ -121,10 +121,18 @@ as the remaining integrations and dependency updates land.
 
 ### Cleanup and diagnostics
 
-A subsequent change will add `uds tools clear-cache` to remove content under
-`<uds-cache>/bundle-oci` only, following configuration precedence and Next's
-`--prompt` convention. Concurrent cleanup is unsupported; the user chooses
-when to run it. Automatic eviction is outside this decision.
+`uds tools clear-cache` removes content under `<uds-cache>/bundle-oci` only,
+preserving that directory and sibling caches. It accepts `--config` and
+`--uds-cache` with the same configuration precedence as bundle operations.
+An absent cache is a successful no-op and does not create directories.
+Reject a `bundle-oci` path that is a file or symlink; remove links inside the
+cache without following them to their targets.
+
+Cleanup is silent by default and reports removed entries at debug level.
+Next's global `--prompt` enables confirmation; declining leaves content intact.
+Concurrent cleanup is unsupported; the user chooses when to run it and must
+ensure no operations are using the cache. Automatic eviction is outside this
+decision.
 
 Provide debug diagnostics identifying the configured cache. Hit/miss counters
 are not required.

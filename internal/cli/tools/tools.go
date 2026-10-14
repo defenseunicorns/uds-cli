@@ -24,6 +24,7 @@ func NewToolsCommand(streams iostreams.IOStreams) *cobra.Command {
 	}
 
 	cmd.AddCommand(cmdzarf.NewZarfCommand())
+	cmd.AddCommand(newClearCacheCommand(streams))
 	cmd.AddCommand(NewMigrateBundleCommand(streams))
 
 	return cmd
