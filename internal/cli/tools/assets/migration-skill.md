@@ -124,7 +124,7 @@ creation. Do not deploy a bundle, operate a cluster, or write to a registry.
 
 ## Included documentation: docs/how-to-guides/migrate-legacy-to-next.mdx
 
-<!-- Source SHA256: 4656bf8357ee6f7d25229cd6dc5c2ff90aaf86f181021490e7502a48c71ab63d -->
+<!-- Source SHA256: a4e83cea679bfd4d8295c08d5f53a3d8d43b4461de8d0ef83d091469d6d93f6f -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -313,9 +313,9 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
 
    - Keep variables used in `values_files` under the package name. Convert uppercase names to lowercase with underscores, such as `REPLICA_COUNT` to `replica_count`.
    - Zarf package variables must be top-level scalar values and apply to every package. Put shared Helm settings in each package's values file. Use a values file for package-specific settings.
-   - Keep `architecture`, `log_level`, and `tmp_dir` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`.
+   - Keep `architecture`, `log_level`, `tmp_dir`, and `uds_cache` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`; `--uds-cache` keeps its name.
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
-   - Next has no equivalents for `uds_cache`, `retries`, or `UDS_<NAME>` environment variables.
+   - Next has no equivalents for `retries` or `UDS_<NAME>` environment variables.
 
    Next applies built-in defaults, then `config.uds.hcl` values, then explicit command-line flags. `config.uds.hcl` overrides matching values in the adjacent `defaults.uds.hcl`, then command-line flags override `config.uds.hcl`.
 
@@ -589,7 +589,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 5c66892e36e9ea97a33158f47f921a027e66edd25222a612b668a6f7b7b5d0ac -->
+<!-- Source SHA256: 5b2947e1e5c0fe32cffb6cf9b55f44b8eb3c2e912140542a49c7737985b42e2e -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -635,6 +635,7 @@ The `options` block configures operation-wide behavior. Config values override b
 | `architecture` | string | The current runtime architecture | Selects the target architecture for architecture-aware bundle and package operations. |
 | `plain_http` | boolean | `false` | Allows registry communication over plain HTTP. Use only with a registry that intentionally does not provide TLS. |
 | `skip_tls_verify` | boolean | `false` | Disables TLS certificate verification for registry communication. This reduces transport security. |
+| `uds_cache` | string | `~/.uds-cache` | Sets the cache directory. `~` and paths beginning with `~/` expand to your home directory. An explicit `--uds-cache` flag overrides this value and uses the same expansion. |
 | `tmp_dir` | string | The operating system temporary directory | Must name an existing directory when set. |
 | `concurrency` | integer | `10` | Values from `1` to `25` are accepted. `0` is treated as unset and uses the default of `10`. |
 
@@ -649,6 +650,19 @@ options {
 ```
 
 The `tmp_dir` directory must already exist before running the command.
+If UDS CLI cannot determine your home directory, set `uds_cache` or `--uds-cache` to an absolute path instead of relying on the default.
+
+During bundle creation and bundle pull, remote content reads use a shared OCI
+cache under `<uds_cache>/bundle-oci/images/`. The directory is created on demand
+and can reuse content from previous operations. Local package sources during
+create do not populate this cache. Cache reuse does not replace package or
+bundle signature verification. Pull still contacts the registry to resolve
+references and discover signature evidence; caching does not provide offline
+pull support.
+
+Set `log_level = "debug"` or pass `--log-level debug` to see the OCI
+cache store path and initialization diagnostics on stderr. These messages
+confirm cache setup, not individual layer hits or misses.
 
 ## `signature_verification`
 
