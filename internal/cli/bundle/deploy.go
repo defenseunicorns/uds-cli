@@ -142,7 +142,9 @@ func (o *DeployOptions) policyForArtifactDeploy(ctx context.Context) (bundle.Ver
 
 	isUnsigned := o.isUnsigned
 	if isUnsigned == nil {
-		isUnsigned = artifactIsUnsigned
+		isUnsigned = func(ctx context.Context, source string, config *bundle.UDSBundleConfig) (bool, error) {
+			return artifactIsUnsigned(ctx, source, config, o.IOStreams)
+		}
 	}
 	unsigned, detectErr := isUnsigned(ctx, o.BundlePath, o.Config)
 	if detectErr != nil {
@@ -155,8 +157,8 @@ func (o *DeployOptions) policyForArtifactDeploy(ctx context.Context) (bundle.Ver
 	return bundle.VerificationPolicy{}, errors.New("bundle is not signed, if you wish to deploy this unsigned bundle, re-run with --skip-signature-verification")
 }
 
-func artifactIsUnsigned(ctx context.Context, source string, config *bundle.UDSBundleConfig) (bool, error) {
-	metadata, err := artifact.OpenMetadataSource(ctx, source, toInternalConfig(config))
+func artifactIsUnsigned(ctx context.Context, source string, config *bundle.UDSBundleConfig, streams iostreams.IOStreams) (bool, error) {
+	metadata, err := artifact.OpenMetadataSource(ctx, source, toInternalConfig(config), streams)
 	if err != nil {
 		return false, err
 	}

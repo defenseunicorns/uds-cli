@@ -74,6 +74,11 @@ bundle signature verification. Pull still contacts the registry to resolve
 references and discover signature evidence; caching does not provide offline
 pull support.
 
+Remote bundle metadata reads for inspect and OCI-source remove use the same
+cache without downloading package payloads. Inspect with a verification policy
+still retrieves and verifies the full bundle content through the cached pull
+path. Local archive metadata reads do not open this cache.
+
 Set `log_level = "debug"` or pass `--log-level debug` to see the OCI
 cache store path and initialization diagnostics on stderr. These messages
 confirm cache setup, not individual layer hits or misses.

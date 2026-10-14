@@ -68,9 +68,12 @@ type MetadataSource struct {
 
 // OpenMetadataSource resolves a local archive or remote OCI reference without
 // pulling or extracting package payloads.
-func OpenMetadataSource(ctx context.Context, source string, config *bundleinternal.UDSBundleConfig) (*MetadataSource, error) {
+func OpenMetadataSource(ctx context.Context, source string, config *bundleinternal.UDSBundleConfig, streams iostreams.IOStreams) (*MetadataSource, error) {
 	if udsoci.IsOCIReference(source) {
-		target, err := udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(source), *config.Options)
+		// Keep metadata and signature reads on this source. The upstream
+		// cache reuses descriptor content; registry resolution and signature
+		// discovery remain live. No package payload graph is copied here.
+		target, err := udsoci.NewRemoteMetadataSource(ctx, source, *config.Options, streams)
 		if err != nil {
 			return nil, ResolvingInspectSourceError{Source: source, Err: err}
 		}
@@ -116,11 +119,17 @@ func (s *MetadataSource) FetchSignatureEvidence(ctx context.Context) ([]byte, er
 
 // Inspect reads bundle definition and package signature metadata.
 func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
-	source, err := OpenMetadataSource(ctx, opts.Source, opts.Config)
+	source, err := OpenMetadataSource(ctx, opts.Source, opts.Config, opts.Streams)
 	if err != nil {
 		return nil, err
 	}
-	result, err := ReadBundleDefinition(ctx, source, opts.Streams)
+	return InspectMetadata(ctx, source, opts.Streams)
+}
+
+// InspectMetadata reads inspection metadata through an already resolved source.
+// Reusing it preserves digest selection and a single cache fallback budget.
+func InspectMetadata(ctx context.Context, source *MetadataSource, streams iostreams.IOStreams) (*InspectResult, error) {
+	result, err := ReadBundleDefinition(ctx, source, streams)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +142,7 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 
 // InspectBundleDefinition reads bundle definition metadata without package metadata.
 func InspectBundleDefinition(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
-	source, err := OpenMetadataSource(ctx, opts.Source, opts.Config)
+	source, err := OpenMetadataSource(ctx, opts.Source, opts.Config, opts.Streams)
 	if err != nil {
 		return nil, err
 	}

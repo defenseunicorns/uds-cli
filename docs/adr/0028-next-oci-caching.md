@@ -63,8 +63,15 @@ registry operations. Cache reuse does not make pulls offline or bypass bundle
 signature verification. Preserve the canonical index bytes and signature
 evidence in the output archive independently of the cache.
 
-Subsequent changes will configure bundle remote reads for inspect, OCI-source
-deploy, and OCI-source remove through `internal/oci`. Local graph copies may
+Inspect and OCI-source remove use the same cache-aware source for bundle
+definitions, package metadata, and signature evidence. Metadata-only reads do
+not download package payloads. Inspect with a verification policy retains its
+existing full-content pull and verification path. Local archive metadata reads
+do not open the remote cache. The shared metadata helper also enables caching
+for deploy's preliminary unsigned-bundle check.
+
+Subsequent changes will configure the remaining OCI-source deploy reads
+through `internal/oci`. Local graph copies may
 continue using ORAS; remote reads must consume a cache-aware source.
 Audit the upstream helpers actually used rather than assuming every helper
 honors its remote's cache.
@@ -86,6 +93,14 @@ selection and signature verification. Do not alter the caller's configuration
 or repair the shared cache. Warn when falling back; if the retry fails, preserve
 both errors. Bundle pull retries retrieval only, not verification or archive
 publication failures.
+
+Remote bundle metadata reads use the same fallback policy, including inspect,
+OCI-source remove preparation, and deploy's preliminary signature check. After
+one cache filesystem failure, keep that metadata source uncached and retry the
+failed descriptor read without resolving its tag again. Capture failures while
+opening, reading, and closing metadata bodies; keep existing metadata size limits
+and digest validation. Retry retrieval only, never signature verification or
+deployment/removal actions.
 
 Do not retry cancellation, package verification failures, or unrelated errors.
 Upstream does not provide a distinct cache-error type, so fallback is limited to

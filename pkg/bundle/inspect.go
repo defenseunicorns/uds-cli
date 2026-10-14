@@ -104,8 +104,11 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	policy := opts.verificationPolicy()
 
 	status := BundleSignatureStatusNotChecked
+	var metadata *artifact.MetadataSource
 	if opts.SkipSignatureVerification {
-		if err := checkSkippedSignatureEvidence(ctx, opts); err != nil {
+		var err error
+		metadata, err = checkSkippedSignatureEvidence(ctx, opts, streams)
+		if err != nil {
 			return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 		}
 		status = BundleSignatureStatusSkipped
@@ -122,11 +125,17 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 		streams.Warn(bundleSignatureNotCheckedWarning)
 	}
 
-	internalResult, err := artifact.Inspect(ctx, artifact.InspectOptions{
-		Source:  opts.Source,
-		Config:  toInternalConfig(opts.Config),
-		Streams: streams,
-	})
+	var internalResult *artifact.InspectResult
+	var err error
+	if metadata != nil {
+		// Share the preliminary signature-check source so fallback happens
+		// only once and a moving tag cannot change this inspection's bundle.
+		internalResult, err = artifact.InspectMetadata(ctx, metadata, streams)
+	} else {
+		internalResult, err = artifact.Inspect(ctx, artifact.InspectOptions{
+			Source: opts.Source, Config: toInternalConfig(opts.Config), Streams: streams,
+		})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 	}
@@ -199,35 +208,30 @@ func (o InspectOptions) verificationPolicy() VerificationPolicy {
 	return *o.Config.SignatureVerification
 }
 
-func checkSkippedSignatureEvidence(ctx context.Context, opts InspectOptions) error {
+func checkSkippedSignatureEvidence(ctx context.Context, opts InspectOptions, streams iostreams.IOStreams) (*artifact.MetadataSource, error) {
 	if !udsoci.IsOCIReference(opts.Source) {
 		signatureEntries, err := artifact.CountTarZstEntries(ctx, opts.Source, bundleSignatureFileName)
 		if err != nil {
-			return fmt.Errorf("checking bundle signature evidence: %w", err)
+			return nil, fmt.Errorf("checking bundle signature evidence: %w", err)
 		}
 		if signatureEntries > 1 {
-			return fmt.Errorf("expected exactly one bundle signature evidence entry, found %d", signatureEntries)
+			return nil, fmt.Errorf("expected exactly one bundle signature evidence entry, found %d", signatureEntries)
 		}
-		return nil
+		return nil, nil
 	}
 
-	repo, err := udsoci.NewRemoteRepository(ctx, udsoci.TrimScheme(opts.Source), toInternalConfigOptions(*opts.Config.Options))
+	// Skipping verification still checks for duplicate signature evidence.
+	// This preliminary read must use the cache too, not bypass it before the
+	// metadata inspection that follows.
+	source, err := artifact.OpenMetadataSource(ctx, opts.Source, toInternalConfig(opts.Config), streams)
 	if err != nil {
-		return fmt.Errorf("checking bundle signature evidence: %w", err)
+		return nil, fmt.Errorf("checking bundle signature evidence: %w", err)
 	}
-	reference, err := udsoci.ReferenceIdentifier(opts.Source)
-	if err != nil {
-		return err
-	}
-	child, _, err := udsoci.ResolveBundleChild(ctx, repo, reference, opts.Config.Options.Architecture)
-	if err != nil {
-		return fmt.Errorf("checking bundle signature evidence: %w", err)
-	}
-	_, err = udsoci.FetchBundleSignature(ctx, repo, child)
+	_, err = source.FetchSignatureEvidence(ctx)
 	if errors.Is(err, udsoci.ErrBundleSignatureDuplicate) {
-		return fmt.Errorf("reading bundle signature evidence: %w", err)
+		return nil, fmt.Errorf("reading bundle signature evidence: %w", err)
 	}
-	return nil
+	return source, nil
 }
 
 func stageInspectSource(ctx context.Context, opts InspectOptions, policy VerificationPolicy, streams iostreams.IOStreams) (string, func(), error) {

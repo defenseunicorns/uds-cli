@@ -251,12 +251,248 @@ func TestInspectUnknownPackageMetadata(t *testing.T) {
 	}
 }
 
+func TestRemoteBundleMetadataCacheReuse(t *testing.T) {
+	for _, operation := range []string{"inspect", "inspect with verification skipped", "remove preparation"} {
+		for _, useCache := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/cache=%t", operation, useCache), func(t *testing.T) {
+				fixture := createLibraryBundle(t)
+				entries, err := fixtureartifact.Read(t.Context(), fixture.ArtifactPath)
+				require.NoError(t, err)
+				manifests, err := entries.PackageManifestDigests()
+				require.NoError(t, err)
+				payloads := make(map[string]struct{})
+				for digest := range manifests {
+					var manifest ocispec.Manifest
+					require.NoError(t, json.Unmarshal(entries.Small["oci/blobs/sha256/"+strings.TrimPrefix(digest, "sha256:")], &manifest))
+					for _, layer := range manifest.Layers {
+						if layer.Annotations[ocispec.AnnotationTitle] != "zarf.yaml" {
+							payloads[layer.Digest.String()] = struct{}{}
+						}
+					}
+				}
+				require.NotEmpty(t, payloads)
+				var downloads, payloadDownloads atomic.Int64
+				var blockDownloads atomic.Bool
+				handler := registry.New()
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+						if _, payload := payloads[filepath.Base(r.URL.Path)]; payload {
+							payloadDownloads.Add(1)
+							http.Error(w, "package payloads must not be read for metadata", http.StatusForbidden)
+							return
+						}
+						downloads.Add(1)
+						if blockDownloads.Load() {
+							http.Error(w, "metadata blob downloads blocked", http.StatusForbidden)
+							return
+						}
+					}
+					handler.ServeHTTP(w, r)
+				}))
+				t.Cleanup(server.Close)
+				// Bundle evidence exercises inspect's preliminary duplicate-
+				// signature check as well as the shared metadata reader. No
+				// verification policy is requested: verified inspect deliberately
+				// retains its full-content verification workflow.
+				privateKey, _ := libraryKeyPair(t)
+				require.NoError(t, bundle.Sign(t.Context(), bundle.SignOptions{
+					Source: fixture.ArtifactPath, Config: fixture.Config, TmpDir: t.TempDir(),
+					Signing: bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: privateKey},
+				}))
+				config := libraryRegistryConfig(fixture.Config)
+				cacheDir := filepath.Join(t.TempDir(), "cache")
+				if useCache {
+					config.Options.CacheDir = cacheDir
+				}
+				ref := strings.TrimPrefix(server.URL, "http://") + "/library/metadata:v1"
+				_, err = bundle.Push(t.Context(), fixture.ArtifactPath, ref, bundle.PushOptions{Config: config})
+				require.NoError(t, err)
+				read := func() {
+					t.Helper()
+					if operation == "remove preparation" {
+						// Deliberately fail package selection after metadata preparation
+						// but before cluster access. This tests the public remove path
+						// without removing anything or requiring a Kubernetes cluster.
+						result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: ref}, bundle.RemoveOptions{
+							Config: config, Packages: []string{"not-in-bundle"}, Force: true, SkipSignatureVerification: true,
+						})
+						require.ErrorIs(t, err, bundle.ErrRemoveBundle)
+						require.ErrorContains(t, err, "unknown packages")
+						assert.Nil(t, result)
+						return
+					}
+					result, err := bundle.Inspect(t.Context(), bundle.InspectOptions{
+						Source: ref, Config: config, SkipSignatureVerification: operation == "inspect with verification skipped",
+					})
+					require.NoError(t, err)
+					assert.Equal(t, "library-fixture", result.Name)
+					require.Len(t, result.Packages, 2)
+					assert.Equal(t, "base", result.Packages[0].Name)
+					assert.Equal(t, "app", result.Packages[1].Name)
+				}
+				read()
+				coldDownloads := downloads.Load()
+				require.Positive(t, coldDownloads)
+				if useCache {
+					blockDownloads.Store(true)
+				}
+				read()
+				assert.Zero(t, payloadDownloads.Load(), "metadata reads must never download package payloads")
+				if useCache {
+					assert.Equal(t, coldDownloads, downloads.Load(), "a fresh metadata read must reuse cached blobs")
+					for digest := range payloads {
+						assert.NoFileExists(t, filepath.Join(cacheDir, "bundle-oci", "images", "blobs", "sha256", strings.TrimPrefix(digest, "sha256:")))
+					}
+				} else {
+					assert.Greater(t, downloads.Load(), coldDownloads)
+					assert.NoDirExists(t, cacheDir)
+				}
+			})
+		}
+	}
+}
+
 func libraryRegistryConfig(config *bundle.UDSBundleConfig) *bundle.UDSBundleConfig {
 	copy := *config
 	options := *config.Options
 	options.PlainHTTP = true
 	copy.Options = &options
 	return &copy
+}
+
+func TestInspectMetadataCacheFollowsUpdatedTag(t *testing.T) {
+	first := createLibraryBundle(t)
+	config := libraryRegistryConfig(first.Config)
+	config.Options.CacheDir = filepath.Join(t.TempDir(), "cache")
+	ref := startLibraryRegistry(t) + "/library/updated-metadata:v1"
+	_, err := bundle.Push(t.Context(), first.ArtifactPath, ref, bundle.PushOptions{Config: config})
+	require.NoError(t, err)
+	before, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, SkipSignatureVerification: true})
+	require.NoError(t, err)
+	require.Equal(t, []string{"optional"}, before.Bundle.Packages[1].OptionalComponents)
+	require.DirExists(t, filepath.Join(config.Options.CacheDir, "bundle-oci", "images"))
+
+	// Replace the same tag after warming its metadata. Cache identity is a
+	// content digest, not a tag: readers must see the new bundle definition.
+	second := createLibraryBundleWithoutOptionalComponent(t)
+	_, err = bundle.Push(t.Context(), second.ArtifactPath, ref, bundle.PushOptions{Config: config})
+	require.NoError(t, err)
+	after, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, SkipSignatureVerification: true})
+	require.NoError(t, err)
+	assert.NotEqual(t, before.ArtifactDigest, after.ArtifactDigest)
+	assert.Empty(t, after.Bundle.Packages[1].OptionalComponents)
+
+	// A digest-pinned reference still identifies the old bundle, even after
+	// the tag moves. It must not be confused with the new tag's cached data.
+	pinned := strings.TrimSuffix(ref, ":v1") + "@" + before.ArtifactDigest
+	old, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: pinned, Config: config, SkipSignatureVerification: true})
+	require.NoError(t, err)
+	assert.Equal(t, before.ArtifactDigest, old.ArtifactDigest)
+	assert.Equal(t, []string{"optional"}, old.Bundle.Packages[1].OptionalComponents)
+}
+
+func TestMetadataCacheDiscoversNewSignatureAndPreservesVerification(t *testing.T) {
+	var downloads atomic.Int64
+	var blockDownloads atomic.Bool
+	handler := registry.New()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+			downloads.Add(1)
+			if blockDownloads.Load() {
+				http.Error(w, "cached blob downloads blocked", http.StatusForbidden)
+				return
+			}
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	fixture := createLibraryBundle(t)
+	config := libraryRegistryConfig(fixture.Config)
+	config.Options.CacheDir = filepath.Join(t.TempDir(), "cache")
+	ref := strings.TrimPrefix(server.URL, "http://") + "/library/new-signature:v1"
+	privateKey, publicKey := libraryKeyPair(t)
+	policy := bundle.VerificationPolicy{PublicKey: publicKey}
+	_, err := bundle.Push(t.Context(), fixture.ArtifactPath, ref, bundle.PushOptions{Config: config})
+	require.NoError(t, err)
+	_, err = bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, SkipSignatureVerification: true})
+	require.NoError(t, err)
+	remove := func(t *testing.T, verification bundle.VerificationPolicy) error {
+		t.Helper()
+		result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: ref}, bundle.RemoveOptions{
+			Config: config, Verification: verification, Packages: []string{"not-in-bundle"}, Force: true,
+		})
+		assert.Nil(t, result)
+		return err
+	}
+	// An unsigned bundle is rejected even though its metadata is cached.
+	require.ErrorIs(t, remove(t, policy), bundle.ErrBundleNotSigned)
+	// Add evidence after the metadata and the absence of a signature were
+	// observed. Discovery must ask the registry again, not remember absence.
+	require.NoError(t, bundle.Sign(t.Context(), bundle.SignOptions{
+		Source: ref, Config: config, TmpDir: t.TempDir(),
+		Signing: bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: privateKey},
+	}))
+	err = remove(t, policy)
+	require.ErrorIs(t, err, bundle.ErrRemoveBundle)
+	require.ErrorContains(t, err, "unknown packages", "verification must succeed before selection stops removal without cluster access")
+
+	// Verified inspect keeps its full-content workflow. Run it once to warm
+	// payloads too, then forbid all blob downloads so later checks use cached
+	// bytes. Cached evidence must never stand in for the caller's trust policy.
+	verified, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, Verification: policy})
+	require.NoError(t, err)
+	assert.Equal(t, bundle.BundleSignatureStatusVerified, verified.BundleSignature.Status)
+	coldDownloads := downloads.Load()
+	require.Positive(t, coldDownloads)
+	blockDownloads.Store(true)
+	verified, err = bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, Verification: policy})
+	require.NoError(t, err)
+	assert.Equal(t, bundle.BundleSignatureStatusVerified, verified.BundleSignature.Status)
+	require.ErrorContains(t, remove(t, policy), "unknown packages")
+	_, wrongPublicKey := libraryKeyPair(t)
+	wrongPolicy := bundle.VerificationPolicy{PublicKey: wrongPublicKey}
+	t.Run("inspect rejects wrong key", func(t *testing.T) {
+		result, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, Verification: wrongPolicy})
+		require.ErrorIs(t, err, bundle.ErrInspectBundle)
+		assert.ErrorContains(t, err, "verifying bundle signature")
+		assert.Nil(t, result)
+	})
+	t.Run("remove rejects wrong key", func(t *testing.T) {
+		err := remove(t, wrongPolicy)
+		require.ErrorIs(t, err, bundle.ErrRemoveBundle)
+		assert.ErrorContains(t, err, "verifying bundle signature")
+		assert.NotContains(t, err.Error(), "unknown packages", "verification must fail before package selection")
+	})
+	assert.Equal(t, coldDownloads, downloads.Load(), "warm verification checks must not attempt blob downloads")
+}
+
+func TestLocalMetadataReadsDoNotOpenRemoteCache(t *testing.T) {
+	fixture := createLibraryBundle(t)
+	privateKey, publicKey := libraryKeyPair(t)
+	require.NoError(t, bundle.Sign(t.Context(), bundle.SignOptions{
+		Source: fixture.ArtifactPath, Config: fixture.Config, TmpDir: t.TempDir(),
+		Signing: bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: privateKey},
+	}))
+	config := libraryFixtureConfig(t)
+	config.Options.CacheDir = filepath.Join(t.TempDir(), "cache")
+	policy := bundle.VerificationPolicy{PublicKey: publicKey}
+	for _, opts := range []bundle.InspectOptions{
+		{Source: fixture.ArtifactPath, Config: config},
+		{Source: fixture.ArtifactPath, Config: config, SkipSignatureVerification: true},
+		{Source: fixture.ArtifactPath, Config: config, Verification: policy},
+	} {
+		_, err := bundle.Inspect(t.Context(), opts)
+		require.NoError(t, err)
+		assert.NoDirExists(t, config.Options.CacheDir)
+	}
+	// Exercise local remove preparation as well. Signature verification and
+	// metadata parsing finish before invalid selection prevents cluster access.
+	_, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: fixture.ArtifactPath}, bundle.RemoveOptions{
+		Config: config, Verification: policy, Packages: []string{"not-in-bundle"}, Force: true,
+	})
+	require.ErrorIs(t, err, bundle.ErrRemoveBundle)
+	require.ErrorContains(t, err, "unknown packages")
+	assert.NoDirExists(t, config.Options.CacheDir)
 }
 
 func TestCreateRemotePackageCacheReuse(t *testing.T) {
