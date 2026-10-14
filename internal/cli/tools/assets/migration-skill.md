@@ -589,7 +589,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 90328791b1da57928087283110d7a37568fcf2366986e33f992673ef53966726 -->
+<!-- Source SHA256: 23363e59b9b836757287dfb8b5cf2877163257745d6ade0525ed0ec8c781468a -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -664,6 +664,11 @@ Remote bundle metadata reads for inspect and OCI-source remove use the same
 cache without downloading package payloads. Inspect with a verification policy
 still retrieves and verifies the full bundle content through the cached pull
 path. Local archive metadata reads do not open this cache.
+
+Deploying an OCI-source bundle uses the same cached pull path, then stages
+packages from the downloaded artifact. It retrieves the whole bundle for the
+selected architecture before applying package selection or resume behavior.
+Deployment workspace cleanup leaves the shared cache intact.
 
 Set `log_level = "debug"` or pass `--log-level debug` to see the OCI
 cache store path and initialization diagnostics on stderr. These messages
