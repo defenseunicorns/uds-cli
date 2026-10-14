@@ -64,7 +64,12 @@ hooks {
         steps = checks
     }
     ["check"] {
-        steps = checks
+        steps = new Mapping<String, Step> {
+            ...checks
+            ["migration-skill"] {
+                check = "uds run generate:check-migration-skill"
+            }
+        }
     }
     ["fix"] {
         fix = true
