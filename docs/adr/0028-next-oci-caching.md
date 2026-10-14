@@ -104,14 +104,13 @@ filesystem errors identifying the configured cache. Other errors, including
 unclassified corrupt-index errors, still propagate. This fallback does not make
 concurrent cache population safe. Bundle pull fallback remains separate work.
 
-Public-library characterization tests cover both remote package retrieval during
-create and bundle pull with an unusable cache store or blocked temporary blob
-ingest directory. They demonstrate the current failure, error propagation,
-absence of a published output artifact, and temporary workspace cleanup. The
-same remote operation succeeds with caching disabled and the obstruction still
-present. These tests document an unresolved upstream fallback requirement; they
-must be revisited when upstream behavior changes, not treated as a requirement
-that cache failures should always stop UDS operations.
+Public-library tests cover create and bundle pull with an unusable cache store
+or blocked temporary blob ingest directory. Create recovers automatically by
+retrying package retrieval without caching, leaving the obstruction and caller's
+configuration unchanged and cleaning up temporary workspaces. Bundle pull still
+propagates these errors without publishing an artifact; the same pull succeeds
+when caching is manually disabled. Pull's characterization tests document the
+remaining fallback gap, not a requirement that cache failures must stop UDS.
 
 Integration tests must demonstrate initial population, reuse across independent
 creates, unchanged package verification, and the resulting artifact's ability

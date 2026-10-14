@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateRemoteCacheFailures(t *testing.T) {
+func TestCreateRemoteCacheFailuresRecoverWithoutCache(t *testing.T) {
 	for _, phase := range []string{"initialization", "population"} {
 		t.Run(phase, func(t *testing.T) {
 			packagePath := createLibraryPackage(t, t.TempDir(), "cache-failure")
@@ -39,29 +39,22 @@ package "remote" {
 			cacheDir, blockedPath := obstructLibraryCache(t, phase)
 			config.Options.CacheDir = cacheDir
 
-			// These assertions characterize the current upstream limitation,
-			// not the desired fallback behavior. Revisit them when upstream can
-			// continue fetching valid remote content after a cache-only failure.
+			// One create call must recover automatically: the cache remains
+			// obstructed, but the uncached retry can retrieve the package.
 			result, err := bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
-				Config:  config,
-				Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
-			})
-			require.ErrorIs(t, err, bundle.ErrCreateBundle)
-			assert.Nil(t, result)
-			assertLibraryCacheFailure(t, err, blockedPath, root, config.Options.TmpDir)
-
-			// The same source succeeds with caching disabled, while the
-			// obstruction remains untouched. The failure is in the cache,
-			// rather than the registry, package, or output workspace.
-			config.Options.CacheDir = ""
-			result, err = bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
 				Config:  config,
 				Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
 			})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.FileExists(t, result.OutputPath)
-			assert.FileExists(t, blockedPath)
+			assert.Equal(t, cacheDir, config.Options.CacheDir)
+			contents, err := os.ReadFile(blockedPath)
+			require.NoError(t, err)
+			assert.Equal(t, "cache obstruction", string(contents))
+			entries, err := os.ReadDir(config.Options.TmpDir)
+			require.NoError(t, err)
+			assert.Empty(t, entries, "both attempts must clean up their temporary workspaces")
 		})
 	}
 }
@@ -78,9 +71,8 @@ func TestPullRemoteCacheFailures(t *testing.T) {
 			config.Options.CacheDir = cacheDir
 			targetDir := t.TempDir()
 
-			// Like create, pull currently propagates cache initialization and
-			// population errors. This documents an unresolved upstream gap;
-			// it does not claim that graceful cache fallback is implemented.
+			// Unlike remote package retrieval during create, bundle pull does
+			// not yet retry cache initialization or population failures.
 			result, err := bundle.Pull(t.Context(), ref, targetDir, bundle.PullOptions{
 				Config:                    config,
 				SkipSignatureVerification: true,
