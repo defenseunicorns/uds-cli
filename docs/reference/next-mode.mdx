@@ -218,13 +218,14 @@ These flags apply to all `uds bundle` subcommands:
 > [!NOTE]
 > `--plain-http` does not force HTTP. It allows HTTP only after confirming a registry does not support HTTPS.
 
-### Package cache fallback
+### Cache fallback
 
-During remote Zarf package retrieval, Next retries once without caching when a
-filesystem error identifies the configured Next cache. It warns before retrying
-and leaves the shared cache and your configuration unchanged. The retry retains
-package signature verification and component selection. If it also fails, the
-operation reports both errors.
+During remote Zarf package retrieval and bundle pull, Next retries once without
+caching when a filesystem error identifies the configured Next cache. It warns
+before retrying and leaves the shared cache and your configuration unchanged.
+The retry retains any resolved digest, signature verification, and package
+selection. If it also fails, the operation reports both errors. Bundle pull
+does not retry verification or archive-writing failures.
 
 This fallback does not apply to every upstream cache error or provide a guarantee
 of safe concurrent cache population. Cancellation, package verification failures,
