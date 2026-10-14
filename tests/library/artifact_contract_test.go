@@ -150,6 +150,92 @@ func TestInspectStatusConstants(t *testing.T) {
 	assert.Equal(t, "unknown", bundle.PackageVerificationStatusUnknown)
 }
 
+func TestPullRemoteBundleCacheReuse(t *testing.T) {
+	remote := startLibraryCountingRegistry(t)
+	fixture, ref, policy := publishSignedLibraryBundle(t, remote.host)
+	config := libraryRegistryConfig(fixture.Config)
+	config.Options.CacheDir = t.TempDir()
+	opts := bundle.PullOptions{Config: config, Verification: policy}
+
+	// The first pull populates the cache; each pull gets a fresh destination.
+	cold := pullLibraryBundle(t, ref, opts)
+	coldDownloads := remote.downloads.Load()
+	require.Positive(t, coldDownloads)
+
+	warm := pullLibraryBundle(t, ref, opts)
+	assert.NotEqual(t, filepath.Dir(cold.OutputPath), filepath.Dir(warm.OutputPath))
+	// Count downloads rather than comparing elapsed time: archive assembly and
+	// CI load can affect timing even when every blob is served from the cache.
+	assert.Equal(t, coldDownloads, remote.downloads.Load(), "the second pull must not download any more blobs")
+
+	blobs, err := filepath.Glob(filepath.Join(config.Options.CacheDir, "bundle-oci", "images", "blobs", "sha256", "*"))
+	require.NoError(t, err)
+	assert.NotEmpty(t, blobs)
+	assert.NoDirExists(t, filepath.Join(config.Options.CacheDir, "images"))
+	assert.NoDirExists(t, filepath.Join(config.Options.CacheDir, "layers"))
+
+	require.NoError(t, bundle.Verify(t.Context(), bundle.VerifyOptions{Source: warm.OutputPath, Policy: policy, Config: config, TmpDir: t.TempDir()}))
+	// Read package content from the resulting archive, not from the cache.
+	prepared, err := bundle.PrepareDeploySource(t.Context(), iostreams.IOStreams{}, warm.OutputPath, t.TempDir(), runtime.GOARCH)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, prepared.Close()) })
+	for i := range prepared.Bundle.Packages {
+		pkg := &prepared.Bundle.Packages[i]
+		loaded, err := prepared.Loader.LoadPackageLayout(t.Context(), pkg, t.TempDir(), bundle.ZarfPackageLayoutLoadOptions{})
+		require.NoError(t, err)
+		assert.Equal(t, pkg.Name, loaded.Layout.PackageDefinition.Metadata.Name)
+	}
+}
+
+func TestPullRemoteBundleWithoutCacheDownloadsAgain(t *testing.T) {
+	remote := startLibraryCountingRegistry(t)
+	fixture, ref, policy := publishSignedLibraryBundle(t, remote.host)
+	config := libraryRegistryConfig(fixture.Config)
+	require.Empty(t, config.Options.CacheDir)
+	opts := bundle.PullOptions{Config: config, Verification: policy}
+
+	pullLibraryBundle(t, ref, opts)
+	firstDownloads := remote.downloads.Load()
+	require.Positive(t, firstDownloads)
+
+	pullLibraryBundle(t, ref, opts)
+	assert.Greater(t, remote.downloads.Load(), firstDownloads, "without a cache, the second pull downloads blobs again")
+}
+
+func TestPullRemoteBundleCachePreservesVerification(t *testing.T) {
+	remote := startLibraryCountingRegistry(t)
+	fixture, ref, policy := publishSignedLibraryBundle(t, remote.host)
+	config := libraryRegistryConfig(fixture.Config)
+	config.Options.CacheDir = t.TempDir()
+	pullLibraryBundle(t, ref, bundle.PullOptions{Config: config, Verification: policy})
+	coldDownloads := remote.downloads.Load()
+	require.Positive(t, coldDownloads)
+
+	// Cached signature evidence must still be checked against the supplied key.
+	_, wrongPublicKey := libraryKeyPair(t)
+	failedDir := t.TempDir()
+	failed, err := bundle.Pull(t.Context(), ref, failedDir, bundle.PullOptions{
+		Config:       config,
+		Verification: bundle.VerificationPolicy{PublicKey: wrongPublicKey},
+	})
+	require.ErrorIs(t, err, bundle.ErrPullBundle)
+	require.ErrorContains(t, err, "verifying bundle signature")
+	assert.Nil(t, failed)
+	artifacts, err := filepath.Glob(filepath.Join(failedDir, "*.tar.zst"))
+	require.NoError(t, err)
+	assert.Empty(t, artifacts)
+	assert.Equal(t, coldDownloads, remote.downloads.Load(), "verification must use cached evidence without new blob downloads")
+}
+
+func pullLibraryBundle(t *testing.T, ref string, opts bundle.PullOptions) *bundle.PullResult {
+	t.Helper()
+	result, err := bundle.Pull(t.Context(), ref, t.TempDir(), opts)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.FileExists(t, result.OutputPath)
+	return result
+}
+
 func TestInspectUnknownPackageMetadata(t *testing.T) {
 	fixture := createLibraryBundle(t)
 	unknown := rewriteLibraryArtifact(t, fixture.ArtifactPath, func(root string) {
@@ -268,6 +354,138 @@ func TestCreateLocalPackagesDoesNotOpenRemoteCache(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.NoDirExists(t, cacheDir)
+}
+
+func TestCreateAndPullSharePackageCache(t *testing.T) {
+	for _, createFirst := range []bool{true, false} {
+		name := "pull then create"
+		if createFirst {
+			name = "create then pull"
+		}
+		t.Run(name, func(t *testing.T) {
+			var blockPackageDownloads atomic.Bool
+			var blockedDownloads atomic.Int64
+			var downloads atomic.Int64
+			packageLayers := map[string]struct{}{}
+			handler := registry.New()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+					downloads.Add(1)
+					// The atomic flag publishes the completed, immutable digest
+					// set. The handler does not read it while setup is filling it.
+					if blockPackageDownloads.Load() {
+						if _, shared := packageLayers[filepath.Base(r.URL.Path)]; shared {
+							blockedDownloads.Add(1)
+							http.Error(w, "shared package layer downloads blocked", http.StatusForbidden)
+							return
+						}
+					}
+				}
+				handler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
+			host := strings.TrimPrefix(server.URL, "http://")
+			privateKey, publicKey := libraryKeyPair(t)
+			packagePath := createLibraryPackageWithSigning(t, t.TempDir(), "shared-cache", privateKey)
+			packageRef := "oci://" + publishLibraryPackage(t, packagePath, host)
+			config := libraryRegistryConfig(libraryFixtureConfig(t))
+			config.Options.CacheDir = filepath.Join(t.TempDir(), "cache")
+			create := func(cfg *bundle.UDSBundleConfig) (*bundle.CreateResult, error) {
+				t.Helper()
+				// Each create gets a fresh workspace. The original artifact
+				// and its package staging cannot satisfy a later create.
+				bundleFile := writePackageVerificationBundle(t, t.TempDir(), packageRef, publicKey)
+				return bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
+					Config:  cfg,
+					Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
+				})
+			}
+			bootstrap := *config
+			bootstrapOptions := *config.Options
+			bootstrap.Options = &bootstrapOptions
+			if !createFirst {
+				// Build the fixture without warming the shared cache. Only
+				// the upcoming bundle pull may populate that cache.
+				bootstrap.Options.CacheDir = ""
+			}
+			created, err := create(&bootstrap)
+			require.NoError(t, err)
+			if !createFirst {
+				require.NoDirExists(t, config.Options.CacheDir)
+			}
+			entries, err := fixtureartifact.Read(t.Context(), created.OutputPath)
+			require.NoError(t, err)
+			manifests, err := entries.PackageManifestDigests()
+			require.NoError(t, err)
+			require.Len(t, manifests, 1)
+			for digest := range manifests {
+				var manifest ocispec.Manifest
+				require.NoError(t, json.Unmarshal(entries.Small["oci/blobs/sha256/"+strings.TrimPrefix(digest, "sha256:")], &manifest))
+				for _, layer := range manifest.Layers {
+					packageLayers[layer.Digest.String()] = struct{}{}
+				}
+			}
+			require.NotEmpty(t, packageLayers)
+			bundleRef := host + "/bundles/shared-cache:v1"
+			_, err = bundle.Push(t.Context(), created.OutputPath, bundleRef, bundle.PushOptions{Config: config})
+			require.NoError(t, err)
+			pull := func(cfg *bundle.UDSBundleConfig) (*bundle.PullResult, error) {
+				t.Helper()
+				return bundle.Pull(t.Context(), bundleRef, t.TempDir(), bundle.PullOptions{Config: cfg, SkipSignatureVerification: true})
+			}
+			if !createFirst {
+				beforePull := downloads.Load()
+				_, err := pull(config)
+				require.NoError(t, err)
+				require.Greater(t, downloads.Load(), beforePull)
+			}
+			for digest := range packageLayers {
+				require.FileExists(t, filepath.Join(config.Options.CacheDir, "bundle-oci", "images", "blobs", "sha256", strings.TrimPrefix(digest, "sha256:")))
+			}
+			// Bundle definitions are not fetched during package retrieval.
+			// Block only the shared package layers, leaving bundle-specific
+			// content, tag resolution, and registry discovery available.
+			blockPackageDownloads.Store(true)
+			var reusedArtifact string
+			if createFirst {
+				pulled, err := pull(config)
+				require.NoError(t, err)
+				reusedArtifact = pulled.OutputPath
+			} else {
+				warm, err := create(config)
+				require.NoError(t, err)
+				reusedArtifact = warm.OutputPath
+			}
+			assert.Zero(t, blockedDownloads.Load(), "the second operation must reuse package layers without downloading them")
+			inspected, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: reusedArtifact, Config: config})
+			require.NoError(t, err)
+			require.Len(t, inspected.Packages, 1)
+			require.NotNil(t, inspected.Packages[0].Signature)
+			assert.Equal(t, bundle.PackageVerificationStatusVerified, inspected.Packages[0].Signature.Verification)
+			reusedEntries, err := fixtureartifact.Read(t.Context(), reusedArtifact)
+			require.NoError(t, err)
+			assert.Equal(t, entries.BlobPaths(), reusedEntries.BlobPaths())
+			assert.Equal(t, entries.Small["oci/index.json"], reusedEntries.Small["oci/index.json"])
+
+			// Control: with a different, empty cache the exact same operation
+			// must fail. This proves the download blocker is effective and the
+			// successful case was not satisfied by some unrelated local store.
+			coldConfig := *config
+			coldOptions := *config.Options
+			coldOptions.CacheDir = t.TempDir()
+			coldConfig.Options = &coldOptions
+			if createFirst {
+				failed, err := pull(&coldConfig)
+				require.ErrorIs(t, err, bundle.ErrPullBundle)
+				assert.Nil(t, failed)
+			} else {
+				failed, err := create(&coldConfig)
+				require.ErrorIs(t, err, bundle.ErrCreateBundle)
+				assert.Nil(t, failed)
+			}
+			assert.Positive(t, blockedDownloads.Load(), "an empty cache must attempt a blocked package download")
+		})
+	}
 }
 
 func TestCreateOptionalComponentCanBeExcluded(t *testing.T) {

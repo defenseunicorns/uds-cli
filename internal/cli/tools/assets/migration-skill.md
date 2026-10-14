@@ -589,7 +589,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 7accb6b7344f99fe9e933c519046962f98848764665b880116d098434ab25d4b -->
+<!-- Source SHA256: 5b2947e1e5c0fe32cffb6cf9b55f44b8eb3c2e912140542a49c7737985b42e2e -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -652,12 +652,15 @@ options {
 The `tmp_dir` directory must already exist before running the command.
 If UDS CLI cannot determine your home directory, set `uds_cache` or `--uds-cache` to an absolute path instead of relying on the default.
 
-During bundle creation, remote Zarf package reads use an OCI cache under
-`<uds_cache>/bundle-oci/images/`. The directory is created on demand and can
-reuse content from previous creates. Local package sources do not populate
-this cache. Cache reuse does not replace package signature verification.
+During bundle creation and bundle pull, remote content reads use a shared OCI
+cache under `<uds_cache>/bundle-oci/images/`. The directory is created on demand
+and can reuse content from previous operations. Local package sources during
+create do not populate this cache. Cache reuse does not replace package or
+bundle signature verification. Pull still contacts the registry to resolve
+references and discover signature evidence; caching does not provide offline
+pull support.
 
-Set `log_level = "debug"` or pass `--log-level debug` to see the package OCI
+Set `log_level = "debug"` or pass `--log-level debug` to see the OCI
 cache store path and initialization diagnostics on stderr. These messages
 confirm cache setup, not individual layer hits or misses.
 

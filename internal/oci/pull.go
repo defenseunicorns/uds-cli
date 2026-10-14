@@ -79,6 +79,39 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		return nil, EmptyParameterError{Name: "targetDir"}
 	}
 
+	state := &bundlePullAttempt{}
+	result, err := p.pullBundleAttempt(ctx, ociReference, targetDir, opts, state)
+	if err == nil || ctx.Err() != nil || !state.cacheFailure {
+		return result, err
+	}
+	logger.Bind(opts.Streams, opts.Config.Options.LogLevel).Warn("bundle cache unavailable; retrying pull once without caching", "ref", ociReference, "cache", BundleCachePath(opts.Config.Options.CacheDir))
+	// Copy both levels: library callers retain their configured cache path.
+	config := *opts.Config
+	settings := *config.Options
+	settings.CacheDir = ""
+	config.Options = &settings
+	opts.Config = &config
+	result, retryErr := p.pullBundleAttempt(ctx, ociReference, targetDir, opts, state)
+	if retryErr != nil {
+		return result, errors.Join(err, fmt.Errorf("retrying bundle pull without caching: %w", retryErr))
+	}
+	return result, nil
+}
+
+type bundlePullAttempt struct {
+	resolved     *ocispec.Descriptor
+	cacheFailure bool
+}
+
+// readError only classifies retrieval failures. Verification, workspace setup and
+// archive errors must not trigger fallback even if their paths overlap a cache.
+func (a *bundlePullAttempt) readError(err error, cacheDir string) error {
+	a.cacheFailure = IsCacheStorageError(err, cacheDir)
+	return err
+}
+
+func (p *defaultPuller) pullBundleAttempt(ctx context.Context, ociReference, targetDir string, opts PullOptions, state *bundlePullAttempt) (*PullResult, error) {
+	state.cacheFailure = false
 	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	tmp, err := os.MkdirTemp(opts.Config.Options.TmpDir, "uds-bundle-pull-*")
 	if err != nil {
@@ -104,9 +137,11 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// We write index.json ourselves below; prevent ORAS from clobbering it.
 	store.AutoSaveIndex = false
 
-	src, err := resolvePullTarget(ctx, ociReference, &opts)
+	// Retain one cache-aware source for index reads, signature evidence, and
+	// graph copying. Using its underlying repository would bypass caching.
+	src, err := resolveBundlePullSource(ctx, ociReference, &opts)
 	if err != nil {
-		return nil, fmt.Errorf("resolving pull source %s: %w: %w", ociReference, ErrResolveReference, err)
+		return nil, state.readError(fmt.Errorf("resolving pull source %s: %w: %w", ociReference, ErrResolveReference, err), opts.Config.Options.CacheDir)
 	}
 	reference, err := ReferenceIdentifier(ociReference)
 	if err != nil {
@@ -116,15 +151,23 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// Resolve to the canonical single-arch bundle (child) index: a tag resolves
 	// to the root index and is platform-selected for the requested architecture;
 	// a digest-pinned reference addresses a child directly (ADR-0015).
-	childDesc, idxBytes, err := ResolveBundleChild(ctx, src, reference, opts.Config.Options.Architecture)
-	if err != nil {
-		return nil, fmt.Errorf("resolving bundle from %s: %w: %w", ociReference, ErrResolveReference, err)
+	if state.resolved == nil {
+		desc, err := src.Resolve(ctx, reference)
+		if err != nil {
+			return nil, state.readError(fmt.Errorf("resolving bundle from %s: %w: %w", ociReference, ErrResolveReference, err), opts.Config.Options.CacheDir)
+		}
+		state.resolved = &desc
 	}
+	childDesc, idxBytes, err := resolveBundleChildDescriptor(ctx, src, reference, opts.Config.Options.Architecture, *state.resolved)
+	if err != nil {
+		return nil, state.readError(fmt.Errorf("resolving bundle from %s: %w: %w", ociReference, ErrResolveReference, err), opts.Config.Options.CacheDir)
+	}
+	state.resolved = &childDesc
 	var signature []byte
 	if opts.PullHooks.VerifyBundle != nil {
 		signature, err = FetchBundleSignature(ctx, src, childDesc)
 		if err != nil {
-			return nil, fmt.Errorf("fetching bundle signature evidence: %w", err)
+			return nil, state.readError(fmt.Errorf("fetching bundle signature evidence: %w", err), opts.Config.Options.CacheDir)
 		}
 		if err := opts.PullHooks.VerifyBundle(ctx, idxBytes, signature); err != nil {
 			return nil, fmt.Errorf("verifying bundle signature: %w", err)
@@ -139,10 +182,13 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	log.Info("pulling bundle content", "ref", ociReference)
 	log.Debug("copying bundle from registry", "ref", ociReference, "digest", childDesc.Digest.String())
 	if err := copyGraph(ctx, src, store, childDesc, copyOpts.CopyGraphOptions); err != nil {
-		return nil, fmt.Errorf("pulling bundle from %s: %w: %w", ociReference, ErrPullContent, err)
+		return nil, state.readError(fmt.Errorf("pulling bundle from %s: %w: %w", ociReference, ErrPullContent, err), opts.Config.Options.CacheDir)
 	}
 	if signature == nil {
 		signature, err = FetchBundleSignature(ctx, src, childDesc)
+	}
+	if IsCacheStorageError(err, opts.Config.Options.CacheDir) {
+		return nil, state.readError(fmt.Errorf("fetching bundle signature evidence: %w", err), opts.Config.Options.CacheDir)
 	}
 	if err == nil {
 		if err := os.WriteFile(filepath.Join(tmp, BundleSignatureFileName), signature, filesystem.PrivateFileMode); err != nil {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/google/go-containerregistry/pkg/name"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	oras "oras.land/oras-go/v2"
@@ -31,6 +32,17 @@ func resolvePullTarget(ctx context.Context, ref string, opts *PullOptions) (oras
 		return opts.PullHooks.ToOrasTarget(ctx, ref, opts)
 	}
 	return NewRemoteRepository(ctx, ref, *opts.Config.Options)
+}
+
+// resolveBundlePullSource preserves caller-provided targets, but uses the
+// upstream cache-aware reader for registry bundle pulls. Package pulls retain
+// their existing path until their operation ownership is audited separately.
+func resolveBundlePullSource(ctx context.Context, ref string, opts *PullOptions) (oras.ReadOnlyTarget, error) {
+	ref = TrimScheme(ref)
+	if opts.PullHooks.ToOrasTarget != nil {
+		return opts.PullHooks.ToOrasTarget(ctx, ref, opts)
+	}
+	return NewRemoteReadSource(ctx, ref, *opts.Config.Options, logger.Bind(opts.Streams, opts.Config.Options.LogLevel))
 }
 
 // pushCopyOptions builds copy options: concurrency from config, then consumer hook.
