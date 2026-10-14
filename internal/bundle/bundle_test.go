@@ -881,6 +881,14 @@ options {
 				assert.Nil(t, cfg.Variables)
 			},
 		},
+		{
+			name:   "cache directory option",
+			wantOK: true,
+			hcl:    `options { uds_cache = "/configured-cache" }`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				assert.Equal(t, "/configured-cache", cfg.Options.CacheDir)
+			},
+		},
 
 		// ---- variables only, no options block ----
 		{

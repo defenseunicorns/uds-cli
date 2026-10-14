@@ -208,6 +208,7 @@ These flags apply to all `uds bundle` subcommands:
 | `-o`, `--output` | `text` | Output format: `text`, `json`, or `yaml`. |
 | `--plain-http` | `false` | Allow plain HTTP for a registry only when HTTPS is unavailable. |
 | `--skip-tls-verify` | `false` | Skip TLS certificate verification. |
+| `--uds-cache` | `~/.uds-cache` | Cache directory. Overrides `options.uds_cache` in `config.uds.hcl`. |
 | `--tmp-dir` | system temp | Directory for temporary working files. |
 | `--concurrency` | `10` | Degree of parallelism for concurrent operations. For deploy, applies within a dependency level. |
 | `--config` | none | Path to `config.uds.hcl` for deploy-time variables and options. |

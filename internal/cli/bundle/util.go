@@ -272,6 +272,7 @@ func toInternalConfig(cfg *bundle.UDSBundleConfig) *bundleinternal.UDSBundleConf
 			Architecture:  cfg.Options.Architecture,
 			PlainHTTP:     cfg.Options.PlainHTTP,
 			SkipTLSVerify: cfg.Options.SkipTLSVerify,
+			CacheDir:      cfg.Options.CacheDir,
 			TmpDir:        cfg.Options.TmpDir,
 			Concurrency:   cfg.Options.Concurrency,
 		}
