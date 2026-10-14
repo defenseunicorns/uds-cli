@@ -6,16 +6,20 @@
 package bundle_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestCreateRemoteCacheFailuresRecoverWithoutCache covers unsigned create with
+// a filesystem obstruction. One call must recover without changing its config.
 func TestCreateRemoteCacheFailuresRecoverWithoutCache(t *testing.T) {
 	for _, phase := range []string{"initialization", "population"} {
 		t.Run(phase, func(t *testing.T) {
@@ -89,6 +93,112 @@ func TestPullRemoteCacheFailuresRecoverWithoutCache(t *testing.T) {
 			entries, err := os.ReadDir(config.Options.TmpDir)
 			require.NoError(t, err)
 			assert.Empty(t, entries, "both attempts must clean up their temporary workspaces")
+		})
+	}
+}
+
+// TestRemoteCacheInvalidIndexDoesNotRetry documents the boundary of automatic
+// recovery. Upstream index decoding errors do not identify a cache filesystem
+// failure, so they propagate. Explicitly disabling caching then demonstrates
+// that the registry and source content remain usable without repairing the cache.
+func TestRemoteCacheInvalidIndexDoesNotRetry(t *testing.T) {
+	registryHost := startLibraryRegistry(t)
+	fixture, bundleRef, policy := publishSignedLibraryBundle(t, registryHost)
+	privateKey, publicKey := libraryKeyPair(t)
+	packagePath := createLibraryPackageWithSigning(t, t.TempDir(), "invalid-cache-index", privateKey)
+	packageRef := "oci://" + publishLibraryPackage(t, packagePath, registryHost)
+	for _, operation := range []string{"create", "pull", "inspect", "remove preparation"} {
+		t.Run(operation, func(t *testing.T) {
+			config := libraryRegistryConfig(fixture.Config)
+			config.Options.TmpDir = t.TempDir()
+			cacheDir := t.TempDir()
+			config.Options.CacheDir = cacheDir
+			indexPath := filepath.Join(cacheDir, "bundle-oci", "images", "index.json")
+			require.NoError(t, os.MkdirAll(filepath.Dir(indexPath), 0o700))
+			invalidIndex := []byte("not valid JSON\n")
+			require.NoError(t, os.WriteFile(indexPath, invalidIndex, 0o600))
+			streams, _, out, errOut := iostreams.NewTestIOStreams()
+			outputDir := t.TempDir()
+			var bundleFile string
+			if operation == "create" {
+				bundleFile = writePackageVerificationBundle(t, outputDir, packageRef, publicKey)
+			}
+			// Use public entrypoints throughout. Remove stops at deliberately
+			// invalid selection, after metadata and verification, before any
+			// cluster access or removal action.
+			attempt := func() error {
+				switch operation {
+				case "create":
+					result, err := bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
+						Config: config, Streams: streams, Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
+					})
+					if err != nil {
+						assert.Nil(t, result)
+					} else {
+						require.NotNil(t, result)
+						assert.FileExists(t, result.OutputPath)
+					}
+					return err
+				case "pull":
+					result, err := bundle.Pull(t.Context(), bundleRef, outputDir, bundle.PullOptions{Config: config, Verification: policy, Streams: streams})
+					if err != nil {
+						assert.Nil(t, result)
+					} else {
+						require.NotNil(t, result)
+						assert.FileExists(t, result.OutputPath)
+					}
+					return err
+				case "inspect":
+					result, err := bundle.Inspect(t.Context(), bundle.InspectOptions{
+						Source: bundleRef, Config: config, Streams: streams, SkipSignatureVerification: true,
+					})
+					if err != nil {
+						assert.Nil(t, result)
+					} else {
+						require.NotNil(t, result)
+						assert.Equal(t, "library-fixture", result.Name)
+					}
+					return err
+				default:
+					result, err := bundle.Remove(t.Context(), &bundle.DeploySource{BundlePath: bundleRef}, bundle.RemoveOptions{
+						Config: config, Verification: policy, Streams: streams, Packages: []string{"not-in-bundle"}, Force: true,
+					})
+					assert.Nil(t, result)
+					return err
+				}
+			}
+			err := attempt()
+			publicError := map[string]error{
+				"create": bundle.ErrCreateBundle, "pull": bundle.ErrPullBundle,
+				"inspect": bundle.ErrInspectBundle, "remove preparation": bundle.ErrRemoveBundle,
+			}[operation]
+			require.ErrorIs(t, err, publicError)
+			var syntaxErr *json.SyntaxError
+			require.ErrorAs(t, err, &syntaxErr)
+			assert.NotContains(t, errOut.String(), "retrying", "unclassified index decoding errors must not trigger automatic fallback")
+			assert.Equal(t, cacheDir, config.Options.CacheDir)
+			artifacts, err := filepath.Glob(filepath.Join(outputDir, "*.tar.zst"))
+			require.NoError(t, err)
+			assert.Empty(t, artifacts)
+			entries, err := os.ReadDir(config.Options.TmpDir)
+			require.NoError(t, err)
+			assert.Empty(t, entries)
+
+			config.Options.CacheDir = ""
+			err = attempt()
+			if operation == "remove preparation" {
+				require.ErrorIs(t, err, bundle.ErrRemoveBundle)
+				require.ErrorContains(t, err, "unknown packages", "metadata and verification must now succeed")
+			} else {
+				require.NoError(t, err)
+			}
+			contents, err := os.ReadFile(indexPath)
+			require.NoError(t, err)
+			assert.Equal(t, invalidIndex, contents)
+			assert.Empty(t, out.String())
+			entries, err = os.ReadDir(config.Options.TmpDir)
+			require.NoError(t, err)
+			assert.Empty(t, entries)
 		})
 	}
 }

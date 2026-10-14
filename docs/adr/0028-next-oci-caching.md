@@ -122,6 +122,15 @@ that retries retain signature verification, stop after one uncached attempt, and
 do not apply to unrelated failures. These tests cover identifiable cache
 filesystem failures, not every upstream cache failure or concurrent-write safety.
 
+Additional library tests cover malformed cache indexes during create, pull,
+metadata-only inspect, and OCI-source remove preparation. These unclassified
+decoding errors propagate without an automatic retry. Explicitly disabling the
+cache lets retrieval proceed, demonstrating that the registry remains usable.
+The malformed index stays untouched, and failed retrieval leaves no artifact or
+temporary workspace. Metadata and deploy tests in the preceding changes cover
+their filesystem fallback paths and verify that verification failures still
+stop before deployment or removal actions.
+
 Integration tests must demonstrate initial population, reuse across independent
 creates, unchanged package verification, and the resulting artifact's ability
 to supply package content. Add cross-operation reuse and concurrency coverage
@@ -133,16 +142,18 @@ only the cache is shared. With cached content already present and blob downloads
 blocked, both operations must produce usable artifacts without changing cached
 blob bytes. This tests cross-process integration, not just goroutine safety.
 
-The duplicate-writer acceptance test is explicitly opt-in while the upstream
-fix is absent from the vendored dependency. It removes one cached package blob,
+The duplicate-writer test is explicitly opt-in to reproduce a known upstream
+limitation. It removes one cached package blob,
 holds both registry responses until both processes have missed that blob, and
 lets one writer publish before the other receives its response. Both operations
 must succeed with usable artifacts. The current dependency fails this scenario;
 a pull can even return an artifact that subsequently fails content verification.
-The test does not accept that behavior as success. A default-suite skip does not
-satisfy the concurrent-write requirement. Run and enable it in the normal suite
-after the upstream fix lands. This focused race does not certify simultaneous
-initial cache creation or concurrent mutable-index updates.
+The test does not accept that behavior as success. A default-suite skip provides
+no evidence that competing writes are safe. Rerun this test after upstream
+dependency updates and reassess whether it can join the normal suite. Passing
+this focused scenario would not establish safety for simultaneous initial cache
+creation or concurrent mutable-index updates. Those remain separate upstream
+limitations; duplicate-blob handling alone does not resolve them.
 
 ### Cleanup and diagnostics
 
