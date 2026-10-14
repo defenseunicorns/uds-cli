@@ -217,6 +217,18 @@ These flags apply to all `uds bundle` subcommands:
 > [!NOTE]
 > `--plain-http` does not force HTTP. It allows HTTP only after confirming a registry does not support HTTPS.
 
+### Package cache fallback
+
+During remote Zarf package retrieval, Next retries once without caching when a
+filesystem error identifies the configured Next cache. It warns before retrying
+and leaves the shared cache and your configuration unchanged. The retry retains
+package signature verification and component selection. If it also fails, the
+operation reports both errors.
+
+This fallback does not apply to every upstream cache error or provide a guarantee
+of safe concurrent cache population. Cancellation, package verification failures,
+and unrelated errors do not trigger a retry.
+
 ## Deploying a bundle
 
 Use `uds bundle dev deploy` to deploy directly from a bundle definition while authoring a bundle. Use `uds bundle deploy` for a created local or OCI artifact. Both commands are non-interactive by default and deploy packages within dependency levels in parallel. See [Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) for the procedure, flags, and verification steps.
