@@ -7,11 +7,13 @@ package bundle_test
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -181,6 +183,44 @@ func startLibraryRegistry(t *testing.T) string {
 	server := httptest.NewServer(registry.New())
 	t.Cleanup(server.Close)
 	return strings.TrimPrefix(server.URL, "http://")
+}
+
+type libraryCountingRegistry struct {
+	host      string
+	downloads atomic.Int64
+}
+
+// startLibraryCountingRegistry runs an in-process localhost registry. Only blob
+// GETs count as downloads; tag resolution and signature discovery stay available.
+func startLibraryCountingRegistry(t *testing.T) *libraryCountingRegistry {
+	t.Helper()
+	remote := &libraryCountingRegistry{}
+	handler := registry.New()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/") {
+			remote.downloads.Add(1)
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	remote.host = strings.TrimPrefix(server.URL, "http://")
+	return remote
+}
+
+func publishSignedLibraryBundle(t *testing.T, registryHost string) (libraryBundleFixture, string, bundle.VerificationPolicy) {
+	t.Helper()
+	fixture := createLibraryBundle(t)
+	privateKey, publicKey := libraryKeyPair(t)
+	require.NoError(t, bundle.Sign(t.Context(), bundle.SignOptions{
+		Source:  fixture.ArtifactPath,
+		Signing: bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: privateKey},
+		Config:  fixture.Config,
+		TmpDir:  t.TempDir(),
+	}))
+	ref := registryHost + "/library/cached-pull:v1"
+	_, err := bundle.Push(t.Context(), fixture.ArtifactPath, ref, bundle.PushOptions{Config: libraryRegistryConfig(fixture.Config)})
+	require.NoError(t, err)
+	return fixture, ref, bundle.VerificationPolicy{PublicKey: publicKey}
 }
 
 func publishLibraryPackage(t *testing.T, packagePath, registryHost string) string {
