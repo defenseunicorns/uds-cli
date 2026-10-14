@@ -92,20 +92,25 @@ UDS operations and document unmet integrity or concurrency requirements for
 upstream resolution. Do not add a separate UDS publication algorithm, private
 cache, seeding workflow, or copy-back step.
 
-When the remote remains available, cache-specific failures should not prevent
-an operation from succeeding. Audit upstream behavior and identify any unmet
-requirement for upstream resolution. The currently vendored cache propagates
-cache-store initialization and write failures; this integration does not
-promise fallback that upstream does not provide.
+For remote package retrieval, retry once without caching after an identifiable
+cache filesystem failure. Discard partial downloads before retrying, retain any
+resolved package digest, and preserve component selection and signature
+verification. Do not alter the caller's configuration or repair the shared cache.
+Warn when falling back; if the retry fails, preserve both errors.
 
-Public-library characterization tests cover both remote package retrieval during
-create and bundle pull with an unusable cache store or blocked temporary blob
-ingest directory. They demonstrate the current failure, error propagation,
-absence of a published output artifact, and temporary workspace cleanup. The
-same remote operation succeeds with caching disabled and the obstruction still
-present. These tests document an unresolved upstream fallback requirement; they
-must be revisited when upstream behavior changes, not treated as a requirement
-that cache failures should always stop UDS operations.
+Do not retry cancellation, package verification failures, or unrelated errors.
+Upstream does not provide a distinct cache-error type, so fallback is limited to
+filesystem errors identifying the configured cache. Other errors, including
+unclassified corrupt-index errors, still propagate. This fallback does not make
+concurrent cache population safe. Bundle pull fallback remains separate work.
+
+Public-library tests cover create and bundle pull with an unusable cache store
+or blocked temporary blob ingest directory. Create recovers automatically by
+retrying package retrieval without caching, leaving the obstruction and caller's
+configuration unchanged and cleaning up temporary workspaces. Bundle pull still
+propagates these errors without publishing an artifact; the same pull succeeds
+when caching is manually disabled. Pull's characterization tests document the
+remaining fallback gap, not a requirement that cache failures must stop UDS.
 
 Integration tests must demonstrate initial population, reuse across independent
 creates, unchanged package verification, and the resulting artifact's ability
