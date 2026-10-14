@@ -82,6 +82,16 @@ To build a local binary, run `uds run build`. This creates `build/uds`. Use `uds
 
 Commits run hk automatically. To run the complete repository check suite manually, use `uds run lint` (or `hk check --all`). CI runs this same hk configuration.
 
+When updating `hack/migrationskill/skill.md` or the
+documentation it references, run `uds run generate:migration-skill` and commit
+the updated `internal/cli/tools/assets/migration-skill.md`. Documentation links
+in this build source use repository-root `docs/...` paths; the generator embeds
+those documents and rewrites their links to included sections. Users obtain the
+instructions through `uds tools migrate-bundle skill`. Run
+`uds run generate:check-migration-skill` to check for drift locally. The hk
+`check` hook also runs this check during `uds run lint` and in CI; the
+`pre-commit` hook does not.
+
 ### CLI modes
 
 UDS CLI currently contains both Legacy and Next implementations.
