@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.40.0](https://github.com/defenseunicorns/uds-cli/compare/v0.39.0...v0.40.0) (2026-10-14)
+
+
+### Features
+
+* add a skill for migrating legacy bundle manifests to Bundles Next HCL ([#1544](https://github.com/defenseunicorns/uds-cli/issues/1544)) ([01f8d23](https://github.com/defenseunicorns/uds-cli/commit/01f8d23f76d3995dcc3ef374d98579d413aebe9e))
+
+
+### Bug Fixes
+
+* **deps:** upgrade golang.org/x/net to v0.60.0 ([#1607](https://github.com/defenseunicorns/uds-cli/issues/1607)) ([d05b8af](https://github.com/defenseunicorns/uds-cli/commit/d05b8afdd3ba19999670f0671117e3312ae3c183))
+
+
+### Miscellaneous
+
+* **deps:** update application dependencies to v0.24.0 ([#1596](https://github.com/defenseunicorns/uds-cli/issues/1596)) ([7a70538](https://github.com/defenseunicorns/uds-cli/commit/7a705381999d4a1dc75aaa9691b8fcd3c7d001dd))
+* **deps:** update application-deps ([#1600](https://github.com/defenseunicorns/uds-cli/issues/1600)) ([786c023](https://github.com/defenseunicorns/uds-cli/commit/786c023a54328feab86ed7b6d7588e3bacb1aea6))
+* **deps:** update support-deps ([#1588](https://github.com/defenseunicorns/uds-cli/issues/1588)) ([5b724fb](https://github.com/defenseunicorns/uds-cli/commit/5b724fb3dfb132d5459faa8024fd1a73bf0a626c))
+* **deps:** update support-deps ([#1593](https://github.com/defenseunicorns/uds-cli/issues/1593)) ([a53fb24](https://github.com/defenseunicorns/uds-cli/commit/a53fb2444514660f805cbf28635fc2df5964683d))
+* **deps:** update support-deps ([#1597](https://github.com/defenseunicorns/uds-cli/issues/1597)) ([340607a](https://github.com/defenseunicorns/uds-cli/commit/340607a470fc199a40cece852542f992ae7dc4a9))
+* **deps:** update support-deps ([#1608](https://github.com/defenseunicorns/uds-cli/issues/1608)) ([0edac8b](https://github.com/defenseunicorns/uds-cli/commit/0edac8b5ad053dfdf0430b2df9dd804c90d60787))
+* **deps:** update support-deps to v1.15.0 ([#1609](https://github.com/defenseunicorns/uds-cli/issues/1609)) ([ca56bbe](https://github.com/defenseunicorns/uds-cli/commit/ca56bbe70d59b8d617dfc6c8c5fb2f2cd1a5af5e))
+
 ## [0.39.0](https://github.com/defenseunicorns/uds-cli/compare/v0.38.0...v0.39.0) (2026-10-06)
 
 
