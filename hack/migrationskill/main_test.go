@@ -12,23 +12,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSkillBody(t *testing.T) {
+func TestMarkdownBody(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name  string
 		skill string
 		want  string
 	}{
-		{name: "body only", skill: "---\nname: migration\n---\n\nInstructions.\n", want: "Instructions.\n"},
+		{name: "plain instructions", skill: "Instructions.\n", want: "Instructions.\n"},
+		{name: "documentation frontmatter", skill: "---\ntitle: Migration\n---\n\nInstructions.\n", want: "Instructions.\n"},
 		{name: "windows newlines", skill: "---\r\nname: migration\r\n---\r\nInstructions.\r\n", want: "Instructions.\n"},
-		{name: "missing frontmatter", skill: "Instructions."},
+		{name: "empty content", skill: "\n\n"},
 		{name: "unclosed frontmatter", skill: "---\nname: migration\n"},
 		{name: "empty body", skill: "---\nname: migration\n---\n\n"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := skillBody(tc.skill)
+			got, err := markdownBody(tc.skill)
 			if tc.want == "" {
 				require.Error(t, err)
 				return
@@ -45,7 +46,7 @@ func TestGenerateAndCheck(t *testing.T) {
 	skill := filepath.Join(root, skillPath)
 	asset := filepath.Join(root, assetPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(skill), 0o755))
-	require.NoError(t, os.WriteFile(skill, []byte("---\nname: migration\n---\nInstructions.\n"), 0o600))
+	require.NoError(t, os.WriteFile(skill, []byte("Instructions.\n"), 0o600))
 
 	// A missing or stale asset must fail checks without being created or changed.
 	require.Error(t, generate(root, true))
@@ -61,7 +62,7 @@ func TestGenerateAndCheck(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, first, second)
 
-	require.NoError(t, os.WriteFile(skill, []byte("---\nname: migration\n---\nUpdated instructions.\n"), 0o600))
+	require.NoError(t, os.WriteFile(skill, []byte("Updated instructions.\n"), 0o600))
 	require.ErrorContains(t, generate(root, true), "migration skill is stale")
 	unchanged, err := os.ReadFile(asset)
 	require.NoError(t, err)
@@ -73,7 +74,7 @@ func TestGenerateAndCheck(t *testing.T) {
 func TestDocumentationDependencies(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	skill := "---\nname: migration\n---\nRead [schema](../../../docs/reference/schema.mdx), [schema again](../../../docs/reference/../reference/schema.mdx), and [workflow](../../../docs/how-to-guides/workflow.mdx).\n"
+	skill := "Read [schema](docs/reference/schema.mdx), [schema again](docs/reference/schema.mdx), and [workflow](docs/how-to-guides/workflow.mdx).\n"
 	writeSource := func(path, content string) {
 		t.Helper()
 		path = filepath.Join(root, path)
@@ -112,38 +113,19 @@ func TestDocumentationDependencies(t *testing.T) {
 	}
 	writeSource("docs/reference/schema.mdx", schema)
 	require.NoError(t, generate(root, true))
-	writeSource(skillPath, strings.Replace(skill, "name: migration", "name: renamed", 1))
+	writeSource(skillPath, "Updated instructions.\n"+skill)
 	require.ErrorContains(t, generate(root, true), "migration skill is stale")
 }
 
 func TestUnavailableDocumentation(t *testing.T) {
 	t.Parallel()
-	for _, path := range []string{"../../../docs/missing.mdx", "../../../docs/../../outside.mdx", "../../../docs/schema.txt", "/docs/schema.mdx", "docs/schema.mdx"} {
+	for _, path := range []string{"docs/missing.mdx", "docs/../../outside.mdx", "docs/schema.txt"} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
-			_, err := assemble(t.TempDir(), "---\nname: migration\n---\nRead [reference]("+path+").\n")
+			_, err := assemble(t.TempDir(), "Read [reference]("+path+").\n")
 			require.Error(t, err)
 		})
 	}
-}
-
-func TestRepositorySkillDocumentationLinks(t *testing.T) {
-	t.Parallel()
-	skillFile := filepath.Join("../..", skillPath)
-	skill, err := os.ReadFile(skillFile)
-	require.NoError(t, err)
-	body, err := skillBody(string(skill))
-	require.NoError(t, err)
-	links := markdownLink.FindAllStringSubmatch(body, -1)
-	require.NotEmpty(t, links)
-	for _, link := range links {
-		// Resolve from SKILL.md itself, as a direct repository reader would.
-		require.FileExists(t, filepath.Join(filepath.Dir(skillFile), filepath.FromSlash(link[2])))
-	}
-	generated, err := assemble("../..", string(skill))
-	require.NoError(t, err)
-	require.NotContains(t, generated, "](../../../docs/")
-	require.Equal(t, len(links), strings.Count(generated, "## Included documentation:"))
 }
 
 func TestCommittedSkillIsCurrent(t *testing.T) {

@@ -1,8 +1,3 @@
----
-name: migrate-legacy-bundle-to-next
-description: Convert a Legacy UDS CLI uds-bundle.yaml into reviewed UDS CLI Next HCL files. Use when migrating a bundle authoring workflow; do not use for arbitrary YAML-to-HCL conversion.
----
-
 # Migrate a Legacy bundle to UDS CLI Next
 
 Produce an experimental, reviewable first-pass migration from uds-bundle.yaml.
@@ -12,20 +7,18 @@ uncertainties rather than guessing.
 ## Maintained documentation
 
 Use these maintained documents as the source of truth for schema and migration
-behavior. Read only the sections relevant to the supplied bundle. In the binary's
-printed skill, these links point to documentation included below; no repository
-checkout or web access is required. When using the repository skill directly,
-resolve the links relative to this SKILL.md and read the linked local files.
-Do not fetch documentation or missing inputs online.
+behavior. Read only the sections relevant to the supplied bundle. These links
+point to documentation included below in the CLI output; no repository checkout
+or web access is required. Do not fetch documentation or missing inputs online.
 
 | Need | Maintained document |
 | --- | --- |
-| Legacy mappings, override approach, and known gaps | [Legacy-to-Next migration](../../../docs/how-to-guides/migrate-legacy-to-next.mdx) |
-| Next schema, package sources, dependencies, values, and verification | [Bundle HCL reference](../../../docs/reference/next/bundle-uds-hcl.mdx) |
-| Bundle defaults, consumer configuration, and variable precedence | [Configuration HCL reference](../../../docs/reference/next/config-uds-hcl.mdx) |
-| Artifact creation and package preparation | [Create a Next bundle](../../../docs/how-to-guides/next/create-a-bundle.mdx) |
-| Legacy keyless fields and verification constraints | [Legacy keyless package verification](../../../docs/how-to-guides/verify-keyless-package-signatures.mdx) |
-| Package verification versus artifact signing | [Next bundle artifact signing](../../../docs/how-to-guides/next/sign-bundle-artifacts.mdx) |
+| Legacy mappings, override approach, and known gaps | [Legacy-to-Next migration](docs/how-to-guides/migrate-legacy-to-next.mdx) |
+| Next schema, package sources, dependencies, values, and verification | [Bundle HCL reference](docs/reference/next/bundle-uds-hcl.mdx) |
+| Bundle defaults, consumer configuration, and variable precedence | [Configuration HCL reference](docs/reference/next/config-uds-hcl.mdx) |
+| Artifact creation and package preparation | [Create a Next bundle](docs/how-to-guides/next/create-a-bundle.mdx) |
+| Legacy keyless fields and verification constraints | [Legacy keyless package verification](docs/how-to-guides/verify-keyless-package-signatures.mdx) |
+| Package verification versus artifact signing | [Next bundle artifact signing](docs/how-to-guides/next/sign-bundle-artifacts.mdx) |
 
 Documentation examples describe broader manual workflows. They are reference
 material, not permission to execute commands. The restrictions in this skill

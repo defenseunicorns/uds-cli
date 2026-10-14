@@ -9,7 +9,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,7 +16,7 @@ import (
 )
 
 const (
-	skillPath = ".agents/skills/migrate-legacy-bundle-to-next/SKILL.md"
+	skillPath = "hack/migrationskill/skill.md"
 	assetPath = "internal/cli/tools/assets/migration-skill.md"
 )
 
@@ -70,7 +69,7 @@ var markdownLink = regexp.MustCompile(`\[([^\]\n]+)\]\(([^)\s]+)\)`)
 // order. Website cross-links to those documents are redirected to the same sections.
 // Other documentation links remain optional references, not additional dependencies.
 func assemble(root, skill string) (string, error) {
-	body, err := skillBody(skill)
+	body, err := markdownBody(skill)
 	if err != nil {
 		return "", err
 	}
@@ -82,20 +81,14 @@ func assemble(root, skill string) (string, error) {
 	var documents []document
 	links := make(map[string]string)
 	for _, match := range markdownLink.FindAllStringSubmatch(body, -1) {
-		link := match[2]
-		target, err := url.Parse(link)
-		if err != nil {
-			return "", fmt.Errorf("parse migration documentation link %q: %w", link, err)
-		}
-		if target.IsAbs() || target.Host != "" || strings.HasPrefix(link, "#") {
+		path := match[2]
+		if !strings.HasPrefix(path, "docs/") {
 			continue
 		}
-		path := filepath.ToSlash(filepath.Clean(filepath.Join(filepath.Dir(skillPath), filepath.FromSlash(target.Path))))
-		if filepath.IsAbs(target.Path) || !filepath.IsLocal(path) || !strings.HasPrefix(path, "docs/") || !strings.HasSuffix(path, ".mdx") || target.RawQuery != "" || target.Fragment != "" {
-			return "", fmt.Errorf("unsupported migration documentation path %q; use a skill-relative path to a repository docs/*.mdx file", link)
+		if !filepath.IsLocal(path) || filepath.ToSlash(filepath.Clean(path)) != path || !strings.HasSuffix(path, ".mdx") {
+			return "", fmt.Errorf("unsupported migration documentation path %q; use a repository-root docs/*.mdx path", path)
 		}
-		if anchor, exists := links[path]; exists {
-			links[link] = anchor
+		if _, exists := links[path]; exists {
 			continue
 		}
 		// #nosec G703 -- only clean, repository-local docs paths from the canonical skill are accepted.
@@ -103,13 +96,12 @@ func assemble(root, skill string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("read migration documentation %s: %w", path, err)
 		}
-		docBody, err := skillBody(string(content))
+		docBody, err := markdownBody(string(content))
 		if err != nil {
 			return "", fmt.Errorf("read migration documentation %s: %w", path, err)
 		}
 		id := "migration-doc-" + strings.NewReplacer("/", "-", ".", "-").Replace(path)
 		links[path] = "#" + id
-		links[link] = "#" + id
 		route := "/cli/" + strings.TrimSuffix(strings.TrimPrefix(path, "docs/"), ".mdx") + "/"
 		links[route] = "#" + id
 		documents = append(documents, document{path: path, body: docBody, hash: fmt.Sprintf("%x", sha256.Sum256(content))})
@@ -137,19 +129,19 @@ func rewriteLinks(body string, links map[string]string) string {
 	})
 }
 
-func skillBody(skill string) (string, error) {
-	skill = strings.ReplaceAll(skill, "\r\n", "\n")
-	frontmatter, ok := strings.CutPrefix(skill, "---\n")
-	if !ok {
-		return "", errors.New("migration skill must begin with YAML frontmatter")
-	}
-	_, body, ok := strings.Cut(frontmatter, "\n---\n")
-	if !ok {
-		return "", errors.New("migration skill frontmatter must have a closing delimiter")
+func markdownBody(content string) (string, error) {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	body := content
+	if frontmatter, ok := strings.CutPrefix(content, "---\n"); ok {
+		var closed bool
+		_, body, closed = strings.Cut(frontmatter, "\n---\n")
+		if !closed {
+			return "", errors.New("markdown frontmatter must have a closing delimiter")
+		}
 	}
 	body = strings.TrimSpace(body)
 	if body == "" {
-		return "", errors.New("migration skill body must not be empty")
+		return "", errors.New("markdown body must not be empty")
 	}
 	return body + "\n", nil
 }

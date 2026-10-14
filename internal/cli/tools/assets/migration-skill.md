@@ -1,4 +1,4 @@
-<!-- Generated from the canonical skill and its explicit documentation dependencies. Do not edit. Skill SHA256: a1272d8b6f9cfe086155826a7e4bd98b4bfb66e4aea4a6344ee32281aec59ce3 -->
+<!-- Generated from the canonical skill and its explicit documentation dependencies. Do not edit. Skill SHA256: 76fbff7511cad587b98c524ea9da3eb54b9599ad3822f05432239e81c88b0cc1 -->
 
 # Migrate a Legacy bundle to UDS CLI Next
 
@@ -9,11 +9,9 @@ uncertainties rather than guessing.
 ## Maintained documentation
 
 Use these maintained documents as the source of truth for schema and migration
-behavior. Read only the sections relevant to the supplied bundle. In the binary's
-printed skill, these links point to documentation included below; no repository
-checkout or web access is required. When using the repository skill directly,
-resolve the links relative to this SKILL.md and read the linked local files.
-Do not fetch documentation or missing inputs online.
+behavior. Read only the sections relevant to the supplied bundle. These links
+point to documentation included below in the CLI output; no repository checkout
+or web access is required. Do not fetch documentation or missing inputs online.
 
 | Need | Maintained document |
 | --- | --- |
@@ -126,7 +124,7 @@ creation. Do not deploy a bundle, operate a cluster, or write to a registry.
 
 ## Included documentation: docs/how-to-guides/migrate-legacy-to-next.mdx
 
-<!-- Source SHA256: 8ec78b407e506dcbe0da3c9db692b4cf3029767734bc5d9087e802e8e4055ea6 -->
+<!-- Source SHA256: 4656bf8357ee6f7d25229cd6dc5c2ff90aaf86f181021490e7502a48c71ab63d -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -144,7 +142,7 @@ Migrate a legacy `uds-bundle.yaml` and `uds-config.yaml` workflow to a Next bund
 - Access to each source package and a non-production cluster with `kubectl` configured for testing.
 - Package trust material and bundle signing credentials for your environment.
 
-For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding agent](/cli/how-to-guides/migrate-legacy-to-next-with-ai/). It uses the repository's migration skill to generate proposed HCL and a migration report; you must still review package verification and Zarf value mappings before deployment.
+For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding agent](/cli/how-to-guides/migrate-legacy-to-next-with-ai/). Give the agent the instructions from `CLI_FEATURES=NextMode=true uds tools migrate-bundle skill` to generate proposed HCL and a migration report; you must still review package verification and Zarf value mappings before deployment.
 
 > [!WARNING]
 > The package references, registry, and key paths in this guide are placeholders. Replace them with sources and trust material that your organization controls. The key files referenced below must exist.
