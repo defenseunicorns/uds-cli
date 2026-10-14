@@ -73,7 +73,7 @@ func OpenMetadataSource(ctx context.Context, source string, config *bundleintern
 		// Keep metadata and signature reads on this source. The upstream
 		// cache reuses descriptor content; registry resolution and signature
 		// discovery remain live. No package payload graph is copied here.
-		target, err := udsoci.NewRemoteReadSource(ctx, source, *config.Options, streams)
+		target, err := udsoci.NewRemoteMetadataSource(ctx, source, *config.Options, streams)
 		if err != nil {
 			return nil, ResolvingInspectSourceError{Source: source, Err: err}
 		}
@@ -123,7 +123,13 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	result, err := ReadBundleDefinition(ctx, source, opts.Streams)
+	return InspectMetadata(ctx, source, opts.Streams)
+}
+
+// InspectMetadata reads inspection metadata through an already resolved source.
+// Reusing it preserves digest selection and a single cache fallback budget.
+func InspectMetadata(ctx context.Context, source *MetadataSource, streams iostreams.IOStreams) (*InspectResult, error) {
+	result, err := ReadBundleDefinition(ctx, source, streams)
 	if err != nil {
 		return nil, err
 	}
