@@ -114,10 +114,46 @@ filesystem errors identifying the configured cache. Other errors, including
 unclassified corrupt-index errors, still propagate. This fallback does not make
 concurrent cache population safe.
 
+Public-library tests cover create and bundle pull with an unusable cache store
+or blocked temporary blob ingest directory. Both operations recover automatically
+by retrying retrieval without caching, leaving the obstruction and caller's
+configuration unchanged and cleaning up temporary workspaces. Tests also verify
+that retries retain signature verification, stop after one uncached attempt, and
+do not apply to unrelated failures. These tests cover identifiable cache
+filesystem failures, not every upstream cache failure or concurrent-write safety.
+
+Additional library tests cover malformed cache indexes during create, pull,
+metadata-only inspect, and OCI-source remove preparation. These unclassified
+decoding errors propagate without an automatic retry. Explicitly disabling the
+cache lets retrieval proceed, demonstrating that the registry remains usable.
+The malformed index stays untouched, and failed retrieval leaves no artifact or
+temporary workspace. Metadata and deploy tests in the preceding changes cover
+their filesystem fallback paths and verify that verification failures still
+stop before deployment or removal actions.
+
 Integration tests must demonstrate initial population, reuse across independent
 creates, unchanged package verification, and the resulting artifact's ability
 to supply package content. Add cross-operation reuse and concurrency coverage
 as the remaining integrations and dependency updates land.
+
+Concurrent cache-read tests start separate Go test processes using the public
+bundle APIs: two creates, two pulls, or one of each. Their workspaces are private;
+only the cache is shared. With cached content already present and blob downloads
+blocked, both operations must produce usable artifacts without changing cached
+blob bytes. This tests cross-process integration, not just goroutine safety.
+
+The duplicate-writer test is explicitly opt-in to reproduce a known upstream
+limitation. It removes one cached package blob,
+holds both registry responses until both processes have missed that blob, and
+lets one writer publish before the other receives its response. Both operations
+must succeed with usable artifacts. The current dependency fails this scenario;
+a pull can even return an artifact that subsequently fails content verification.
+The test does not accept that behavior as success. A default-suite skip provides
+no evidence that competing writes are safe. Rerun this test after upstream
+dependency updates and reassess whether it can join the normal suite. Passing
+this focused scenario would not establish safety for simultaneous initial cache
+creation or concurrent mutable-index updates. Those remain separate upstream
+limitations; duplicate-blob handling alone does not resolve them.
 
 ### Cleanup and diagnostics
 
