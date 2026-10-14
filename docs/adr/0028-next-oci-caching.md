@@ -94,6 +94,14 @@ or repair the shared cache. Warn when falling back; if the retry fails, preserve
 both errors. Bundle pull retries retrieval only, not verification or archive
 publication failures.
 
+Remote bundle metadata reads use the same fallback policy, including inspect,
+OCI-source remove preparation, and deploy's preliminary signature check. After
+one cache filesystem failure, keep that metadata source uncached and retry the
+failed descriptor read without resolving its tag again. Capture failures while
+opening, reading, and closing metadata bodies; keep existing metadata size limits
+and digest validation. Retry retrieval only, never signature verification or
+deployment/removal actions.
+
 Do not retry cancellation, package verification failures, or unrelated errors.
 Upstream does not provide a distinct cache-error type, so fallback is limited to
 filesystem errors identifying the configured cache. Other errors, including
