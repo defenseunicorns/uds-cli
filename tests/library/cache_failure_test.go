@@ -59,7 +59,9 @@ package "remote" {
 	}
 }
 
-func TestPullRemoteCacheFailures(t *testing.T) {
+// TestPullRemoteCacheFailuresRecoverWithoutCache checks that a single unsigned
+// pull recovers by retrying without caching, just as remote package create does.
+func TestPullRemoteCacheFailuresRecoverWithoutCache(t *testing.T) {
 	for _, phase := range []string{"initialization", "population"} {
 		t.Run(phase, func(t *testing.T) {
 			fixture := createLibraryBundle(t)
@@ -71,25 +73,22 @@ func TestPullRemoteCacheFailures(t *testing.T) {
 			config.Options.CacheDir = cacheDir
 			targetDir := t.TempDir()
 
-			// Unlike remote package retrieval during create, bundle pull does
-			// not yet retry cache initialization or population failures.
+			// One pull call must handle the cache failure and uncached retry;
+			// the caller must not have to change configuration and try again.
 			result, err := bundle.Pull(t.Context(), ref, targetDir, bundle.PullOptions{
-				Config:                    config,
-				SkipSignatureVerification: true,
-			})
-			require.ErrorIs(t, err, bundle.ErrPullBundle)
-			assert.Nil(t, result)
-			assertLibraryCacheFailure(t, err, blockedPath, targetDir, config.Options.TmpDir)
-
-			config.Options.CacheDir = ""
-			result, err = bundle.Pull(t.Context(), ref, targetDir, bundle.PullOptions{
 				Config:                    config,
 				SkipSignatureVerification: true,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.FileExists(t, result.OutputPath)
-			assert.FileExists(t, blockedPath)
+			assert.Equal(t, cacheDir, config.Options.CacheDir)
+			contents, err := os.ReadFile(blockedPath)
+			require.NoError(t, err)
+			assert.Equal(t, "cache obstruction", string(contents))
+			entries, err := os.ReadDir(config.Options.TmpDir)
+			require.NoError(t, err)
+			assert.Empty(t, entries, "both attempts must clean up their temporary workspaces")
 		})
 	}
 }
@@ -109,20 +108,4 @@ func obstructLibraryCache(t *testing.T, phase string) (string, string) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(blockedPath), 0o700))
 	require.NoError(t, os.WriteFile(blockedPath, []byte("cache obstruction"), 0o600))
 	return cacheDir, blockedPath
-}
-
-func assertLibraryCacheFailure(t *testing.T, err error, blockedPath, outputDir, tmpDir string) {
-	t.Helper()
-	var pathErr *os.PathError
-	require.ErrorAs(t, err, &pathErr)
-	assert.Equal(t, blockedPath, pathErr.Path, "the filesystem error must identify the obstructed cache path")
-	contents, readErr := os.ReadFile(blockedPath)
-	require.NoError(t, readErr)
-	assert.Equal(t, "cache obstruction", string(contents))
-	artifacts, globErr := filepath.Glob(filepath.Join(outputDir, "*.tar.zst"))
-	require.NoError(t, globErr)
-	assert.Empty(t, artifacts, "a failed operation must not publish a bundle artifact")
-	entries, readErr := os.ReadDir(tmpDir)
-	require.NoError(t, readErr)
-	assert.Empty(t, entries, "operation-owned temporary workspaces must be cleaned up after failure")
 }

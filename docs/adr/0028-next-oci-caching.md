@@ -107,12 +107,12 @@ unclassified corrupt-index errors, still propagate. This fallback does not make
 concurrent cache population safe.
 
 Public-library tests cover create and bundle pull with an unusable cache store
-or blocked temporary blob ingest directory. Create recovers automatically by
-retrying package retrieval without caching, leaving the obstruction and caller's
-configuration unchanged and cleaning up temporary workspaces. Bundle pull still
-propagates these errors without publishing an artifact; the same pull succeeds
-when caching is manually disabled. Pull's characterization tests document the
-remaining fallback gap, not a requirement that cache failures must stop UDS.
+or blocked temporary blob ingest directory. Both operations recover automatically
+by retrying retrieval without caching, leaving the obstruction and caller's
+configuration unchanged and cleaning up temporary workspaces. Tests also verify
+that retries retain signature verification, stop after one uncached attempt, and
+do not apply to unrelated failures. These tests cover identifiable cache
+filesystem failures, not every upstream cache failure or concurrent-write safety.
 
 Integration tests must demonstrate initial population, reuse across independent
 creates, unchanged package verification, and the resulting artifact's ability
