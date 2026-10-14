@@ -92,25 +92,27 @@ UDS operations and document unmet integrity or concurrency requirements for
 upstream resolution. Do not add a separate UDS publication algorithm, private
 cache, seeding workflow, or copy-back step.
 
-For remote package retrieval, retry once without caching after an identifiable
-cache filesystem failure. Discard partial downloads before retrying, retain any
-resolved package digest, and preserve component selection and signature
-verification. Do not alter the caller's configuration or repair the shared cache.
-Warn when falling back; if the retry fails, preserve both errors.
+For remote package retrieval and bundle pull, retry once without caching after
+an identifiable cache filesystem failure. Discard partial downloads before
+retrying, retain any resolved package or bundle digest, and preserve component
+selection and signature verification. Do not alter the caller's configuration
+or repair the shared cache. Warn when falling back; if the retry fails, preserve
+both errors. Bundle pull retries retrieval only, not verification or archive
+publication failures.
 
 Do not retry cancellation, package verification failures, or unrelated errors.
 Upstream does not provide a distinct cache-error type, so fallback is limited to
 filesystem errors identifying the configured cache. Other errors, including
 unclassified corrupt-index errors, still propagate. This fallback does not make
-concurrent cache population safe. Bundle pull fallback remains separate work.
+concurrent cache population safe.
 
 Public-library tests cover create and bundle pull with an unusable cache store
-or blocked temporary blob ingest directory. Create recovers automatically by
-retrying package retrieval without caching, leaving the obstruction and caller's
-configuration unchanged and cleaning up temporary workspaces. Bundle pull still
-propagates these errors without publishing an artifact; the same pull succeeds
-when caching is manually disabled. Pull's characterization tests document the
-remaining fallback gap, not a requirement that cache failures must stop UDS.
+or blocked temporary blob ingest directory. Both operations recover automatically
+by retrying retrieval without caching, leaving the obstruction and caller's
+configuration unchanged and cleaning up temporary workspaces. Tests also verify
+that retries retain signature verification, stop after one uncached attempt, and
+do not apply to unrelated failures. These tests cover identifiable cache
+filesystem failures, not every upstream cache failure or concurrent-write safety.
 
 Integration tests must demonstrate initial population, reuse across independent
 creates, unchanged package verification, and the resulting artifact's ability
