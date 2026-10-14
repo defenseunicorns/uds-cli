@@ -1,0 +1,150 @@
+---
+title: Migrate a legacy bundle with an AI coding agent
+description: Use the self-contained migration skill to create and verify a reviewable UDS CLI Next bundle.
+sidebar:
+  order: 3.410
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+## What you'll accomplish
+
+Use an AI coding agent to make a reviewable first-pass migration from a Legacy
+`uds-bundle.yaml` to UDS CLI Next HCL files. You
+will review the generated migration report, validate the files with UDS CLI, and
+optionally deploy to a non-production cluster.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/).
+- An AI coding agent that can read your local bundle and package definitions.
+- A Legacy bundle source directory containing `uds-bundle.yaml`.
+- Access to the source packages and their trust material for bundle creation.
+- A non-production cluster only when you are ready to test a deployment. Standard
+  Zarf packages require an initialized cluster, or a migrated bundle that includes
+  the Zarf `init` package before packages that require it. Check each package's
+  deployment mode; connected and cluster-less packages have different requirements.
+
+> [!WARNING]
+> This AI-assisted migration workflow is experimental. The agent generates a
+> first-pass proposal, not an attestation that the result is safe or equivalent.
+> Review generated files, package sources, variable behavior, Zarf mappings, package
+> signature verification, and every item in the migration report before using the
+> result in any environment. A successful artifact build does not prove deployment
+> equivalence.
+
+## Steps
+
+<Steps>
+
+1. **Print the migration skill**
+
+   From your working directory, print the complete instructions:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds tools migrate-bundle skill
+   ```
+
+   The output includes the canonical migration skill and its referenced,
+   maintained documentation. Links to included documents point to sections
+   within the output.
+   You do not need a repository checkout, a separate skill file, or web access
+   to obtain the instructions. The command only prints text unless you give it
+   an output path. To save the skill in a new file instead of printing it, run:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds tools migrate-bundle skill -o /tmp/migration-skill.md
+   ```
+
+   The target directory must exist. The command does not replace an existing file.
+
+2. **Generate the Next files**
+
+   Start your coding agent in the same working directory.
+
+   Paste the printed skill into your agent, or give it the saved file. Replace
+   `uds-bundle.yaml` with your Legacy bundle path. The agent writes the proposed
+   files in your current working directory. Move any existing migration output
+   files before starting, or choose another output location in your request.
+
+   Alternatively, ask the agent to run the skill command and follow its output.
+   Replace `<path-to-legacy-bundle>/uds-bundle.yaml` with your local bundle path:
+
+   ```text title="Agent request"
+   Run the command "CLI_FEATURES=NextMode=true uds tools migrate-bundle skill" and use its
+   printed instructions to migrate <path-to-legacy-bundle>/uds-bundle.yaml.
+
+   Write the migrated files and migration report in the current working
+   directory. Preserve the Legacy input. Do not run any other UDS commands
+   or use a cluster.
+   ```
+
+   Expect `bundle.uds.hcl` and `migration-report.md`. The agent also generates
+   values files and `defaults.uds.hcl` when needed. Deployment settings from
+   `uds-config.yaml` remain a separate task.
+
+   The report includes essential explanations and next steps directly, so you
+   can review it without repository documentation or web access.
+
+   Compare the generated packages with the Legacy bundle and read the report.
+   Ask the agent to explain anything marked for review. If your bundle uses
+   overrides, the agent may need the packages' `zarf.yaml` files to check their
+   values mappings. Keep private keys and credentials out of your agent request.
+
+3. **Review package verification**
+
+   Each package's `signature_verification` block controls how its signature is
+   verified before inclusion in the bundle. The agent carries over the Legacy
+   public-key or keyless policy without adding alternative options. If the Legacy
+   package has no policy, the agent omits the block and reports it as a blocker
+   for bundle creation.
+
+   Next requires a verification policy for every package at create time. Keep
+   migrated policies and resolve missing ones with the package owner before
+   testing; the migration does not choose a policy for you.
+
+4. **Try creating the bundle**
+
+   From your working directory, run this local alpha check against the generated
+   directory:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle create . --unsigned
+   ```
+
+   `--unsigned` leaves the new bundle artifact unsigned, so its integrity and
+   origin are not established by a bundle signature. It does not disable package
+   verification. For production signing, follow
+   [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/)
+   as a separate task.
+
+   This checks the definition and package policies, then retrieves packages.
+   It may access registries but does not use a cluster. Success writes a
+   `.tar.zst` artifact beside `bundle.uds.hcl`.
+
+   If creation fails, share the output with the agent to identify the next step.
+   Registry access or unbuilt local packages may block creation even when the
+   HCL is valid.
+
+</Steps>
+
+## Verification
+
+Confirm that the generated definition accounts for the Legacy packages and that
+you understand each unresolved item in the report. Reaching package ingestion
+confirms the HCL and package policies passed validation; completing creation
+also confirms the package sources could be assembled into an artifact.
+
+The migration workflow stops at artifact creation and does not perform cluster
+operations. When you are ready to test workload behavior as a separate task, follow
+[Deploy a bundle in Next mode](/cli/how-to-guides/next/deploy-a-bundle/) using a
+non-production cluster. Review package dependencies and cluster initialization
+first: package list order does not establish deployment order. If an agent will
+run the deployment, explicitly authorize that cluster operation.
+
+## Related documentation
+
+- [Migrate a legacy bundle to UDS CLI Next](/cli/how-to-guides/migrate-legacy-to-next/) - manual migration mappings and known Next differences.
+- [Create a bundle in Next mode](/cli/how-to-guides/next/create-a-bundle/) - package preparation and artifact creation.
+- [Sign and verify a bundle in Next mode](/cli/how-to-guides/next/sign-bundle-artifacts/) - signing choices and artifact verification.
+- [Next mode reference](/cli/reference/next-mode/) - exact HCL schema, commands, and configuration behavior.
