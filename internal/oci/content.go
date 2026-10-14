@@ -40,9 +40,10 @@ func IsImageManifestMediaType(mediaType string) bool {
 // be large and should be copied by ORAS graph operations or streamed through
 // Fetch with content.NewVerifyReader when verification is needed.
 //
-// The fetcher passed to FetchBytes should not perform eager body reads before
-// FetchBytes is called. For metadata-only reads from a local OCI layout, open the
-// layout with OpenReadOnlyStore instead of OpenStore.
+// The fetcher passed to FetchBytes should not perform unbounded eager body reads.
+// NewRemoteMetadataSource enforces this same limit before buffering for retry.
+// For metadata-only reads from a local OCI layout, open the layout with
+// OpenReadOnlyStore instead of OpenStore.
 func FetchBytes(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor) ([]byte, error) {
 	if desc.Size > MaxFetchBytesSize {
 		return nil, DescriptorTooLargeError{Digest: desc.Digest, Size: desc.Size, Limit: MaxFetchBytesSize}

@@ -220,12 +220,19 @@ These flags apply to all `uds bundle` subcommands:
 
 ### Cache fallback
 
-During remote Zarf package retrieval and bundle pull, Next retries once without
-caching when a filesystem error identifies the configured Next cache. It warns
+During remote Zarf package retrieval, bundle pull, and remote bundle metadata
+reads, Next retries once without caching when a filesystem error identifies the
+configured Next cache. It warns
 before retrying and leaves the shared cache and your configuration unchanged.
 The retry retains any resolved digest, signature verification, and package
 selection. If it also fails, the operation reports both errors. Bundle pull
 does not retry verification or archive-writing failures.
+
+Metadata-only inspect, OCI-source remove preparation, and deploy's preliminary
+signature check switch to uncached reads after an identifiable cache filesystem
+failure. The failed metadata read retries with the same descriptor, and later
+reads through that source stay uncached. Verification and deployment/removal
+actions are never retried by this fallback.
 
 This fallback does not apply to every upstream cache error or provide a guarantee
 of safe concurrent cache population. Cancellation, package verification failures,
