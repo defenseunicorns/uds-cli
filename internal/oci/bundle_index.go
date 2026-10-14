@@ -44,13 +44,18 @@ const (
 // ResolveBundleChild resolves reference to the canonical single-arch bundle
 // index and returns its descriptor and raw bytes.
 func ResolveBundleChild(ctx context.Context, src oras.ReadOnlyTarget, reference, arch string) (ocispec.Descriptor, []byte, error) {
-	if arch == "" {
-		arch = runtime.GOARCH
-	}
-
 	desc, err := src.Resolve(ctx, reference)
 	if err != nil {
 		return ocispec.Descriptor{}, nil, fmt.Errorf("resolving %s: %w: %w", reference, ErrResolveReference, err)
+	}
+	return resolveBundleChildDescriptor(ctx, src, reference, arch, desc)
+}
+
+// resolveBundleChildDescriptor keeps discovery separate from fetching so a pull
+// can retain the discovered digest if cache-backed reads require a retry.
+func resolveBundleChildDescriptor(ctx context.Context, src oras.ReadOnlyTarget, reference, arch string, desc ocispec.Descriptor) (ocispec.Descriptor, []byte, error) {
+	if arch == "" {
+		arch = runtime.GOARCH
 	}
 	data, err := fetchIndexBytes(ctx, src, desc)
 	if err != nil {
