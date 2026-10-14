@@ -29,11 +29,10 @@ location, command integration, cleanup, and tests.
 
 ### Cache location and ownership
 
-Use `<uds-cache>/bundle-oci` as the `CachePath` supplied to Zarf's
-`zoci.NewRemoteWithOptions`. Zarf opens its OCI store in the `images/`
-subdirectory, so cached blobs reside beneath
-`<uds-cache>/bundle-oci/images/blobs/`. Bundle remote reads will use that same
-store through upstream `oci/cache.New`.
+Store Next's OCI cache under `<uds-cache>/bundle-oci`. Remote Zarf package
+retrieval and bundle remote reads share this content-addressed store through
+upstream caching components. Upstream owns the cache's internal layout and
+storage mechanics.
 
 Keep this cache separate from Legacy's `<uds-cache>/layers` and Zarf's default
 `<uds-cache>/images`. Do not migrate or seed those caches.
