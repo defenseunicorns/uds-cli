@@ -33,6 +33,8 @@ const cacheWorkerEnv = "UDS_TEST_CACHE_WORKER"
 
 var cacheWorkerPairs = [][2]string{{"create", "create"}, {"pull", "pull"}, {"create", "pull"}}
 
+// TestConcurrentRemoteCacheReads covers reads from an already populated cache.
+// It does not test competing writers, mutable index updates, or initial creation.
 func TestConcurrentRemoteCacheReads(t *testing.T) {
 	for _, pair := range cacheWorkerPairs {
 		t.Run(strings.Join(pair[:], " and "), func(t *testing.T) {
@@ -50,11 +52,14 @@ func TestConcurrentRemoteCacheReads(t *testing.T) {
 	}
 }
 
+// TestConcurrentRemoteCachePopulation is an opt-in reproduction of a specific
+// upstream duplicate-writer gap. Passing it after a dependency update would not
+// establish general concurrency safety for the shared cache.
 func TestConcurrentRemoteCachePopulation(t *testing.T) {
 	if os.Getenv("UDS_TEST_CACHE_CONCURRENT_WRITES") != "true" {
 		// Keep the acceptance assertions below strict. The vendored cache
 		// still returns ErrAlreadyExists when another writer wins, so this
-		// requirement is pending an upstream dependency update, not passed.
+		// scenario is pending an upstream dependency update, not passed.
 		// Enable explicitly to reproduce the gap or validate that update.
 		t.Skip("pending upstream duplicate-writer fix; set UDS_TEST_CACHE_CONCURRENT_WRITES=true to run the acceptance test")
 	}
