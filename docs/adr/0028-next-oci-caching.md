@@ -92,17 +92,19 @@ UDS operations and document unmet integrity or concurrency requirements for
 upstream resolution. Do not add a separate UDS publication algorithm, private
 cache, seeding workflow, or copy-back step.
 
-For remote package retrieval, retry once without caching after an identifiable
-cache filesystem failure. Discard partial downloads before retrying, retain any
-resolved package digest, and preserve component selection and signature
-verification. Do not alter the caller's configuration or repair the shared cache.
-Warn when falling back; if the retry fails, preserve both errors.
+For remote package retrieval and bundle pull, retry once without caching after
+an identifiable cache filesystem failure. Discard partial downloads before
+retrying, retain any resolved package or bundle digest, and preserve component
+selection and signature verification. Do not alter the caller's configuration
+or repair the shared cache. Warn when falling back; if the retry fails, preserve
+both errors. Bundle pull retries retrieval only, not verification or archive
+publication failures.
 
 Do not retry cancellation, package verification failures, or unrelated errors.
 Upstream does not provide a distinct cache-error type, so fallback is limited to
 filesystem errors identifying the configured cache. Other errors, including
 unclassified corrupt-index errors, still propagate. This fallback does not make
-concurrent cache population safe. Bundle pull fallback remains separate work.
+concurrent cache population safe.
 
 Integration tests must demonstrate initial population, reuse across independent
 creates, unchanged package verification, and the resulting artifact's ability
