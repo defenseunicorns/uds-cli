@@ -589,7 +589,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 9e9e1da98235969dc3adb6f2654e2804369d4b062958dd1b8bd10feb3a399dfd -->
+<!-- Source SHA256: 7accb6b7344f99fe9e933c519046962f98848764665b880116d098434ab25d4b -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -651,6 +651,15 @@ options {
 
 The `tmp_dir` directory must already exist before running the command.
 If UDS CLI cannot determine your home directory, set `uds_cache` or `--uds-cache` to an absolute path instead of relying on the default.
+
+During bundle creation, remote Zarf package reads use an OCI cache under
+`<uds_cache>/bundle-oci/images/`. The directory is created on demand and can
+reuse content from previous creates. Local package sources do not populate
+this cache. Cache reuse does not replace package signature verification.
+
+Set `log_level = "debug"` or pass `--log-level debug` to see the package OCI
+cache store path and initialization diagnostics on stderr. These messages
+confirm cache setup, not individual layer hits or misses.
 
 ## `signature_verification`
 
