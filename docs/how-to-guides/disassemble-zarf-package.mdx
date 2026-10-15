@@ -1,0 +1,111 @@
+---
+title: Disassemble and reassemble a Zarf package
+description: Recover a complete Zarf package as editable source and recreate it without remote source access.
+sidebar:
+  order: 3.6
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+## What you'll accomplish
+
+Package disassembly recovers the assets and `zarf.yaml` from a complete Zarf package. It expands packaged charts into editable directories, writes the remaining packaged resources to local paths, and removes create-time data that cannot be replayed safely.
+
+The generated tree is a temporary worktree for last-resort changes inside the airgap, not a replacement for the original source. Port every lasting change upstream so a later package does not erase the fix.
+
+By the end of this guide, you will have edited source and a recreated package that does not pull its declared resources from remote sources.
+
+> [!CAUTION]
+> Disassembly and reassembly change the package, so the original signature no longer applies. Review the edited source before signing the recreated package during reassembly or as a separate step.
+
+## Prerequisites
+
+- [UDS CLI installed](/cli/getting-started/installation/)
+- A complete local or remote Zarf package
+- Registry or network access when the source is remote
+- UDS CLI Next mode and the `PackageMod` feature enabled
+
+## Steps
+
+<Steps>
+
+1. **Choose the package source and worktree**
+
+   This example uses a local package and writes editable source directly to `./app-source`. That path must either not exist or name an empty directory.
+
+2. **Disassemble the package**
+
+   ```bash
+   uds --features=NextMode=true,PackageMod=true package mod disassemble \
+     zarf-package-app-amd64-1.0.0.tar.zst \
+     ./app-source
+   ```
+
+   UDS CLI stages the complete tree beside `app-source` and moves it into place only after disassembly succeeds. A warning reminds you to port edits upstream.
+
+3. **Review the generated worktree**
+
+   The generated `app-source/zarf.yaml` references local assets and preserves the package API version and architecture. Existing versions receive the `-disassembled` suffix; an unversioned package receives the version `disassembled`. The `.uds/disassembly.json` file records the metadata format version, source architecture, and source flavor required for reassembly.
+
+   > [!CAUTION]
+   > Do not edit `.uds/disassembly.json`. Reassembly rejects unsupported metadata versions and architecture drift between that file and `zarf.yaml`.
+
+   > [!CAUTION]
+   > For Git repositories, disassembly replaces the original repository URL with an absolute `file://` source. This also changes the rebuilt repository's deploy identity. Manifests or GitOps consumers that reference the original URL may need adjustments to work correctly.
+
+4. **Make and review the required changes**
+
+   Edit the generated source, then review the complete worktree. Keep the version ending in `disassembled` so operators can distinguish the recreated package from the original signed artifact.
+
+   If you edit files inside a recovered Git repository, commit those changes in that repository before reassembly. Zarf clones committed content, so uncommitted working-tree edits are not included. Other generated source files do not require Git commits.
+
+5. **Reassemble the package**
+
+   ```bash
+   uds --features=NextMode=true,PackageMod=true package mod reassemble \
+     ./app-source \
+     --output ./build
+   ```
+
+   The `-o, --output` flag follows Zarf package create semantics and accepts a local output directory or an `oci://` destination. Reassembly validates the worktree and recreates the package with the recorded architecture and flavor.
+
+</Steps>
+
+## Verification
+
+A package archive beneath `./build` confirms that the generated source is buildable. Inspect its name for the recovered architecture and flavor and confirm its version ends in `disassembled`.
+
+Reassembly does not prove deployment behavior. Validate the recreated artifact in its intended environment, then review and sign it according to your trust policy.
+
+## Troubleshooting
+
+### The output directory contains files
+
+**Symptom:** Disassembly reports that the output directory must be empty.
+
+**Solution:** Choose a path that does not exist or remove the existing directory contents before running disassembly.
+
+### The package is differential or skeleton
+
+**Symptom:** Disassembly reports that the package does not contain complete recreatable source.
+
+**Solution:** Use a complete created package. Differential packages contain only changes relative to another package, while skeleton packages are already reusable source and do not contain created package assets to recover.
+
+### Reassembly reports architecture drift
+
+**Symptom:** Reassembly reports that the architecture in `zarf.yaml` does not match `.uds/disassembly.json`.
+
+**Solution:** Restore the original package architecture in `zarf.yaml`. Disassemble a package built for the required architecture instead of changing the recovered worktree to another architecture.
+
+### A worktree containing a Git repository was moved
+
+**Symptom:** Reassembly cannot locate a Git repository after the generated source directory was moved.
+
+**Solution:** Return the worktree to its original path. Zarf currently requires an absolute `file://` Git repository source during package creation.
+
+The recreated package remains portable because Zarf rewrites the repository URL for its in-cluster Git service during deployment. The editable worktree itself is not path-independent until Zarf separates repository identity from its local acquisition path.
+
+## Related documentation
+
+- [UDS CLI Next mode](/cli/reference/next-mode/) explains Next mode and feature activation.
+- [Create a Zarf package](https://docs.zarf.dev/commands/zarf_package_create/) documents the underlying Zarf create operation and output destinations.

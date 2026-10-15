@@ -343,8 +343,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	deploy := opts.ClusterDeployFn
 	if deploy == nil {
 		deploy = func(ctx context.Context, l *layout.PackageLayout, o *packager.DeployOptions, _ bool) error {
-			_, err := packager.Deploy(ctx, l, *o)
-			return err
+			return withTempDir(opts.Config.Options.TmpDir, func() error {
+				_, err := packager.Deploy(ctx, l, *o)
+				return err
+			})
 		}
 	}
 	if err := deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial); err != nil {

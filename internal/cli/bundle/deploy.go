@@ -183,6 +183,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		o.Verification.Config = baseConfig
 	}
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
+
 	o.Info("preparing bundle for deployment", "source", o.BundlePath)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {
