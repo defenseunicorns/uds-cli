@@ -59,10 +59,12 @@ func NewRootCommand(streams iostreams.IOStreams, features mode.FeatureSet) *cobr
 	rootCmd.AddCommand(cmdversion.NewVersionCommand(streams))
 	rootCmd.AddCommand(bundle.NewBundleCommand(streams))
 	rootCmd.AddCommand(core.NewCoreCommand(streams))
-	rootCmd.AddCommand(tools.NewToolsCommand())
+
+	rootCmd.AddCommand(tools.NewToolsCommand(streams))
 	if features.Enabled(mode.FeaturePackageMod) {
 		rootCmd.AddCommand(packagecli.NewPackageCommand(streams))
 	}
+
 	// Hidden root-level zarf command for internal Zarf callbacks.
 	// Zarf's ActionsCommandZarfPrefix is set to "zarf" (single word) at build time,
 	// so callbacks run as "uds zarf tools kubectl ..." which routes here.

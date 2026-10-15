@@ -223,7 +223,7 @@ jobs:
         if: matrix.supplied
         uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          version: 2026.10.9
+          version: 2026.10.10
           install_args: zarf@${{ steps.zarf-version.outputs.version }}
           cache: true
 
@@ -307,7 +307,7 @@ jobs:
       - name: Cache the Next test Zarf tool
         uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          version: 2026.10.9
+          version: 2026.10.10
           install_args: zarf@${{ steps.zarf-version.outputs.version }}
           cache: true
 
