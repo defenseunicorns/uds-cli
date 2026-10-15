@@ -70,7 +70,9 @@ mise install
 hk install
 ```
 
-`hk install` enables the repository's pre-commit checks. Run `hk check --all` at any time to run the same checks without committing, or `hk fix --all` to apply supported fixes.
+`hk install` enables the repository's pre-commit checks and commit-message check. Commit subjects must use the Conventional Commits format, such as `fix: handle missing config` or `feat(next): add a command`. The `commit-msg` hook rejects a message without a valid type prefix.
+
+Run `hk check --all` at any time to run the file checks without committing, or `hk fix --all` to apply supported fixes.
 
 ### Building the app
 
