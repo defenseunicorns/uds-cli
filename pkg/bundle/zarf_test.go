@@ -50,7 +50,7 @@ func newV1beta1PackageLayout(t *testing.T) *layout.PackageLayout {
 					Local:  []v1beta1.ComponentImportLocal{{Path: "one.yaml"}, {Path: "two.yaml"}},
 					Remote: []v1beta1.ComponentImportRemote{{URL: "oci://example.com/component"}},
 				},
-				Service: v1beta1.ServiceRegistry,
+				Service: v1beta1.Service{Name: v1beta1.ServiceRegistry},
 			},
 		}},
 	})
@@ -272,10 +272,10 @@ func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 
 	component := zarfLayout.AsV1beta1().Components[0]
 	assert.Equal(t, "updated/image:v1", component.Images[0].Name)
-	assert.Equal(t, "daemon", component.Images[0].Source)
+	assert.Equal(t, v1beta1.ImageSourceDaemon, component.Images[0].Source)
 	assert.Len(t, component.Import.Local, 2)
 	assert.Len(t, component.Import.Remote, 1)
-	assert.Equal(t, v1beta1.ServiceRegistry, component.Service)
+	assert.Equal(t, v1beta1.ServiceRegistry, component.Service.Name)
 }
 
 func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
@@ -285,10 +285,10 @@ func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
 	assert.Equal(t, "beta-package", converted.Definition().Metadata.Name)
 
 	component := converted.AsV1beta1().Components[0]
-	assert.Equal(t, "daemon", component.Images[0].Source)
+	assert.Equal(t, v1beta1.ImageSourceDaemon, component.Images[0].Source)
 	assert.Len(t, component.Import.Local, 2)
 	assert.Len(t, component.Import.Remote, 1)
-	assert.Equal(t, v1beta1.ServiceRegistry, component.Service)
+	assert.Equal(t, v1beta1.ServiceRegistry, component.Service.Name)
 }
 
 func TestPrepareDeploySourceFindsAdjacentDefaults(t *testing.T) {
