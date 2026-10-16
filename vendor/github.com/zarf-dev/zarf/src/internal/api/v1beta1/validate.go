@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/transform"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -22,22 +23,29 @@ const (
 
 // Package errors found during validation.
 const (
-	PkgValidateErrComponentNameNotUnique  = "component name %q is not unique"
-	PkgValidateErrChartNameNotUnique      = "chart name %q is not unique"
-	PkgValidateErrChart                   = "invalid chart definition: %w"
-	PkgValidateErrManifestNameNotUnique   = "manifest name %q is not unique"
-	PkgValidateErrManifest                = "invalid manifest definition: %w"
-	PkgValidateErrAction                  = "invalid action: %w"
-	PkgValidateErrActionCmdWait           = "action %q cannot be both a command and wait action"
-	PkgValidateErrActionClusterNetwork    = "a single wait action must contain only one of cluster or network"
-	PkgValidateErrActionSetValueOnDeploy  = "setValues is not supported in onCreate actions"
-	PkgValidateErrActionTemplateOnCreate  = "templating is not supported in onCreate actions"
-	PkgValidateErrChartName               = "chart %q exceed the maximum length of %d characters"
-	PkgValidateErrChartNamespaceMissing   = "chart %q must include a namespace"
-	PkgValidateErrManifestFileOrKustomize = "manifest %q must have at least one file or kustomization"
-	PkgValidateErrManifestNameLength      = "manifest %q exceed the maximum length of %d characters"
-	PkgValidateErrNoComponents            = "package does not contain any compatible components"
-	PkgValidateErrGitURLWithRef           = "git URL %q must not contain an embedded ref; use the ref field instead"
+	PkgValidateErrComponentNameNotUnique    = "component name %q is not unique"
+	PkgValidateErrChartNameNotUnique        = "chart name %q is not unique"
+	PkgValidateErrChart                     = "invalid chart definition: %w"
+	PkgValidateErrManifestNameNotUnique     = "manifest name %q is not unique"
+	PkgValidateErrManifest                  = "invalid manifest definition: %w"
+	PkgValidateErrAction                    = "invalid action: %w"
+	PkgValidateErrActionCmdWait             = "action %q cannot be both a command and wait action"
+	PkgValidateErrActionClusterNetwork      = "a single wait action must contain only one of cluster or network"
+	PkgValidateErrActionSetValueOnDeploy    = "setValues is not supported in onCreate actions"
+	PkgValidateErrActionTemplateOnCreate    = "templating is not supported in onCreate actions"
+	PkgValidateErrChartName                 = "chart %q exceed the maximum length of %d characters"
+	PkgValidateErrChartNamespaceMissing     = "chart %q must include a namespace"
+	PkgValidateErrManifestFileOrKustomize   = "manifest %q must have at least one file or kustomization"
+	PkgValidateErrManifestNameLength        = "manifest %q exceed the maximum length of %d characters"
+	PkgValidateErrManifestNamePath          = "manifest %q must not contain path separators"
+	PkgValidateErrDocumentationKeyPath      = "documentation key %q must not contain path separators"
+	PkgValidateErrDocumentationKeyTraversal = "documentation key %q must not be a traversal path"
+	PkgValidateErrNoComponents              = "package does not contain any compatible components"
+	PkgValidateErrGitURLWithRef             = "git URL %q must not contain an embedded ref; use the ref field instead"
+	PkgValidateErrServiceRequiresInit       = "component %q declares service %q, but only ZarfInitConfig packages may declare services"
+	PkgValidateErrServiceNotUnique          = "service %q is declared by multiple components (%q, %q)"
+	PkgValidateErrFileChecksumAlgorithm     = "component %q file %q has unsupported checksum algorithm %q (expected sha256 or sha512)"
+	PkgValidateErrImageConflictingSources   = "image %q has conflicting sources %q and %q"
 )
 
 // ValidationErrors contains all errors found during package validation.
@@ -69,13 +77,50 @@ func ValidatePackage(pkg v1beta1.Package) ValidationErrors {
 	if len(pkg.Components) == 0 {
 		errs = append(errs, errors.New(PkgValidateErrNoComponents))
 	}
+	for key := range pkg.Documentation {
+		if key == ".." {
+			errs = append(errs, fmt.Errorf(PkgValidateErrDocumentationKeyTraversal, key))
+		} else if strings.ContainsAny(key, `/\`) {
+			errs = append(errs, fmt.Errorf(PkgValidateErrDocumentationKeyPath, key))
+		}
+	}
 	uniqueComponentNames := make(map[string]bool)
+	serviceComponents := make(map[v1beta1.ServiceName]string)
+	seenSources := make(map[string]v1beta1.ImageSource)
 	for _, component := range pkg.Components {
+		if component.Service.Name != "" {
+			if pkg.Kind != v1beta1.ZarfInitConfig {
+				errs = append(errs, fmt.Errorf(PkgValidateErrServiceRequiresInit, component.Name, component.Service.Name))
+			}
+			if previous, exists := serviceComponents[component.Service.Name]; exists {
+				errs = append(errs, fmt.Errorf(PkgValidateErrServiceNotUnique, component.Service.Name, previous, component.Name))
+			} else {
+				serviceComponents[component.Service.Name] = component.Name
+			}
+		}
 		// ensure component name is unique
 		if _, ok := uniqueComponentNames[component.Name]; ok {
 			errs = append(errs, fmt.Errorf(PkgValidateErrComponentNameNotUnique, component.Name))
 		}
 		uniqueComponentNames[component.Name] = true
+		for _, image := range component.Images {
+			ref, err := transform.ParseImageRef(image.Name)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("invalid image %q: %w", image.Name, err))
+				continue
+			}
+			source := image.Source
+			if source == "" {
+				source = v1beta1.ImageSourceRegistry
+			}
+			if previous, exists := seenSources[ref.Reference]; exists {
+				if previous != source {
+					errs = append(errs, fmt.Errorf(PkgValidateErrImageConflictingSources, ref.Reference, previous, source))
+				}
+				continue
+			}
+			seenSources[ref.Reference] = source
+		}
 
 		errs = append(errs, ValidateComponent(component)...)
 	}
@@ -87,6 +132,12 @@ func ValidatePackage(pkg v1beta1.Package) ValidationErrors {
 // standalone component configs. The component name is used in diagnostics.
 func ValidateComponent(component v1beta1.Component) ValidationErrors {
 	var errs ValidationErrors
+	for _, file := range component.Files {
+		if algorithm, _, hasPrefix := strings.Cut(file.Checksum, ":"); hasPrefix &&
+			algorithm != string(api.ChecksumSHA256) && algorithm != string(api.ChecksumSHA512) {
+			errs = append(errs, fmt.Errorf(PkgValidateErrFileChecksumAlgorithm, component.Name, file.Source, algorithm))
+		}
+	}
 	for _, repository := range component.Repositories {
 		if err := validateGitURL(repository.URL); err != nil {
 			errs = append(errs, err)
@@ -265,6 +316,10 @@ func validateManifest(manifest v1beta1.Manifest) ValidationErrors {
 
 	if len(manifest.Name) > ZarfMaxChartNameLength {
 		errs = append(errs, fmt.Errorf(PkgValidateErrManifestNameLength, manifest.Name, ZarfMaxChartNameLength))
+	}
+
+	if strings.ContainsAny(manifest.Name, `/\`) {
+		errs = append(errs, fmt.Errorf(PkgValidateErrManifestNamePath, manifest.Name))
 	}
 
 	if len(manifest.Files) < 1 && len(manifest.Kustomize.Files) < 1 {

@@ -23,6 +23,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/helpers"
 	"github.com/zarf-dev/zarf/src/pkg/images"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
@@ -44,6 +45,8 @@ const componentLayerMediaType = "application/vnd.zarf.component.layer.v1.blob"
 
 // PublishOptions declares parameters for publishing a v1beta1 component config.
 type PublishOptions struct {
+	// CachePath stores remote component imports locally when non-empty.
+	CachePath string
 	// OCIConcurrency configures the number of blobs pushed in parallel.
 	OCIConcurrency int
 	// Retries is the number of attempts to make when publishing fails.
@@ -58,6 +61,10 @@ type PublishOptions struct {
 // The component config is stored as the artifact's config blob; later remote-import support can
 // retrieve it without treating it as a Zarf package.
 func Publish(ctx context.Context, componentPath string, destination registry.Reference, opts PublishOptions) (registry.Reference, error) {
+	if !feature.IsEnabled(feature.V1Beta1) {
+		return registry.Reference{}, fmt.Errorf("publishing a %s component requires the %q feature. Run again with --features=%s=true",
+			v1beta1.APIVersion, feature.V1Beta1, feature.V1Beta1)
+	}
 	if err := destination.ValidateRegistry(); err != nil {
 		return registry.Reference{}, fmt.Errorf("invalid registry: %w", err)
 	}
@@ -69,7 +76,7 @@ func Publish(ctx context.Context, componentPath string, destination registry.Ref
 	if component.Metadata.Version == "" {
 		return registry.Reference{}, errors.New("version is required for publishing")
 	}
-	resolved, err := load.ResolveComponentConfigImports(ctx, component, componentPath, opts.RemoteOptions)
+	resolved, err := load.ResolveComponentConfigImports(ctx, component, componentPath, opts.RemoteOptions, opts.CachePath)
 	if err != nil {
 		return registry.Reference{}, fmt.Errorf("unable to resolve component imports: %w", err)
 	}
