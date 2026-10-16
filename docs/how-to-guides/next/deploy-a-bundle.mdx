@@ -122,6 +122,30 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
 
    State or package-read failures stop the deployment before hooks or packages run. Resume does not support package pre-deploy hooks, including hooks added by a bundle pre-deploy hook. Resume also does not detect values-file or deploy-time configuration-only changes. The same limitation applies to `bundle dev deploy`.
 
+6. **Deploy application images with architecture emulation**
+
+   Configure and verify emulation on the target nodes before deploying application images built for another architecture. This example assumes an amd64 artifact and its matching public key:
+
+   ```bash
+   CLI_FEATURES=NextMode=true uds bundle deploy ./my-bundle-amd64.tar.zst \
+     --public-key ./cosign.pub \
+     --architecture amd64 \
+     --skip-architecture-check
+   ```
+
+   You can also enable the override in deploy-time configuration:
+
+   ```hcl title="config.uds.hcl"
+   options {
+     architecture                = "amd64"
+     skip_architecture_check     = true
+   }
+   ```
+
+   Pass the configuration to either deploy command with `--config`. An explicit `--skip-architecture-check=false` overrides a configured `true`.
+
+   The option allows an application package architecture mismatch and causes Zarf to log a warning. It does not install or detect emulation, modify images or node labels, or override workload node selectors and affinity. Image-layout and agent-certificate checks remain enabled. Init packages reject the option; initialize the cluster using its native architecture.
+
 </Steps>
 
 ## Verification

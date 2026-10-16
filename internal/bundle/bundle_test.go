@@ -968,12 +968,14 @@ variables = {
 			wantOK: true,
 			hcl: `
 options {
-  plain_http      = true
-  skip_tls_verify = true
+  plain_http              = true
+  skip_tls_verify         = true
+  skip_architecture_check = true
 }`,
 			check: func(t *testing.T, cfg *UDSBundleConfig) {
 				assert.True(t, cfg.Options.PlainHTTP)
 				assert.True(t, cfg.Options.SkipTLSVerify)
+				assert.True(t, cfg.Options.SkipArchitectureCheck)
 			},
 		},
 

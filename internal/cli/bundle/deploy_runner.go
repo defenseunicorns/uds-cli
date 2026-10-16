@@ -115,11 +115,12 @@ func runDeployWith(
 	}
 
 	result, err := deps.deploy(ctx, deploySrc, bundlepkg.DeployOptions{
-		Config:   config,
-		Packages: opts.packages,
-		Force:    opts.force,
-		Resume:   opts.resume,
-		Streams:  streams,
+		SkipArchitectureCheck: config.Options.SkipArchitectureCheck,
+		Config:                config,
+		Packages:              opts.packages,
+		Force:                 opts.force,
+		Resume:                opts.resume,
+		Streams:               streams,
 	})
 	if err != nil {
 		return result, err
