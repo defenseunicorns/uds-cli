@@ -23,8 +23,6 @@ func newComponentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "component",
 		Short: lang.CmdComponentShort,
-		// Once v1beta1 is available this should be unhidden
-		Hidden: true,
 	}
 
 	v := getViper()
@@ -94,7 +92,12 @@ func (o *componentPublishOptions) run(cmd *cobra.Command, args []string) error {
 		opts := o.buildSignManifestOptions(cmd, getViper(), VPkgSignTlogUpload, o.confirm)
 		signOpts = &opts
 	}
-	_, err := component.Publish(cmd.Context(), args[0], destination, component.PublishOptions{
+	cachePath, err := getCachePath(cmd.Context())
+	if err != nil {
+		return err
+	}
+	_, err = component.Publish(cmd.Context(), args[0], destination, component.PublishOptions{
+		CachePath:           cachePath,
 		OCIConcurrency:      o.ociConcurrency,
 		Retries:             o.retries,
 		SignManifestOptions: signOpts,
