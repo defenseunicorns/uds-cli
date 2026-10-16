@@ -4678,8 +4678,8 @@ modernc.org/memory
 # modernc.org/sqlite v1.56.0
 ## explicit; go 1.25.0
 modernc.org/sqlite/lib
-# oras.land/oras-go/v2 v2.6.2
-## explicit; go 1.25.0
+# oras.land/oras-go/v2 v2.6.3
+## explicit; go 1.26.0
 oras.land/oras-go/v2
 oras.land/oras-go/v2/content
 oras.land/oras-go/v2/content/file
