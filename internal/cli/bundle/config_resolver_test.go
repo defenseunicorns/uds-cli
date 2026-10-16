@@ -212,10 +212,42 @@ func registerTestFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("log-level", "l", "info", "log level")
 	cmd.Flags().Bool("prompt", false, "enable interactive confirmation prompts")
 	cmd.Flags().StringP("architecture", "a", defaults.Architecture, "target architecture")
+	cmd.Flags().Bool("skip-architecture-check", defaults.SkipArchitectureCheck, "skip architecture check")
 	cmd.Flags().Bool("plain-http", defaults.PlainHTTP, "use plain HTTP")
 	cmd.Flags().Bool("skip-tls-verify", defaults.SkipTLSVerify, "skip TLS verification")
 	cmd.Flags().String("tmp-dir", defaults.TmpDir, "temp directory")
 	cmd.Flags().Int("concurrency", defaults.Concurrency, "concurrency")
+}
+
+func TestSkipArchitectureCheckResolution(t *testing.T) {
+	r := NewConfigResolver()
+
+	tests := []struct {
+		name       string
+		hcl        *bundle.ConfigOptions
+		cliValue   string
+		want       bool
+		wantChange bool
+	}{
+		{name: "nothing configured defaults to false"},
+		{name: "HCL enables architecture override", hcl: &bundle.ConfigOptions{SkipArchitectureCheck: true}, want: true},
+		{name: "explicit CLI false overrides HCL true", hcl: &bundle.ConfigOptions{SkipArchitectureCheck: true}, cliValue: "false", wantChange: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{}
+			registerTestFlags(cmd)
+			if tt.wantChange {
+				require.NoError(t, cmd.Flags().Set("skip-architecture-check", tt.cliValue))
+			}
+
+			resolved := r.MergeHCL(r.Defaults(), tt.hcl)
+			resolved = r.OverlayCLI(SnapshotFlags(cmd), resolved)
+
+			assert.Equal(t, tt.want, resolved.SkipArchitectureCheck)
+		})
+	}
 }
 
 func TestOverlayCLI_NoFlagsChanged(t *testing.T) {

@@ -349,6 +349,45 @@ func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
 	assert.Empty(t, dst.AsV1alpha1().Components)
 }
 
+func TestDeployOptionsPropagateArchitectureOverrideToPackages(t *testing.T) {
+	for _, skip := range []bool{false, true} {
+		opts := toZarfDeployOptions(DeployOptions{Config: validValidationConfig(), SkipArchitectureCheck: skip}, nil)
+		called := false
+		opts.PackageDeployFn = func(_ context.Context, _ *spec.Package, packageOpts internalzarf.DeployPackageOptions) error {
+			called = true
+			assert.Equal(t, skip, packageOpts.SkipArchitectureCheck)
+			return nil
+		}
+		b := &spec.UDSBundle{
+			UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+			Metadata: spec.Metadata{Name: "bundle"},
+			Packages: []spec.Package{{Name: "app", Source: "oci://example.com/app:v1"}},
+		}
+
+		_, err := internalzarf.NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), b, opts)
+
+		require.NoError(t, err)
+		assert.True(t, called)
+	}
+}
+
+func TestDeployRejectsArchitectureOverrideForInit(t *testing.T) {
+	pkgDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfInitConfig\nmetadata:\n  name: init\n  architecture: amd64\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o600))
+
+	_, err := Deploy(t.Context(), &DeploySource{
+		Bundle: &spec.UDSBundle{
+			UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+			Metadata: spec.Metadata{Name: "bundle"},
+			Packages: []spec.Package{{Name: "init", Source: pkgDir}},
+		},
+	}, DeployOptions{Config: validValidationConfig(), SkipArchitectureCheck: true})
+
+	require.ErrorIs(t, err, ErrDeployBundle)
+	require.ErrorContains(t, err, "architecture checks is not supported for init packages")
+}
+
 func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 	config := &UDSBundleConfig{Options: &ConfigOptions{LogLevel: "info", Concurrency: 2}}
 	internal := toZarfDeployOptions(DeployOptions{
