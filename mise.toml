@@ -5,13 +5,13 @@ min_version = "2026.9.11"
 
 [tools]
 go = "1.27.2"
-hk = "2.5.0"
+hk = "2.6.0"
 jq = "1.8.2"
 golangci-lint = "2.14.0"
 "github:goreleaser/goreleaser" = "2.18.3"
 "github:gitleaks/gitleaks" = "8.30.1"
 k3d = "5.9.0"
-node = "24.21.0"
+node = "24.22.0"
 # renovate: datasource=github-tags depName=google/addlicense versioning=semver
 "aqua:google/addlicense" = "1.2.0"
 # renovate: datasource=github-tags depName=defenseunicorns/uds-cli versioning=semver
