@@ -1,3 +1,6 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
 //go:build cli
 
 package tools_test
@@ -17,7 +20,7 @@ import (
 )
 
 func TestClearCacheConfiguration(t *testing.T) {
-	for _, source := range []string{"default", "hcl", "cli", "hcl-tilde", "cli-tilde", "disabled"} {
+	for _, source := range []string{"default", "hcl", "cli", "hcl-tilde", "cli-tilde", "empty-flag-retains-hcl", "empty-flag-uses-default"} {
 		t.Run(source, func(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
@@ -27,7 +30,7 @@ func TestClearCacheConfiguration(t *testing.T) {
 			}
 			args := []string{"tools", "clear-cache"}
 			selected := paths[0]
-			if source != "default" {
+			if source != "default" && source != "empty-flag-uses-default" {
 				config := filepath.Join(home, "config.uds.hcl")
 				hclPath := paths[1]
 				if source == "hcl-tilde" {
@@ -45,9 +48,8 @@ func TestClearCacheConfiguration(t *testing.T) {
 				args = append(args, "--uds-cache", cliPath)
 				selected = paths[2]
 			}
-			if source == "disabled" {
+			if source == "empty-flag-retains-hcl" || source == "empty-flag-uses-default" {
 				args = append(args, "--uds-cache=")
-				selected = ""
 			}
 			streams, _, out, errOut := iostreams.NewTestIOStreams()
 			require.NoError(t, testutil.ExecuteCLI(t.Context(), streams, args...))

@@ -28,14 +28,10 @@ Clearing Next's cache will leave those caches and created bundles untouched.
 
 ## Implementation details
 
-- The CLI enables caching by default under `~/.uds-cache`. The `options.uds_cache`
-  HCL setting overrides the default; `--uds-cache` overrides both. An empty flag
-  value disables caching.
-- Go library callers enable caching with `ConfigOptions.CacheDir`. An empty value
-  leaves caching off.
+- The CLI uses `~/.uds-cache` by default. The `options.uds_cache` HCL setting
+  overrides the default; `--uds-cache` takes precedence.
+- Go library callers choose the cache location with `ConfigOptions.CacheDir`.
 - Next stores cached content under `<uds-cache>/bundle-oci/images`.
-- Source-based package removal keeps Zarf's existing metadata loader, validation,
-  and default cache behavior. Next's cache settings do not apply to those reads.
 - `uds tools clear-cache` clears Next's cache. It supports confirmation with
   `--prompt`.
 

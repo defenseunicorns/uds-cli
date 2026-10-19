@@ -124,7 +124,7 @@ creation. Do not deploy a bundle, operate a cluster, or write to a registry.
 
 ## Included documentation: docs/how-to-guides/migrate-legacy-to-next.mdx
 
-<!-- Source SHA256: 0b54fa176043b091ad63e6cdb76215c5ead0f44f329f4b5bd9773722cb0b27b2 -->
+<!-- Source SHA256: e054aac68cc4b444859e4d91eaaec715700dfca73ec0f6f3ea136a5f855a2e06 -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -314,7 +314,7 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
    - Keep variables used in `values_files` under the package name. Convert uppercase names to lowercase with underscores, such as `REPLICA_COUNT` to `replica_count`.
    - Zarf package variables must be top-level scalar values and apply to every package. Put shared Helm settings in each package's values file. Use a values file for package-specific settings.
    - Keep `architecture`, `log_level`, `tmp_dir`, and `uds_cache` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`; `--uds-cache` keeps its name.
-   - Next caches package and bundle OCI bytes under `<uds-cache>/bundle-oci/images`, separate from Legacy cache content. Explicit `--uds-cache` overrides `options.uds_cache`; `--uds-cache=''` disables caching.
+   - Next caches package and bundle OCI bytes under `<uds-cache>/bundle-oci/images`, separate from Legacy cache content. Explicit `--uds-cache` overrides `options.uds_cache`.
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
    - Next has no equivalents for `retries` or `UDS_<NAME>` environment variables.
 
@@ -590,7 +590,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 8590b30a46b481aa626e38150b0b7c1fa8902351ca3f5e420f81b18f8c0051df -->
+<!-- Source SHA256: a4bd043126f178beb8b75d417c13f5f46db73df48e19ccaf485c535c8c139f6b -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -654,10 +654,8 @@ The `tmp_dir` directory must already exist before running the command.
 
 ### Bundle cache
 
-The CLI uses `~/.uds-cache` by default, then `options.uds_cache` from the file
-passed with `--config`, then an explicit `--uds-cache` override. An empty HCL value
-leaves the default unchanged; use `--uds-cache=''` to disable caching. If your home
-directory cannot be determined, supply an absolute cache path.
+The CLI uses `~/.uds-cache` by default. Set `options.uds_cache` in the file passed
+with `--config` to choose another location, or use `--uds-cache` to override it.
 
 ```hcl title="config.uds.hcl"
 options {

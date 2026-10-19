@@ -27,7 +27,7 @@ type ConfigOptions struct {
 	Architecture  string
 	PlainHTTP     bool
 	SkipTLSVerify bool
-	// CacheDir is the cache root. Empty disables caching; directories are created on demand.
+	// CacheDir selects the shared OCI cache root. Directories are created on demand.
 	CacheDir    string
 	TmpDir      string
 	Concurrency int

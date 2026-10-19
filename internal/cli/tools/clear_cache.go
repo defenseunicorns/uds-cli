@@ -1,3 +1,6 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
 package tools
 
 import (
@@ -28,7 +31,7 @@ Use --prompt to request confirmation before removing cache content.`,
 				return err
 			}
 			s := logger.Bind(streams, config.Options.LogLevel)
-			if flags.Prompt && config.Options.CacheDir != "" {
+			if flags.Prompt {
 				confirmed, err := cmdbundle.PromptConfirmation(s, fmt.Sprintf("Clear Next cache content under %q?", oci.BundleCachePath(config.Options.CacheDir)))
 				if err != nil {
 					return err
@@ -42,7 +45,7 @@ Use --prompt to request confirmation before removing cache content.`,
 		},
 	}
 	// Keep flags local so Zarf passthrough receives its own flags unchanged.
-	cmd.Flags().String("uds-cache", resolver.Defaults().CacheDir, "cache directory (empty disables caching)")
+	cmd.Flags().String("uds-cache", resolver.Defaults().CacheDir, "cache directory")
 	cmd.Flags().String("config", "", "path to config.uds.hcl for cache directory and logging options")
 	return cmd
 }

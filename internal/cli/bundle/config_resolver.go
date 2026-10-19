@@ -140,7 +140,7 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 	if flags.SkipTLSVerifyChanged {
 		base.SkipTLSVerify = flags.SkipTLSVerify
 	}
-	if flags.CacheDirChanged {
+	if flags.CacheDirChanged && flags.CacheDir != "" {
 		base.CacheDir = flags.CacheDir
 	}
 	if flags.TmpDirChanged {

@@ -46,7 +46,8 @@ func TestResolveCacheDirectory(t *testing.T) {
 		{name: "HCL", hcl: "configured", want: "configured"},
 		{name: "empty HCL retains default", want: filepath.Join(home, ".uds-cache")},
 		{name: "explicit flag", hcl: "configured", flag: "override", changed: true, want: "override"},
-		{name: "explicit empty disables", hcl: "configured", changed: true},
+		{name: "empty flag retains HCL", hcl: "configured", changed: true, want: "configured"},
+		{name: "empty flag retains default", changed: true, want: filepath.Join(home, ".uds-cache")},
 		{name: "HCL tilde", hcl: "~/configured", want: filepath.Join(home, "configured")},
 		{name: "flag tilde", hcl: "configured", flag: "~/override", changed: true, want: filepath.Join(home, "override")},
 		{name: "home", flag: "~", changed: true, want: home},
@@ -84,11 +85,12 @@ func TestResolveCacheWithoutHome(t *testing.T) {
 	assert.Equal(t, "~/.uds-cache", r.Defaults().CacheDir)
 	_, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{}, "")
 	require.ErrorContains(t, err, "expanding cache directory")
-	for _, path := range []string{t.TempDir(), ""} {
-		resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{CacheDir: path, CacheDirChanged: true}, "")
-		require.NoError(t, err)
-		assert.Equal(t, path, resolved.Options.CacheDir)
-	}
+	_, _, err = r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{CacheDirChanged: true}, "")
+	require.ErrorContains(t, err, "expanding cache directory")
+	path := t.TempDir()
+	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{CacheDir: path, CacheDirChanged: true}, "")
+	require.NoError(t, err)
+	assert.Equal(t, path, resolved.Options.CacheDir)
 }
 
 func TestApplySetVariables(t *testing.T) {

@@ -28,7 +28,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "inspect", bundlePath, "--uds-cache="})
+	root.SetArgs([]string{"bundle", "inspect", bundlePath, "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 			artifact := createInspectArtifact(t)
 			streams, _, out, _ := iostreams.NewTestIOStreams()
 			root := cli.NewRootCommand(streams)
-			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format, "--uds-cache="})
+			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format, "--uds-cache", t.TempDir()})
 			require.NoError(t, root.Execute())
 
 			var result inspectResult
@@ -95,7 +95,7 @@ func TestInspectOCICommand_Integration(t *testing.T) {
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--output", "json", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--output", "json", "--uds-cache", t.TempDir()})
 	require.NoError(t, root.Execute())
 
 	var result inspectResult
@@ -121,7 +121,7 @@ func TestDeployCommand_Integration(t *testing.T) {
 
 	// Use root command because --prompt is a root-level persistent flag
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 
 	// Use root command because --prompt is a root-level persistent flag
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestPullCommand_Integration(t *testing.T) {
 	outDir := t.TempDir()
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"pull", ref, "--output-dir", outDir, "--plain-http", "--skip-signature-verification", "--uds-cache="})
+	root.SetArgs([]string{"pull", ref, "--output-dir", outDir, "--plain-http", "--skip-signature-verification", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -179,7 +179,7 @@ func TestPushCommand_Integration(t *testing.T) {
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http", "--uds-cache="})
+	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestPushCommand_Integration_PlainHTTPAllowsTLS(t *testing.T) {
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http", "--skip-tls-verify", "--uds-cache="})
+	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http", "--skip-tls-verify", "--uds-cache", t.TempDir()})
 
 	require.NoError(t, root.Execute())
 	assert.Contains(t, out.String(), "OCI Reference:")
@@ -214,7 +214,7 @@ func TestRemoveCommand_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "remove", artifact, "--skip-signature-verification", "--prompt", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "remove", artifact, "--skip-signature-verification", "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestDevRemoveCommand_WithBundleFile_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--prompt", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -246,7 +246,7 @@ func TestRemoveCommand_PackagesFlag_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "remove", artifact, "--packages", "pkg", "--skip-signature-verification", "--prompt", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "remove", artifact, "--packages", "pkg", "--skip-signature-verification", "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -262,7 +262,7 @@ func TestDevRemoveCommand_PackagesFlag_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init", "--prompt", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init", "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -279,7 +279,7 @@ func TestRemoveCommand_HelpOutput_Integration(t *testing.T) {
 
 	// Use root command so --prompt (a root-level persistent flag) is visible
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "remove", "--help", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "remove", "--help", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -297,7 +297,7 @@ func TestDevRemoveCommand_CustomDirWithPackages_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams)
-	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init,uds_k3d_dev", "--prompt", "--uds-cache="})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init,uds_k3d_dev", "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)

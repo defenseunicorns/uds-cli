@@ -67,10 +67,8 @@ The `tmp_dir` directory must already exist before running the command.
 
 ### Bundle cache
 
-The CLI uses `~/.uds-cache` by default, then `options.uds_cache` from the file
-passed with `--config`, then an explicit `--uds-cache` override. An empty HCL value
-leaves the default unchanged; use `--uds-cache=''` to disable caching. If your home
-directory cannot be determined, supply an absolute cache path.
+The CLI uses `~/.uds-cache` by default. Set `options.uds_cache` in the file passed
+with `--config` to choose another location, or use `--uds-cache` to override it.
 
 ```hcl title="config.uds.hcl"
 options {

@@ -46,7 +46,7 @@ func assertValidBundleStructure(t *testing.T, tarPath string) (allPaths map[stri
 func TestCreate_VerificationDisabledReportsUnverifiedPackage(t *testing.T) {
 	streams, _, _, errOut := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"create", "--unsigned", createDefaultsBundleSource(t), "--uds-cache="})
+	root.SetArgs([]string{"create", "--unsigned", createDefaultsBundleSource(t), "--uds-cache", t.TempDir()})
 	require.NoError(t, root.Execute())
 	assert.Contains(t, errOut.String(), "unverified package")
 }
@@ -60,7 +60,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"create", "--unsigned", dir, "--uds-cache="})
+	root.SetArgs([]string{"create", "--unsigned", dir, "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)

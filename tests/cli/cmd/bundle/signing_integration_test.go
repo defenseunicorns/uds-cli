@@ -27,17 +27,17 @@ func TestSignVerifyCommand_Integration(t *testing.T) {
 
 	signStreams, _, _, _ := iostreams.NewTestIOStreams()
 	sign := clibundle.NewBundleCommand(signStreams)
-	sign.SetArgs([]string{"sign", artifactPath, "--signing-key", privateKey, "--uds-cache="})
+	sign.SetArgs([]string{"sign", artifactPath, "--signing-key", privateKey, "--uds-cache", t.TempDir()})
 	require.NoError(t, sign.Execute())
 
 	verifyStreams, _, _, _ := iostreams.NewTestIOStreams()
 	verify := clibundle.NewBundleCommand(verifyStreams)
-	verify.SetArgs([]string{"verify", artifactPath, "--public-key", publicKey, "--uds-cache="})
+	verify.SetArgs([]string{"verify", artifactPath, "--public-key", publicKey, "--uds-cache", t.TempDir()})
 	require.NoError(t, verify.Execute())
 
 	inspectStreams, _, inspectOut, _ := iostreams.NewTestIOStreams()
 	inspect := clibundle.NewBundleCommand(inspectStreams)
-	inspect.SetArgs([]string{"inspect", artifactPath, "--public-key", publicKey, "--output", "json", "--uds-cache="})
+	inspect.SetArgs([]string{"inspect", artifactPath, "--public-key", publicKey, "--output", "json", "--uds-cache", t.TempDir()})
 	require.NoError(t, inspect.Execute())
 
 	var inspectResult bundlepkg.InspectResult
@@ -76,13 +76,13 @@ func TestKeylessSignVerify_Integration(t *testing.T) {
 
 	signStreams, _, _, _ := iostreams.NewTestIOStreams()
 	sign := clibundle.NewBundleCommand(signStreams)
-	sign.SetArgs([]string{"sign", artifactPath, "--keyless", "--uds-cache="})
+	sign.SetArgs([]string{"sign", artifactPath, "--keyless", "--uds-cache", t.TempDir()})
 	require.NoError(t, sign.Execute())
 
 	verifyStreams, _, _, _ := iostreams.NewTestIOStreams()
 	verify := clibundle.NewBundleCommand(verifyStreams)
 	verify.SetArgs([]string{
-		"verify", artifactPath, "--uds-cache=",
+		"verify", artifactPath, "--uds-cache", t.TempDir(),
 		"--certificate-identity-regexp", identityRegexp,
 		"--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
 	})
