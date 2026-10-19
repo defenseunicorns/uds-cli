@@ -124,7 +124,7 @@ func runDeployWith(
 	})
 	if err != nil {
 		if !config.Options.SkipArchitectureCheck && strings.Contains(err.Error(), "this package architecture is ") {
-			return result, fmt.Errorf("%w; if the target nodes support architecture emulation, retry with --skip-architecture-check", err)
+			return result, fmt.Errorf("%w; if this architecture mismatch is expected, retry with --skip-architecture-check to bypass architecture validation", err)
 		}
 		return result, err
 	}

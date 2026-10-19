@@ -20,7 +20,7 @@ uds deploy [BUNDLE_TARBALL|OCI_REF] [flags]
   -r, --resume                    Only deploys packages from the bundle which haven't already been deployed
       --retries int               Specify the number of retries for package deployments (applies to all pkgs in a bundle) (default 3)
       --set stringToString        Specify deployment variables to set on the command line (KEY=value) (default [])
-      --skip-architecture-check   Allow application images to deploy to nodes with a different architecture. Requires node emulation support; intended only for development and testing, not recommended for production.
+      --skip-architecture-check   Skip package-to-cluster architecture compatibility checks. Intended for development and testing; not recommended for production.
 ```
 
 ### Options inherited from parent commands

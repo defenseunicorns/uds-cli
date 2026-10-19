@@ -52,7 +52,7 @@ const (
 	CmdBundleDeployFlagRetries               = "Specify the number of retries for package deployments (applies to all pkgs in a bundle)"
 	CmdBundleDeployFlagRef                   = "Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used."
 	CmdBundleDeployFlagForceConflicts        = "Force Helm to take ownership of conflicting fields during Server-Side Apply operations. Use when external tools (kubectl, HPAs, etc.) have modified resources. Defaults to false."
-	CmdBundleDeployFlagSkipArchitectureCheck = "Allow application images to deploy to nodes with a different architecture. Requires node emulation support; intended only for development and testing, not recommended for production."
+	CmdBundleDeployFlagSkipArchitectureCheck = "Skip package-to-cluster architecture compatibility checks. Intended for development and testing; not recommended for production."
 
 	// bundle inspect
 	CmdBundleInspectShort             = "Display the metadata of a bundle"
