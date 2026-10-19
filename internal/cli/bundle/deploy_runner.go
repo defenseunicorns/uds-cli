@@ -116,12 +116,11 @@ func runDeployWith(
 	}
 
 	result, err := deps.deploy(ctx, deploySrc, bundlepkg.DeployOptions{
-		SkipArchitectureCheck: config.Options.SkipArchitectureCheck,
-		Config:                config,
-		Packages:              opts.packages,
-		Force:                 opts.force,
-		Resume:                opts.resume,
-		Streams:               streams,
+		Config:   config,
+		Packages: opts.packages,
+		Force:    opts.force,
+		Resume:   opts.resume,
+		Streams:  streams,
 	})
 	if err != nil {
 		if !config.Options.SkipArchitectureCheck && strings.Contains(err.Error(), "this package architecture is ") {

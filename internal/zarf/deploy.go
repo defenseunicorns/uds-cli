@@ -44,8 +44,6 @@ type BundleDeployHooks struct {
 
 // DeployOptions contains private options for deploying a bundle.
 type DeployOptions struct {
-	// SkipArchitectureCheck permits application package architecture mismatches.
-	SkipArchitectureCheck bool
 	// Config is the resolved deployment configuration.
 	Config *UDSBundleConfig
 	// BundlePath identifies the bundle definition.
@@ -80,8 +78,6 @@ type Deployer interface {
 
 // DeployPackageOptions contains options for deploying a single package.
 type DeployPackageOptions struct {
-	// SkipArchitectureCheck is passed to Zarf's deployment compatibility check.
-	SkipArchitectureCheck bool
 	// Config is the merged configuration and is always non-nil.
 	Config *UDSBundleConfig
 	// BundleDir resolves package-relative paths.
@@ -222,12 +218,11 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		bundleDir = opts.BundleDir
 	}
 	pkgOpts := DeployPackageOptions{
-		SkipArchitectureCheck: opts.SkipArchitectureCheck,
-		Config:                opts.Config,
-		BundleDir:             bundleDir,
-		PackageDeployHooks:    opts.PackageDeployHooks,
-		Streams:               s,
-		bundlePath:            opts.BundlePath,
+		Config:             opts.Config,
+		BundleDir:          bundleDir,
+		PackageDeployHooks: opts.PackageDeployHooks,
+		Streams:            s,
+		bundlePath:         opts.BundlePath,
 	}
 
 	s.Info("deploying bundle", "packages", deployCount, "levels", len(levels), "concurrency", concurrency)
@@ -335,7 +330,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	}
 
 	deployOpts := packager.DeployOptions{
-		SkipArchitectureCheck: opts.SkipArchitectureCheck,
+		SkipArchitectureCheck: opts.Config.Options.SkipArchitectureCheck,
 		Values:                zarfValues, // Helm chart values from values_files
 		SetVariables:          setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
 		IsInteractive:         false,
@@ -351,6 +346,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
 		return fmt.Errorf("package %q after pre-deploy hook: %w", pkg.Name, err)
 	}
+	if err := opts.Validate(); err != nil {
+		return fmt.Errorf("pre-deploy package %q left options invalid: %w: %w", pkg.Name, ErrPackageHook, err)
+	}
+	deployOpts.SkipArchitectureCheck = opts.Config.Options.SkipArchitectureCheck
 
 	deploy := opts.ClusterDeployFn
 	if deploy == nil {
