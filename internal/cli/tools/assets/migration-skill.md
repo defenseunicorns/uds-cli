@@ -589,7 +589,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 727924b7a825aa772f4e35c0f47ae82360cd8feb38425991354cd6412b203736 -->
+<!-- Source SHA256: ff94975da7d211c16b9f35ce6b8dfe5f427a56929489d013acc06af81625e205 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -633,7 +633,7 @@ The `options` block configures operation-wide behavior. Config values override b
 |---|---|---|---|
 | `log_level` | string | `"info"` | Accepts `debug`, `info`, `warn`, or `error`. `warning` is accepted as an alias for `warn`. |
 | `architecture` | string | The current runtime architecture | Selects the target architecture for architecture-aware bundle and package operations. |
-| `skip_architecture_check` | boolean | `false` | Allows application images to deploy to nodes with a different architecture. Applies only to `bundle deploy` and `bundle dev deploy`; requires node emulation and is not recommended for production. |
+| `skip_architecture_check` | boolean | `false` | Allows application images to deploy to nodes with a different architecture. Applies only to `bundle deploy` and `bundle dev deploy`; requires node emulation; is intended only for development and testing, and is not recommended for production. |
 | `plain_http` | boolean | `false` | Allows registry communication over plain HTTP. Use only with a registry that intentionally does not provide TLS. |
 | `skip_tls_verify` | boolean | `false` | Disables TLS certificate verification for registry communication. This reduces transport security. |
 | `tmp_dir` | string | The operating system temporary directory | Must name an existing directory when set. |
