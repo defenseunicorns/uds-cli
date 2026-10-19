@@ -306,7 +306,7 @@ func ValidateArch(arch string) error {
 
 		// check if bundle arch is in clusterArchs
 		if !slices.Contains(clusterArchs, arch) {
-			return fmt.Errorf("arch %s does not match cluster arch, %s; if the target nodes support architecture emulation, retry with --skip-architecture-check", arch, clusterArchs)
+			return fmt.Errorf("arch %s does not match cluster arch, %s", arch, clusterArchs)
 		}
 	}
 

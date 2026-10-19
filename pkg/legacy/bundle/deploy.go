@@ -416,7 +416,7 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 	// validate bundle's arch against cluster unless emulation support was explicitly configured
 	if !b.cfg.DeployOpts.SkipArchitectureCheck {
 		if err := ValidateArch(config.GetArch(b.bundle.Build.Architecture)); err != nil {
-			return "", "", "", err
+			return "", "", "", fmt.Errorf("%w; if the target nodes support architecture emulation, retry with --skip-architecture-check", err)
 		}
 	}
 
