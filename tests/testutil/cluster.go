@@ -283,6 +283,9 @@ package "pod_info_secondary" {
 // RequireCLI executes a Next Cobra command and returns its standard output.
 func RequireCLI(t *testing.T, args ...string) []byte {
 	t.Helper()
+	if len(args) > 0 && args[0] == "bundle" {
+		args = append(append([]string(nil), args...), "--uds-cache", t.TempDir())
+	}
 	var stdout, stderr strings.Builder
 	err := ExecuteCLI(t.Context(), iostreams.New(nil, &stdout, &stderr), args...)
 	require.NoError(t, err, "uds %s failed: %s", strings.Join(args, " "), stderr.String())
@@ -422,6 +425,6 @@ func bundleRemoveArgs(bundlePath string, extraArgs ...string) ([]string, string,
 			}
 		}
 	}
-	args = append(args, "remove", bundlePath, "-o", "json")
+	args = append(args, "remove", bundlePath, "-o", "json", "--uds-cache=")
 	return append(args, extraArgs...), directory, nil
 }

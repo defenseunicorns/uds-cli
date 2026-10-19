@@ -46,7 +46,7 @@ func assertValidBundleStructure(t *testing.T, tarPath string) (allPaths map[stri
 func TestCreate_VerificationDisabledReportsUnverifiedPackage(t *testing.T) {
 	streams, _, _, errOut := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"create", "--unsigned", createDefaultsBundleSource(t)})
+	root.SetArgs([]string{"create", "--unsigned", createDefaultsBundleSource(t), "--uds-cache="})
 	require.NoError(t, root.Execute())
 	assert.Contains(t, errOut.String(), "unverified package")
 }
@@ -60,7 +60,7 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"create", "--unsigned", dir})
+	root.SetArgs([]string{"create", "--unsigned", dir, "--uds-cache="})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -101,9 +101,15 @@ func TestCreate_DefaultsConfig_Applied(t *testing.T) {
 }
 
 func TestCreate_UDSCoreStandardBundle(t *testing.T) {
-	outPath := testutil.CreateBundleFromTestDataCobra(t, "bundles/uds-core/standard", runtime.GOARCH)
+	dir := testutil.PrepareBundleDir(t, "bundles/uds-core/standard")
+	output, err := executeCLI(t, "", "bundle", "create", "--unsigned", "--architecture", runtime.GOARCH, dir)
+	require.NoError(t, err)
+	assert.Contains(t, output, "Bundle Name:")
+	matches, err := filepath.Glob(filepath.Join(dir, "*.tar.zst"))
+	require.NoError(t, err)
+	require.Len(t, matches, 1)
 
-	allPaths, small := assertValidBundleStructure(t, outPath)
+	allPaths, small := assertValidBundleStructure(t, matches[0])
 	for _, layer := range []string{
 		"defaults.uds.hcl",
 		"values/core_base/0.yaml",

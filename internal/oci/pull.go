@@ -104,7 +104,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// We write index.json ourselves below; prevent ORAS from clobbering it.
 	store.AutoSaveIndex = false
 
-	src, err := resolvePullTarget(ctx, ociReference, &opts)
+	src, err := resolveBundlePullSource(ctx, ociReference, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("resolving pull source %s: %w: %w", ociReference, ErrResolveReference, err)
 	}

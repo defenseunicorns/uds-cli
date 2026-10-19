@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
+	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -61,7 +62,7 @@ func warnSkippedSignatureVerification(streams iostreams.IOStreams) {
 	streams.Warn("signature verification was skipped; bundle integrity and origin are not established")
 }
 
-// Sign adds Sigstore bundle evidence to a local bundle archive.
+// Sign adds Sigstore bundle evidence to a local or OCI bundle artifact.
 func Sign(ctx context.Context, opts SignOptions) error {
 	if err := opts.Validate(); err != nil {
 		return err
@@ -120,7 +121,11 @@ func signOCI(ctx context.Context, opts SignOptions) error {
 	if err != nil {
 		return err
 	}
-	child, index, err := oci.ResolveBundleChild(ctx, repo, reference, opts.Config.Options.Architecture)
+	source, err := oci.NewRemoteReadSource(ctx, opts.Source, toInternalConfigOptions(*opts.Config.Options), logger.Bind(opts.Streams, opts.Config.Options.LogLevel))
+	if err != nil {
+		return fmt.Errorf("opening bundle read source for %q: %w", opts.Source, err)
+	}
+	child, index, err := oci.ResolveBundleChild(ctx, source, reference, opts.Config.Options.Architecture)
 	if err != nil {
 		return fmt.Errorf("resolving bundle %q for architecture %q: %w", opts.Source, opts.Config.Options.Architecture, err)
 	}
@@ -145,7 +150,7 @@ func signOCI(ctx context.Context, opts SignOptions) error {
 	if err != nil {
 		return fmt.Errorf("reading signature evidence %q for child %s: %w", evidencePath, child.Digest, err)
 	}
-	if err := oci.PublishBundleSignature(ctx, repo, child, evidence, opts.Signing.Overwrite); err != nil {
+	if err := oci.PublishBundleSignature(ctx, repo, source, child, evidence, opts.Signing.Overwrite); err != nil {
 		return fmt.Errorf("publishing signature for %q child %s (overwrite=%t): %w", opts.Source, child.Digest, opts.Signing.Overwrite, err)
 	}
 	return nil

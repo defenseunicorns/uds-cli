@@ -40,7 +40,7 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundlecmd.NewBundleCommand(streams)
 	root.SetArgs([]string{
-		"reconfigure", outPath,
+		"reconfigure", outPath, "--uds-cache=",
 		"--defaults", newDefaultsPath,
 		"--suffix", "-prod",
 		"--output-dir", outDir,
@@ -91,7 +91,7 @@ func TestReconfigure_LocalTarball(t *testing.T) {
 	// Verify inspect exposes the stored provenance annotation.
 	inspectStreams, _, inspectOut, _ := iostreams.NewTestIOStreams()
 	inspectRoot := bundlecmd.NewBundleCommand(inspectStreams)
-	inspectRoot.SetArgs([]string{"inspect", reconfiguredPath, "--skip-signature-verification", "--output", "json"})
+	inspectRoot.SetArgs([]string{"inspect", reconfiguredPath, "--skip-signature-verification", "--output", "json", "--uds-cache="})
 	require.NoError(t, inspectRoot.Execute())
 	var result inspectResult
 	require.NoError(t, json.Unmarshal(inspectOut.Bytes(), &result))
@@ -107,7 +107,7 @@ func TestReconfigure_SignedLocalTarball(t *testing.T) {
 
 	signStreams, _, _, _ := iostreams.NewTestIOStreams()
 	sign := bundlecmd.NewBundleCommand(signStreams)
-	sign.SetArgs([]string{"sign", inputPath, "--signing-key", privateKey})
+	sign.SetArgs([]string{"sign", inputPath, "--signing-key", privateKey, "--uds-cache="})
 	require.NoError(t, sign.Execute())
 
 	defaultsPath := filepath.Join(t.TempDir(), "defaults.uds.hcl")
@@ -118,7 +118,7 @@ func TestReconfigure_SignedLocalTarball(t *testing.T) {
 	reconfigureStreams, _, _, _ := iostreams.NewTestIOStreams()
 	reconfigure := bundlecmd.NewBundleCommand(reconfigureStreams)
 	reconfigure.SetArgs([]string{
-		"reconfigure", inputPath,
+		"reconfigure", inputPath, "--uds-cache=",
 		"--defaults", defaultsPath,
 		"--suffix", "-signed",
 		"--output-dir", outDir,
@@ -140,7 +140,7 @@ func TestReconfigure_SignedLocalTarball(t *testing.T) {
 
 	verifyStreams, _, _, _ := iostreams.NewTestIOStreams()
 	verify := bundlecmd.NewBundleCommand(verifyStreams)
-	verify.SetArgs([]string{"verify", outputPath, "--public-key", publicKey})
+	verify.SetArgs([]string{"verify", outputPath, "--public-key", publicKey, "--uds-cache="})
 	require.NoError(t, verify.Execute())
 }
 
@@ -153,7 +153,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	pushRef := hostPort + "/test/reconfigure-oci:v1.0.0"
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	root := bundlecmd.NewBundleCommand(streams)
-	root.SetArgs([]string{"push", outPath, pushRef, "--plain-http"})
+	root.SetArgs([]string{"push", outPath, pushRef, "--plain-http", "--uds-cache="})
 	require.NoError(t, root.Execute())
 
 	// Reconfigure from OCI source.
@@ -166,7 +166,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	streams2, _, out2, _ := iostreams.NewTestIOStreams()
 	root2 := bundlecmd.NewBundleCommand(streams2)
 	root2.SetArgs([]string{
-		"reconfigure", "oci://" + pushRef,
+		"reconfigure", "oci://" + pushRef, "--uds-cache=",
 		"--defaults", newDefaultsPath,
 		"--suffix", "-oci-test",
 		"--plain-http",
@@ -184,7 +184,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	pullDir := t.TempDir()
 	streams3, _, _, _ := iostreams.NewTestIOStreams()
 	root3 := bundlecmd.NewBundleCommand(streams3)
-	root3.SetArgs([]string{"pull", pullRef, "--output-dir", pullDir, "--plain-http", "--skip-signature-verification"})
+	root3.SetArgs([]string{"pull", pullRef, "--output-dir", pullDir, "--plain-http", "--skip-signature-verification", "--uds-cache="})
 	require.NoError(t, root3.Execute())
 
 	// Find the pulled tarball.
@@ -225,7 +225,7 @@ func TestReconfigure_OCI(t *testing.T) {
 	origPullDir := t.TempDir()
 	streams4, _, _, _ := iostreams.NewTestIOStreams()
 	root4 := bundlecmd.NewBundleCommand(streams4)
-	root4.SetArgs([]string{"pull", pushRef, "--output-dir", origPullDir, "--plain-http", "--skip-signature-verification"})
+	root4.SetArgs([]string{"pull", pushRef, "--output-dir", origPullDir, "--plain-http", "--skip-signature-verification", "--uds-cache="})
 	require.NoError(t, root4.Execute(), "original tag should still be pullable after reconfigure")
 
 	origEntries, err := os.ReadDir(origPullDir)

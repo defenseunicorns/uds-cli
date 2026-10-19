@@ -197,6 +197,7 @@ Use these commands to create, inspect, transfer, deploy, and manage Next-mode bu
 | `uds bundle sign <bundle-artifact>` | Sign a created bundle artifact. |
 | `uds bundle verify <bundle-artifact>` | Verify a created bundle artifact signature. |
 | `uds bundle reconfigure <source> --defaults <defaults-file>` | Reconfigure bundle defaults from a local artifact or OCI reference and produce a derivative artifact. |
+| `uds tools clear-cache` | Clear Next bundle OCI cache content. |
 
 ### Global bundle flags
 
@@ -209,6 +210,7 @@ These flags apply to all `uds bundle` subcommands:
 | `--plain-http` | `false` | Allow plain HTTP for a registry only when HTTPS is unavailable. |
 | `--skip-tls-verify` | `false` | Skip TLS certificate verification. |
 | `--tmp-dir` | system temp | Directory for temporary working files. |
+| `--uds-cache` | `~/.uds-cache` | Cache root. Overrides `options.uds_cache`; `--uds-cache=''` disables caching. |
 | `--concurrency` | `10` | Degree of parallelism for concurrent operations. For deploy, applies within a dependency level. |
 | `--config` | none | Path to `config.uds.hcl` for deploy-time variables and options. |
 | `--prompt` | `false` | Enable interactive confirmation before package deployment or removal begins. |
