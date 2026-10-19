@@ -17,13 +17,14 @@ uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
 ### Options
 
 ```
-  -f, --flavor string          [beta] Specify which zarf package flavor you want to use.
-      --force-conflicts        Force Helm to take ownership of conflicting fields during Server-Side Apply operations. Use when external tools (kubectl, HPAs, etc.) have modified resources. Defaults to false.
-      --force-create           [beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists.
-  -h, --help                   help for deploy
-  -p, --packages stringArray   Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
-  -r, --ref stringToString     Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used. (default [])
-      --set stringToString     Specify deployment variables to set on the command line (KEY=value) (default [])
+  -f, --flavor string             [beta] Specify which zarf package flavor you want to use.
+      --force-conflicts           Force Helm to take ownership of conflicting fields during Server-Side Apply operations. Use when external tools (kubectl, HPAs, etc.) have modified resources. Defaults to false.
+      --force-create              [beta] For local bundles with local packages, specify whether to create a zarf package even if it already exists.
+  -h, --help                      help for deploy
+  -p, --packages stringArray      Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
+  -r, --ref stringToString        Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used. (default [])
+      --set stringToString        Specify deployment variables to set on the command line (KEY=value) (default [])
+      --skip-architecture-check   Allow application images to deploy to nodes with a different architecture. Requires node emulation support; intended for development and testing, not recommended for production.
 ```
 
 ### Options inherited from parent commands

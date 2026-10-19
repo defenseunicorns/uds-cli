@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package cmd contains the CLI commands for UDS.
@@ -29,22 +29,23 @@ type configOption string
 
 // Valid values for options in uds_config.yaml
 const (
-	confirm        configOption = "confirm"
-	insecure       configOption = "insecure"
-	cachePath      configOption = "uds_cache"
-	tempDirectory  configOption = "tmp_dir"
-	logLevelOption configOption = "log_level"
-	architecture   configOption = "architecture"
-	noLogFile      configOption = "no_log_file"
-	noProgress     configOption = "no_progress"
-	noColor        configOption = "no_color"
-	ociConcurrency configOption = "oci_concurrency"
+	confirm               configOption = "confirm"
+	insecure              configOption = "insecure"
+	cachePath             configOption = "uds_cache"
+	tempDirectory         configOption = "tmp_dir"
+	logLevelOption        configOption = "log_level"
+	architecture          configOption = "architecture"
+	noLogFile             configOption = "no_log_file"
+	noProgress            configOption = "no_progress"
+	noColor               configOption = "no_color"
+	ociConcurrency        configOption = "oci_concurrency"
+	skipArchitectureCheck configOption = "skip_architecture_check"
 )
 
 // isValidConfigOption checks if a string is a valid config option
 func isValidConfigOption(str string) bool {
 	switch configOption(str) {
-	case confirm, insecure, cachePath, tempDirectory, logLevelOption, architecture, noLogFile, noProgress, noColor, ociConcurrency:
+	case confirm, insecure, cachePath, tempDirectory, logLevelOption, architecture, noLogFile, noProgress, noColor, ociConcurrency, skipArchitectureCheck:
 		return true
 	default:
 		return false

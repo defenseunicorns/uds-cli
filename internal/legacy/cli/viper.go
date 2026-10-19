@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package cmd contains the CLI commands for UDS.
@@ -17,16 +17,17 @@ import (
 
 const (
 	// Root config keys
-	V_LOG_LEVEL                 = "options.log_level"
-	V_ARCHITECTURE              = "options.architecture"
-	V_NO_LOG_FILE               = "options.no_log_file"
-	V_NO_PROGRESS               = "options.no_progress"
-	V_UDS_CACHE                 = "options.uds_cache"
-	V_TMP_DIR                   = "options.tmp_dir"
-	V_INSECURE                  = "options.insecure"
-	V_NO_COLOR                  = "options.no_color"
-	V_BNDL_OCI_CONCURRENCY      = "options.oci_concurrency"
-	V_SKIP_SIGNATURE_VALIDATION = "options.skip_signature_validation"
+	V_LOG_LEVEL                   = "options.log_level"
+	V_ARCHITECTURE                = "options.architecture"
+	V_NO_LOG_FILE                 = "options.no_log_file"
+	V_NO_PROGRESS                 = "options.no_progress"
+	V_UDS_CACHE                   = "options.uds_cache"
+	V_TMP_DIR                     = "options.tmp_dir"
+	V_INSECURE                    = "options.insecure"
+	V_NO_COLOR                    = "options.no_color"
+	V_BNDL_OCI_CONCURRENCY        = "options.oci_concurrency"
+	V_SKIP_SIGNATURE_VALIDATION   = "options.skip_signature_validation"
+	V_BNDL_DEPLOY_SKIP_ARCH_CHECK = "options.skip_architecture_check"
 
 	// Bundle create config keys
 	V_BNDL_CREATE_OUTPUT               = "create.output"
