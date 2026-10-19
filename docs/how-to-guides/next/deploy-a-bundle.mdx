@@ -122,29 +122,6 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
 
    State or package-read failures stop the deployment before hooks or packages run. Resume does not support package pre-deploy hooks, including hooks added by a bundle pre-deploy hook. Resume also does not detect values-file or deploy-time configuration-only changes. The same limitation applies to `bundle dev deploy`.
 
-6. **Skip architecture compatibility validation**
-
-   Use `--skip-architecture-check` when the package-to-cluster architecture check does not represent the intended deployment workflow:
-
-   ```bash
-   CLI_FEATURES=NextMode=true uds bundle deploy ./my-bundle.tar.zst \
-     --public-key ./cosign.pub \
-     --skip-architecture-check
-   ```
-
-   You can also enable the option in deploy-time configuration:
-
-   ```hcl title="config.uds.hcl"
-   options {
-     skip_architecture_check = true
-   }
-   ```
-
-   Pass the configuration to either deploy command with `--config`. An explicit `--skip-architecture-check=false` overrides a configured `true`.
-
-   > [!WARNING]
-   > This option disables architecture compatibility validation. It does not modify package images or verify that they can run in the eventual target environment. Before using it, independently verify that the package architecture is appropriate for the deployment workflow.
-
 </Steps>
 
 ## Verification

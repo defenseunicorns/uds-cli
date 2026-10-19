@@ -118,15 +118,7 @@ uds zarf tools kubectl get pods -A
 
 **Symptom:** `bundle architecture mismatch` error during deploy.
 
-**Solution:** Use `-a amd64` or `-a arm64` to specify the target architecture explicitly. To bypass package-to-cluster architecture compatibility checks, use `--skip-architecture-check` or configure the option in `uds-config.yaml`:
-
-```yaml title="uds-config.yaml"
-options:
-  skip_architecture_check: true
-```
-
-> [!WARNING]
-> This option disables architecture compatibility validation. It does not modify package images or verify that they can run in the eventual target environment. Before using it, independently verify that the package architecture is appropriate for the deployment workflow.
+**Solution:** Use `-a amd64` or `-a arm64` to specify the target architecture explicitly.
 
 ### Problem: OCI pull errors
 
