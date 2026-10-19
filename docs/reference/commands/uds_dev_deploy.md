@@ -24,7 +24,7 @@ uds dev deploy [BUNDLE_DIR|OCI_REF] [flags]
   -p, --packages stringArray      Specify which zarf packages you would like to deploy from the bundle. By default all zarf packages in the bundle are deployed.
   -r, --ref stringToString        Specify which zarf package ref you want to deploy. By default the ref set in the bundle yaml is used. (default [])
       --set stringToString        Specify deployment variables to set on the command line (KEY=value) (default [])
-      --skip-architecture-check   Allow application images to deploy to nodes with a different architecture. Requires node emulation support.
+      --skip-architecture-check   Allow application images to deploy to nodes with a different architecture. Requires node emulation support; intended only for development and testing, not recommended for production.
 ```
 
 ### Options inherited from parent commands

@@ -144,6 +144,9 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
 
    Pass the configuration to either deploy command with `--config`. An explicit `--skip-architecture-check=false` overrides a configured `true`.
 
+   > [!WARNING]
+   > Use this override only for development and testing. It is not recommended for production; use native or multi-architecture images instead.
+
    The option allows an application package architecture mismatch and causes Zarf to log a warning. It does not install or detect emulation, modify images or node labels, or override workload node selectors and affinity. Image-layout and agent-certificate checks remain enabled. Init packages reject the option; initialize the cluster using its native architecture.
 
 </Steps>
