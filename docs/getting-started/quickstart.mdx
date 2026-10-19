@@ -120,6 +120,15 @@ uds zarf tools kubectl get pods -A
 
 **Solution:** Use `-a amd64` or `-a arm64` to specify the target architecture explicitly.
 
+For deploying on an emulation-enabled cluster deploy packages with `--skip-architecture-check`. You can also enable the option in `uds-config.yaml`:
+
+```yaml title="uds-config.yaml"
+options:
+  skip_architecture_check: true
+```
+
+The option does not install or detect emulation. Zarf warns about architecture mismatches, continues image-layout and agent-certificate checks, and rejects the option for init packages.
+
 ### Problem: OCI pull errors
 
 **Symptom:** Errors pulling packages from an OCI registry.
