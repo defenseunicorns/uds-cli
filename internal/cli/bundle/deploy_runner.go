@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
@@ -123,9 +122,6 @@ func runDeployWith(
 		Streams:  streams,
 	})
 	if err != nil {
-		if !config.Options.SkipArchitectureCheck && strings.Contains(err.Error(), "this package architecture is ") {
-			return result, fmt.Errorf("%w; if this architecture mismatch is expected, retry with --skip-architecture-check to bypass architecture validation", err)
-		}
 		return result, err
 	}
 
