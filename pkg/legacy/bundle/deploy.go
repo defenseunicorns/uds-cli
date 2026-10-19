@@ -132,6 +132,13 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		if err != nil {
 			return err
 		}
+		for _, component := range pkgLayout.Definition().Components {
+			for _, file := range component.Files {
+				if file.Checksum.Algorithm != "" && file.Checksum.Digest == "" {
+					return fmt.Errorf("package %q: invalid package file checksum: component %q file %q has an empty digest", pkg.Name, component.Name, file.Source)
+				}
+			}
+		}
 		zarfPkg := pkgLayout.AsV1alpha1()
 
 		isConnectedDeploy := config.Dev
