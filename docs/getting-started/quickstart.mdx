@@ -127,6 +127,9 @@ options:
   skip_architecture_check: true
 ```
 
+> [!WARNING]
+> Use this override only for development and testing. It is not recommended for production; use native or multi-architecture images instead.
+
 The option does not install or detect emulation. Zarf warns about architecture mismatches, continues image-layout and agent-certificate checks, and rejects the option for init packages.
 
 ### Problem: OCI pull errors

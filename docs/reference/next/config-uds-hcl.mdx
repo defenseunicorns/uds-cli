@@ -47,7 +47,7 @@ The `options` block configures operation-wide behavior. Config values override b
 |---|---|---|---|
 | `log_level` | string | `"info"` | Accepts `debug`, `info`, `warn`, or `error`. `warning` is accepted as an alias for `warn`. |
 | `architecture` | string | The current runtime architecture | Selects the target architecture for architecture-aware bundle and package operations. |
-| `skip_architecture_check` | boolean | `false` | Allows application images to deploy to nodes with a different architecture. Applies only to `bundle deploy` and `bundle dev deploy`; requires node emulation and is not recommended for production. |
+| `skip_architecture_check` | boolean | `false` | Allows application images to deploy to nodes with a different architecture. Applies only to `bundle deploy` and `bundle dev deploy`; requires node emulation; is intended only for development and testing, and is not recommended for production. |
 | `plain_http` | boolean | `false` | Allows registry communication over plain HTTP. Use only with a registry that intentionally does not provide TLS. |
 | `skip_tls_verify` | boolean | `false` | Disables TLS certificate verification for registry communication. This reduces transport security. |
 | `tmp_dir` | string | The operating system temporary directory | Must name an existing directory when set. |
