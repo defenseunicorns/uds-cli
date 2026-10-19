@@ -126,11 +126,10 @@ type DeployOptions struct {
 	// even when required dependencies are absent.
 	Force bool
 	// Resume skips packages already recorded by Zarf as the exact intended deployment.
-	Resume                bool
-	SkipArchitectureCheck bool
-	BundleDeployHooks     BundleDeployHooks
-	PackageDeployHooks    PackageDeployHooks
-	Streams               iostreams.IOStreams
+	Resume             bool
+	BundleDeployHooks  BundleDeployHooks
+	PackageDeployHooks PackageDeployHooks
+	Streams            iostreams.IOStreams
 }
 
 // DeployResult represents the output of a bundle deploy operation.
@@ -353,13 +352,12 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 		bundleDir = filepath.Dir(source.BundlePath)
 	}
 	internal := internalzarf.DeployOptions{
-		Config:                toZarfConfig(opts.Config),
-		BundlePath:            bundlePath,
-		BundleDir:             bundleDir,
-		Packages:              opts.Packages,
-		SkipArchitectureCheck: opts.SkipArchitectureCheck,
-		Resume:                opts.Resume,
-		PackageDeployHooks:    toZarfPackageHooks(opts.PackageDeployHooks),
+		Config:             toZarfConfig(opts.Config),
+		BundlePath:         bundlePath,
+		BundleDir:          bundleDir,
+		Packages:           opts.Packages,
+		Resume:             opts.Resume,
+		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
 	}
 	if opts.BundleDeployHooks.PreDeploy != nil {
 		internal.BundleDeployHooks.PreDeploy = func(ctx context.Context, b *spec.UDSBundle, internalOpts *internalzarf.DeployOptions) error {

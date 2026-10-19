@@ -351,11 +351,13 @@ func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
 
 func TestDeployOptionsPropagateArchitectureOverrideToPackages(t *testing.T) {
 	for _, skip := range []bool{false, true} {
-		opts := toZarfDeployOptions(DeployOptions{Config: validValidationConfig(), SkipArchitectureCheck: skip}, nil)
+		config := validValidationConfig()
+		config.Options.SkipArchitectureCheck = skip
+		opts := toZarfDeployOptions(DeployOptions{Config: config}, nil)
 		called := false
 		opts.PackageDeployFn = func(_ context.Context, _ *spec.Package, packageOpts internalzarf.DeployPackageOptions) error {
 			called = true
-			assert.Equal(t, skip, packageOpts.SkipArchitectureCheck)
+			assert.Equal(t, skip, packageOpts.Config.Options.SkipArchitectureCheck)
 			return nil
 		}
 		b := &spec.UDSBundle{
@@ -371,10 +373,39 @@ func TestDeployOptionsPropagateArchitectureOverrideToPackages(t *testing.T) {
 	}
 }
 
+func TestBundlePreDeployArchitectureOverridePropagatesToPackages(t *testing.T) {
+	config := validValidationConfig()
+	opts := toZarfDeployOptions(DeployOptions{
+		Config: config,
+		BundleDeployHooks: BundleDeployHooks{PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
+			opts.Config.Options.SkipArchitectureCheck = true
+			return nil
+		}},
+	}, nil)
+	called := false
+	opts.PackageDeployFn = func(_ context.Context, _ *spec.Package, packageOpts internalzarf.DeployPackageOptions) error {
+		called = true
+		assert.True(t, packageOpts.Config.Options.SkipArchitectureCheck)
+		return nil
+	}
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "bundle"},
+		Packages: []spec.Package{{Name: "app", Source: "oci://example.com/app:v1"}},
+	}
+
+	_, err := internalzarf.NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), b, opts)
+
+	require.NoError(t, err)
+	assert.True(t, called)
+}
+
 func TestDeployRejectsArchitectureOverrideForInit(t *testing.T) {
 	pkgDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfInitConfig\nmetadata:\n  name: init\n  architecture: amd64\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o600))
+	config := validValidationConfig()
+	config.Options.SkipArchitectureCheck = true
 
 	_, err := Deploy(t.Context(), &DeploySource{
 		Bundle: &spec.UDSBundle{
@@ -382,7 +413,7 @@ func TestDeployRejectsArchitectureOverrideForInit(t *testing.T) {
 			Metadata: spec.Metadata{Name: "bundle"},
 			Packages: []spec.Package{{Name: "init", Source: pkgDir}},
 		},
-	}, DeployOptions{Config: validValidationConfig(), SkipArchitectureCheck: true})
+	}, DeployOptions{Config: config})
 
 	require.ErrorIs(t, err, ErrDeployBundle)
 	require.ErrorContains(t, err, "architecture checks is not supported for init packages")
@@ -396,6 +427,7 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 			PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
 				opts.Config.Options.LogLevel = "debug"
 				opts.Config.Options.Concurrency = 4
+				opts.Config.Options.SkipArchitectureCheck = true
 				return nil
 			},
 		},
@@ -404,6 +436,7 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 	require.NoError(t, internal.BundleDeployHooks.PreDeploy(t.Context(), &spec.UDSBundle{}, &internal))
 	assert.Equal(t, "debug", internal.Config.Options.LogLevel)
 	assert.Equal(t, 4, internal.Config.Options.Concurrency)
+	assert.True(t, internal.Config.Options.SkipArchitectureCheck)
 }
 
 func TestPackagePreDeployRejectsNilConfig(t *testing.T) {
