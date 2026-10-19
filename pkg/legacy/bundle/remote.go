@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -306,7 +306,7 @@ func ValidateArch(arch string) error {
 
 		// check if bundle arch is in clusterArchs
 		if !slices.Contains(clusterArchs, arch) {
-			return fmt.Errorf("arch %s does not match cluster arch, %s", arch, clusterArchs)
+			return fmt.Errorf("arch %s does not match cluster arch, %s; if the target nodes support architecture emulation, retry with --skip-architecture-check", arch, clusterArchs)
 		}
 	}
 

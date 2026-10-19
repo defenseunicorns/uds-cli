@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
@@ -123,6 +124,9 @@ func runDeployWith(
 		Streams:               streams,
 	})
 	if err != nil {
+		if !config.Options.SkipArchitectureCheck && strings.Contains(err.Error(), "this package architecture is ") {
+			return result, fmt.Errorf("%w; if the target nodes support architecture emulation, retry with --skip-architecture-check", err)
+		}
 		return result, err
 	}
 
