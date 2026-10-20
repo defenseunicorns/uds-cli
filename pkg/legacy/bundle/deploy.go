@@ -224,7 +224,7 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 		return packager.DeployOptions{}, err
 	}
 
-	return packager.DeployOptions{
+	opts := packager.DeployOptions{
 		ForceConflicts:        b.cfg.DeployOpts.ForceConflicts,
 		Timeout:               timeout,
 		SetVariables:          pkgVars,
@@ -241,7 +241,11 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 		StorageClass:          newStorageClass(pkgVars, pkgKind),
 		IsInteractive:         !config.CommonOptions.Confirm,
 		SkipArchitectureCheck: b.cfg.DeployOpts.SkipArchitectureCheck,
-	}, nil
+	}
+	if pkgKind == v1alpha1.ZarfInitConfig {
+		opts.InjectorImage = pkgVars[config.InjectorImage]
+	}
+	return opts, nil
 }
 
 func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state.RegistryInfo, insecure bool) (bool, error) {
