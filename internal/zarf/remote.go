@@ -155,6 +155,9 @@ func (s *remoteSource) VerifyAndIngestFiltered(ctx context.Context, tmpDir strin
 			s.streams.Warn("failed to remove verified package layout", "path", pkgLayout.DirPath(), "error", err)
 		}
 	}()
+	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
+		return nil, fmt.Errorf("validating package %q for ingestion: %w", s.ref, err)
+	}
 	desc, err := copySelectedPackage(ctx, pkgLayout, selectedLayers, store)
 	if err != nil {
 		return nil, fmt.Errorf("ingesting verified package %q: %w: %w", s.ref, ErrIngestPackage, err)
@@ -182,6 +185,9 @@ func (s *remoteSource) IngestFiltered(ctx context.Context, filter filters.Compon
 			s.streams.Warn("failed to remove package layout", "path", pkgLayout.DirPath(), "error", err)
 		}
 	}()
+	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
+		return nil, fmt.Errorf("validating package %q for ingestion: %w", s.ref, err)
+	}
 	desc, err := copySelectedPackage(ctx, pkgLayout, selectedLayers, store)
 	if err != nil {
 		return nil, fmt.Errorf("ingesting package %q: %w: %w", s.ref, ErrIngestPackage, err)

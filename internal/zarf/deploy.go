@@ -325,6 +325,9 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 			log.Warn("failed to clean up package layout", "name", pkg.Name, "error", err)
 		}
 	}()
+	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
+		return fmt.Errorf("package %q: %w", pkg.Name, err)
+	}
 
 	deployOpts := packager.DeployOptions{
 		Values:            zarfValues, // Helm chart values from values_files
@@ -338,6 +341,9 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	hooks := opts.PackageDeployHooks.withDefaults()
 	if err := hooks.PreDeploy(ctx, pkg, pkgLayout, &deployOpts, &opts); err != nil {
 		return fmt.Errorf("pre-deploy package %q: %w: %w", pkg.Name, ErrPackageHook, err)
+	}
+	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
+		return fmt.Errorf("package %q after pre-deploy hook: %w", pkg.Name, err)
 	}
 
 	deploy := opts.ClusterDeployFn
