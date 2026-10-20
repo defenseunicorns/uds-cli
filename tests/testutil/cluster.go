@@ -283,6 +283,9 @@ package "pod_info_secondary" {
 // RequireCLI executes a Next Cobra command and returns its standard output.
 func RequireCLI(t *testing.T, args ...string) []byte {
 	t.Helper()
+	if len(args) > 0 && args[0] == "bundle" {
+		args = append(append([]string(nil), args...), "--uds-cache", t.TempDir())
+	}
 	var stdout, stderr strings.Builder
 	err := ExecuteCLI(t.Context(), iostreams.New(nil, &stdout, &stderr), args...)
 	require.NoError(t, err, "uds %s failed: %s", strings.Join(args, " "), stderr.String())
@@ -317,13 +320,15 @@ func CreateBundleArtifact(t *testing.T, bundleDir string) string {
 func RegisterBundleCleanup(t *testing.T, bundlePath string, cleanupTimeout time.Duration) func() {
 	t.Helper()
 	removed := false
+	// Register the temporary directory first so it outlives bundle cleanup.
+	cache := t.TempDir()
 	t.Cleanup(func() {
 		if removed {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
 		defer cancel()
-		args, directory, err := bundleRemoveArgs(bundlePath)
+		args, directory, err := bundleRemoveArgs(bundlePath, cache)
 		if err != nil {
 			t.Errorf("prepare cleanup for bundle %q: %v", bundlePath, err)
 			return
@@ -342,7 +347,7 @@ func RegisterBundleCleanup(t *testing.T, bundlePath string, cleanupTimeout time.
 // RemoveBundle removes a bundle with the CLI and returns its structured result.
 func RemoveBundle(t *testing.T, bundlePath string, args ...string) bundle.RemoveResult {
 	t.Helper()
-	commandArgs, directory, err := bundleRemoveArgs(bundlePath, args...)
+	commandArgs, directory, err := bundleRemoveArgs(bundlePath, t.TempDir(), args...)
 	require.NoError(t, err)
 	var stdout, stderr strings.Builder
 	err = executeCLI(t.Context(), iostreams.New(nil, &stdout, &stderr), directory, commandArgs...)
@@ -405,7 +410,7 @@ func copyFile(source, destination string) (err error) {
 	return nil
 }
 
-func bundleRemoveArgs(bundlePath string, extraArgs ...string) ([]string, string, error) {
+func bundleRemoveArgs(bundlePath, cache string, extraArgs ...string) ([]string, string, error) {
 	directory := ""
 	args := []string{"bundle"}
 	if !strings.HasPrefix(bundlePath, "oci://") {
@@ -422,6 +427,6 @@ func bundleRemoveArgs(bundlePath string, extraArgs ...string) ([]string, string,
 			}
 		}
 	}
-	args = append(args, "remove", bundlePath, "-o", "json")
+	args = append(args, "remove", bundlePath, "-o", "json", "--uds-cache", cache)
 	return append(args, extraArgs...), directory, nil
 }

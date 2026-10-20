@@ -124,7 +124,7 @@ creation. Do not deploy a bundle, operate a cluster, or write to a registry.
 
 ## Included documentation: docs/how-to-guides/migrate-legacy-to-next.mdx
 
-<!-- Source SHA256: 4656bf8357ee6f7d25229cd6dc5c2ff90aaf86f181021490e7502a48c71ab63d -->
+<!-- Source SHA256: e054aac68cc4b444859e4d91eaaec715700dfca73ec0f6f3ea136a5f855a2e06 -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -313,9 +313,10 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
 
    - Keep variables used in `values_files` under the package name. Convert uppercase names to lowercase with underscores, such as `REPLICA_COUNT` to `replica_count`.
    - Zarf package variables must be top-level scalar values and apply to every package. Put shared Helm settings in each package's values file. Use a values file for package-specific settings.
-   - Keep `architecture`, `log_level`, and `tmp_dir` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`.
+   - Keep `architecture`, `log_level`, `tmp_dir`, and `uds_cache` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`; `--uds-cache` keeps its name.
+   - Next caches package and bundle OCI bytes under `<uds-cache>/bundle-oci/images`, separate from Legacy cache content. Explicit `--uds-cache` overrides `options.uds_cache`.
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
-   - Next has no equivalents for `uds_cache`, `retries`, or `UDS_<NAME>` environment variables.
+   - Next has no equivalents for `retries` or `UDS_<NAME>` environment variables.
 
    Next applies built-in defaults, then `config.uds.hcl` values, then explicit command-line flags. `config.uds.hcl` overrides matching values in the adjacent `defaults.uds.hcl`, then command-line flags override `config.uds.hcl`.
 
@@ -589,7 +590,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 5c66892e36e9ea97a33158f47f921a027e66edd25222a612b668a6f7b7b5d0ac -->
+<!-- Source SHA256: a4bd043126f178beb8b75d417c13f5f46db73df48e19ccaf485c535c8c139f6b -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -636,6 +637,7 @@ The `options` block configures operation-wide behavior. Config values override b
 | `plain_http` | boolean | `false` | Allows registry communication over plain HTTP. Use only with a registry that intentionally does not provide TLS. |
 | `skip_tls_verify` | boolean | `false` | Disables TLS certificate verification for registry communication. This reduces transport security. |
 | `tmp_dir` | string | The operating system temporary directory | Must name an existing directory when set. |
+| `uds_cache` | string | `~/.uds-cache` | Cache root. `~` and `~/` expand to your home directory. Explicit `--uds-cache` overrides this value with the same expansion. |
 | `concurrency` | integer | `10` | Values from `1` to `25` are accepted. `0` is treated as unset and uses the default of `10`. |
 
 Example:
@@ -649,6 +651,17 @@ options {
 ```
 
 The `tmp_dir` directory must already exist before running the command.
+
+### Bundle cache
+
+The CLI uses `~/.uds-cache` by default. Set `options.uds_cache` in the file passed
+with `--config` to choose another location, or use `--uds-cache` to override it.
+
+```hcl title="config.uds.hcl"
+options {
+  uds_cache = "~/.uds-cache"
+}
+```
 
 ## `signature_verification`
 
@@ -760,7 +773,7 @@ These settings apply to the following bundle commands.
 
 | Config content | Commands that consume it | Effect |
 |---|---|---|
-| `options` | All `uds bundle` commands that resolve common options | Sets logging, architecture, registry transport, temporary directory, and concurrency behavior. |
+| `options` | All `uds bundle` commands that resolve common options | Sets logging, architecture, registry transport, cache and temporary directories, and concurrency behavior. |
 | `variables` | `bundle dev deploy`, `bundle deploy` | Renders package values files and supplies supported top-level scalar Zarf variables. |
 | `signature_verification` | `bundle inspect`, `bundle verify`, `bundle pull`, `bundle deploy`, `bundle reconfigure`, `bundle remove` (artifact sources only) | Supplies the default consumer policy for bundle artifact signature verification. |
 

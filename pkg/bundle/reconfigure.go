@@ -109,7 +109,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 	}
 
 	if udsoci.IsOCIReference(source) {
-		reconfigurer := &ociReconfigurer{streams: s, remoteRepo: state.remoteRepo, sourceChild: state.sourceChild, sourceIndex: state.sourceIndex}
+		reconfigurer := &ociReconfigurer{streams: s, remoteRepo: state.remoteRepo, remoteSource: state.remoteSource, sourceChild: state.sourceChild, sourceIndex: state.sourceIndex}
 		result, err := reconfigurer.reconfigureOCIArtifact(ctx, source, defaultsData, opts)
 		if err != nil {
 			return result, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
@@ -139,10 +139,11 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 }
 
 type reconfigureState struct {
-	inputSource string
-	remoteRepo  oras.Target
-	sourceChild ocispec.Descriptor
-	sourceIndex []byte
+	inputSource  string
+	remoteRepo   oras.Target
+	remoteSource oras.ReadOnlyTarget
+	sourceChild  ocispec.Descriptor
+	sourceIndex  []byte
 }
 
 func stageReconfigureLocalInput(tmpDir, source string, state *reconfigureState) (func(), error) {
@@ -192,11 +193,16 @@ func resolveReconfigureOCIInput(ctx context.Context, source string, opts Reconfi
 	if err != nil {
 		return fmt.Errorf("connecting to registry: %w", err)
 	}
-	child, index, err := udsoci.ResolveBundleChild(ctx, repo, ref.Identifier(), opts.Config.Options.Architecture)
+	reader, err := udsoci.NewRemoteReadSource(ctx, trimmed, toInternalConfigOptions(*opts.Config.Options), logger.Bind(opts.Streams, opts.Config.Options.LogLevel))
+	if err != nil {
+		return fmt.Errorf("opening bundle read source: %w", err)
+	}
+	child, index, err := udsoci.ResolveBundleChild(ctx, reader, ref.Identifier(), opts.Config.Options.Architecture)
 	if err != nil {
 		return fmt.Errorf("resolving %s: %w", source, err)
 	}
 	state.remoteRepo = repo
+	state.remoteSource = reader
 	state.sourceChild = child
 	state.sourceIndex = index
 	state.inputSource = "oci://" + ref.Context().String() + "@" + child.Digest.String()
@@ -357,10 +363,11 @@ func validateReconfigurePackageIdentities(idx ocispec.Index, defIdx int) error {
 }
 
 type ociReconfigurer struct {
-	streams     iostreams.IOStreams
-	remoteRepo  oras.Target
-	sourceChild ocispec.Descriptor
-	sourceIndex []byte
+	streams      iostreams.IOStreams
+	remoteRepo   oras.Target
+	remoteSource oras.ReadOnlyTarget
+	sourceChild  ocispec.Descriptor
+	sourceIndex  []byte
 }
 
 func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source string, defaultsData []byte, opts ReconfigureOptions) (*ReconfigureResult, error) {
@@ -385,12 +392,24 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 		repo = remote
 	}
 
+	reader := r.remoteSource
+	if reader == nil {
+		// Injected targets used by callers within this package also provide reads.
+		reader = r.remoteRepo
+	}
+	if reader == nil {
+		reader, err = udsoci.NewRemoteReadSource(ctx, trimmed, toInternalConfigOptions(*opts.Config.Options), r.streams)
+		if err != nil {
+			return nil, fmt.Errorf("opening bundle read source: %w", err)
+		}
+	}
+
 	// Resolve source to the canonical single-arch bundle (child) index,
 	// platform-selecting from the root index when the tag points at one.
 	sourceChild := r.sourceChild
 	indexBytes := r.sourceIndex
 	if sourceChild.Digest == "" {
-		sourceChild, indexBytes, err = udsoci.ResolveBundleChild(ctx, repo, sourceTag, opts.Config.Options.Architecture)
+		sourceChild, indexBytes, err = udsoci.ResolveBundleChild(ctx, reader, sourceTag, opts.Config.Options.Architecture)
 		if err != nil {
 			return nil, fmt.Errorf("resolving %s: %w", source, err)
 		}
@@ -416,7 +435,7 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 	}
 
 	// Fetch bundle definition manifest.
-	defBytes, err := udsoci.FetchBytes(ctx, repo, defEntry)
+	defBytes, err := udsoci.FetchBytes(ctx, reader, defEntry)
 	if err != nil {
 		return nil, fmt.Errorf("fetching bundle definition manifest: %w", err)
 	}
@@ -437,7 +456,7 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 	if err != nil {
 		return nil, err
 	}
-	hclBytes, err := udsoci.FetchBytes(ctx, repo, hclLayer)
+	hclBytes, err := udsoci.FetchBytes(ctx, reader, hclLayer)
 	if err != nil {
 		return nil, fmt.Errorf("fetching HCL blob: %w", err)
 	}
@@ -494,7 +513,7 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 		if err != nil {
 			return nil, fmt.Errorf("reading bundle signature evidence: %w", err)
 		}
-		if err := udsoci.PublishBundleSignature(ctx, repo, newIndexDesc, evidence, opts.Signing.Overwrite); err != nil {
+		if err := udsoci.PublishBundleSignature(ctx, repo, reader, newIndexDesc, evidence, opts.Signing.Overwrite); err != nil {
 			return nil, fmt.Errorf("publishing reconfigured bundle signature: %w", err)
 		}
 	}

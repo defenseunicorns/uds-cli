@@ -47,8 +47,13 @@ func FetchBytes(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descr
 	if desc.Size > MaxFetchBytesSize {
 		return nil, DescriptorTooLargeError{Digest: desc.Digest, Size: desc.Size, Limit: MaxFetchBytesSize}
 	}
-	data, err := content.FetchAll(ctx, fetcher, desc)
+	rc, err := fetcher.Fetch(ctx, desc)
 	if err != nil {
+		return nil, fmt.Errorf("fetching %s: %w: %w", desc.Digest, ErrFetchContent, err)
+	}
+	data, readErr := content.ReadAll(rc, desc)
+	// Closing waits for upstream cache population and can report write failures.
+	if err := errors.Join(readErr, rc.Close()); err != nil {
 		return nil, fmt.Errorf("fetching %s: %w: %w", desc.Digest, ErrFetchContent, err)
 	}
 	return data, nil

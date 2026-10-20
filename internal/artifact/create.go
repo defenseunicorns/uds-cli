@@ -118,6 +118,7 @@ func ingestSource(ctx context.Context, pkg *spec.Package, config *bundleinternal
 		PlainHTTP:     config.Options.PlainHTTP,
 		SkipTLSVerify: config.Options.SkipTLSVerify,
 		TmpDir:        config.Options.TmpDir,
+		CacheDir:      config.Options.CacheDir,
 		Concurrency:   config.Options.Concurrency,
 	}
 	source := zarf.NewPackageSource(pkg.Source, zarfConfig, bundleDir, streams)

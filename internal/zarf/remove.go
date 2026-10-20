@@ -13,6 +13,7 @@ import (
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
@@ -266,6 +267,7 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 	}
 
 	loadOpts := packager.LoadOptions{
+		CachePath:      udsoci.BundleCachePath(opts.Config.Options.CacheDir),
 		Architecture:   opts.Config.Options.Architecture,
 		Filter:         filters.Combine(filters.ByLocalOS(runtime.GOOS)),
 		OCIConcurrency: opts.Config.Options.Concurrency,

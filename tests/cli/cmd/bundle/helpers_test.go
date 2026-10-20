@@ -32,6 +32,18 @@ func executeCLI(t *testing.T, input string, args ...string) (string, error) {
 		_, err := in.WriteString(input)
 		require.NoError(t, err)
 	}
+	// Bundle command tests must not populate the user's default cache. Keep
+	// explicit cache flags (including empty values) intact for cache tests.
+	hasCacheFlag := false
+	for _, arg := range args {
+		if arg == "--uds-cache" || strings.HasPrefix(arg, "--uds-cache=") {
+			hasCacheFlag = true
+			break
+		}
+	}
+	if !hasCacheFlag {
+		args = append(append([]string(nil), args...), "--uds-cache", t.TempDir())
+	}
 	err := testutil.ExecuteCLI(t.Context(), streams, args...)
 	return out.String() + errOut.String(), err
 }

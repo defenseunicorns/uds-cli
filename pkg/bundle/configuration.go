@@ -27,6 +27,8 @@ type ConfigOptions struct {
 	Architecture  string
 	PlainHTTP     bool
 	SkipTLSVerify bool
-	TmpDir        string
-	Concurrency   int
+	// CacheDir selects the shared OCI cache root. Directories are created on demand.
+	CacheDir    string
+	TmpDir      string
+	Concurrency int
 }

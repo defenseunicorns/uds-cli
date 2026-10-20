@@ -6,7 +6,9 @@ package oci
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	packageoci "github.com/defenseunicorns/pkg/oci"
@@ -15,6 +17,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 )
 
@@ -61,6 +64,37 @@ func TestFetchBytesWrapsDescriptorErrors(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "fetching "+desc.Digest.String())
+}
+
+type fetchBytesReadCloser struct {
+	io.Reader
+	close func() error
+}
+
+func (r fetchBytesReadCloser) Close() error { return r.close() }
+
+func TestFetchBytesChecksReadAndCloseErrors(t *testing.T) {
+	closeErr := errors.New("cache write failed")
+	for _, data := range []string{"metadata", "corrupt!"} {
+		t.Run(data, func(t *testing.T) {
+			closed := false
+			fetcher := content.FetcherFunc(func(context.Context, ocispec.Descriptor) (io.ReadCloser, error) {
+				return fetchBytesReadCloser{Reader: strings.NewReader(data), close: func() error {
+					closed = true
+					return closeErr
+				}}, nil
+			})
+			desc := NewDescriptorFromBytes(MediaTypeBundleHCL, []byte("metadata"))
+			got, err := FetchBytes(t.Context(), fetcher, desc)
+			require.ErrorIs(t, err, closeErr)
+			require.ErrorIs(t, err, ErrFetchContent)
+			assert.Nil(t, got)
+			assert.True(t, closed)
+			if data != "metadata" {
+				require.ErrorContains(t, err, "mismatch")
+			}
+		})
+	}
 }
 
 func TestFetchBytesRejectsOversizedDescriptor(t *testing.T) {

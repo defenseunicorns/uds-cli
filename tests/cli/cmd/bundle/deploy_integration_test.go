@@ -168,6 +168,7 @@ cliNumber: {{ .vars.cli_number }}
 cliBoolean: {{ .vars.cli_boolean }}
 cliObject: {{ printf "%q" .vars.cli_object.name }}
 `)...)
+	//nolint:gosec // valuesPath is inside the test-owned temporary bundle directory.
 	s.Require().NoError(os.WriteFile(valuesPath, values, 0o600))
 
 	output, err := executeCLI(s.T(), "", "bundle", "dev", "deploy", bundlePath,

@@ -4,6 +4,7 @@
 package bundle
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -26,6 +27,70 @@ func TestDefaults(t *testing.T) {
 	require.False(t, opts.SkipTLSVerify)
 	require.Equal(t, 10, opts.Concurrency)
 	require.Equal(t, os.TempDir(), opts.TmpDir)
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(home, ".uds-cache"), opts.CacheDir)
+}
+
+func TestResolveCacheDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, tt := range []struct {
+		name    string
+		hcl     string
+		flag    string
+		changed bool
+		want    string
+	}{
+		{name: "default", want: filepath.Join(home, ".uds-cache")},
+		{name: "HCL", hcl: "configured", want: "configured"},
+		{name: "empty HCL retains default", want: filepath.Join(home, ".uds-cache")},
+		{name: "explicit flag", hcl: "configured", flag: "override", changed: true, want: "override"},
+		{name: "empty flag retains HCL", hcl: "configured", changed: true, want: "configured"},
+		{name: "empty flag retains default", changed: true, want: filepath.Join(home, ".uds-cache")},
+		{name: "HCL tilde", hcl: "~/configured", want: filepath.Join(home, "configured")},
+		{name: "flag tilde", hcl: "configured", flag: "~/override", changed: true, want: filepath.Join(home, "override")},
+		{name: "home", flag: "~", changed: true, want: home},
+		{name: "literal tilde", flag: "cache/~literal", changed: true, want: "cache/~literal"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var configPath string
+			if tt.name != "default" {
+				configPath = filepath.Join(t.TempDir(), "config.uds.hcl")
+				require.NoError(t, os.WriteFile(configPath, fmt.Appendf(nil, "options { uds_cache = %q }", tt.hcl), 0o600))
+			}
+			cmd := &cobra.Command{}
+			registerTestFlags(cmd)
+			cmd.Flags().String("config", configPath, "config path")
+			if tt.changed {
+				require.NoError(t, cmd.Flags().Set("uds-cache", tt.flag))
+			}
+			flags := SnapshotFlags(cmd)
+			assert.Equal(t, tt.changed, flags.CacheDirChanged)
+			resolved, _, err := NewConfigResolver().Resolve(t.Context(), iostreams.IOStreams{}, flags, "")
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, resolved.Options.CacheDir)
+			assert.Equal(t, tt.want, toInternalConfig(resolved).Options.CacheDir)
+			assert.NoDirExists(t, filepath.Join(home, ".uds-cache"))
+		})
+	}
+}
+
+func TestResolveCacheWithoutHome(t *testing.T) {
+	t.Setenv("HOME", "")
+	if _, err := os.UserHomeDir(); err == nil {
+		t.Skip("platform can determine home without HOME")
+	}
+	r := NewConfigResolver()
+	assert.Equal(t, "~/.uds-cache", r.Defaults().CacheDir)
+	_, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{}, "")
+	require.ErrorContains(t, err, "expanding cache directory")
+	_, _, err = r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{CacheDirChanged: true}, "")
+	require.ErrorContains(t, err, "expanding cache directory")
+	path := t.TempDir()
+	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{CacheDir: path, CacheDirChanged: true}, "")
+	require.NoError(t, err)
+	assert.Equal(t, path, resolved.Options.CacheDir)
 }
 
 func TestApplySetVariables(t *testing.T) {
@@ -214,6 +279,7 @@ func registerTestFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("architecture", "a", defaults.Architecture, "target architecture")
 	cmd.Flags().Bool("plain-http", defaults.PlainHTTP, "use plain HTTP")
 	cmd.Flags().Bool("skip-tls-verify", defaults.SkipTLSVerify, "skip TLS verification")
+	cmd.Flags().String("uds-cache", defaults.CacheDir, "cache directory")
 	cmd.Flags().String("tmp-dir", defaults.TmpDir, "temp directory")
 	cmd.Flags().Int("concurrency", defaults.Concurrency, "concurrency")
 }
