@@ -23,10 +23,11 @@ type UDSBundleConfig struct {
 
 // ConfigOptions holds bundle operation settings.
 type ConfigOptions struct {
-	LogLevel      string
-	Architecture  string
-	PlainHTTP     bool
-	SkipTLSVerify bool
-	TmpDir        string
-	Concurrency   int
+	LogLevel              string
+	Architecture          string
+	PlainHTTP             bool
+	SkipTLSVerify         bool
+	TmpDir                string
+	Concurrency           int
+	SkipArchitectureCheck bool
 }

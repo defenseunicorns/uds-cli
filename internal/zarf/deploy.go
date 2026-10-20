@@ -330,10 +330,11 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	}
 
 	deployOpts := packager.DeployOptions{
-		Values:            zarfValues, // Helm chart values from values_files
-		SetVariables:      setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
-		IsInteractive:     false,
-		NamespaceOverride: pkg.Namespace, // empty string is fine - Zarf ignores it
+		SkipArchitectureCheck: opts.Config.Options.SkipArchitectureCheck,
+		Values:                zarfValues, // Helm chart values from values_files
+		SetVariables:          setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
+		IsInteractive:         false,
+		NamespaceOverride:     pkg.Namespace, // empty string is fine - Zarf ignores it
 	}
 
 	log.Info("deploying zarf package to cluster", "name", pkg.Name)
@@ -345,6 +346,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
 		return fmt.Errorf("package %q after pre-deploy hook: %w", pkg.Name, err)
 	}
+	if err := opts.Validate(); err != nil {
+		return fmt.Errorf("pre-deploy package %q left options invalid: %w: %w", pkg.Name, ErrPackageHook, err)
+	}
+	deployOpts.SkipArchitectureCheck = opts.Config.Options.SkipArchitectureCheck
 
 	deploy := opts.ClusterDeployFn
 	if deploy == nil {

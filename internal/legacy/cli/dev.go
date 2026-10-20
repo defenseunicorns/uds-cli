@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package cmd contains the CLI commands for UDS.
@@ -109,6 +109,7 @@ func newDevCommand() *cobra.Command {
 	devDeployCmd.Flags().BoolVar(&bundleCfg.DevDeployOpts.ForceCreate, "force-create", false, lang.CmdBundleCreateForceCreate)
 	devDeployCmd.Flags().StringToStringVar(&bundleCfg.DeployOpts.SetVariables, "set", nil, lang.CmdBundleDeployFlagSet)
 	devDeployCmd.Flags().BoolVar(&bundleCfg.DeployOpts.ForceConflicts, "force-conflicts", false, lang.CmdBundleDeployFlagForceConflicts)
+	devDeployCmd.Flags().BoolVar(&bundleCfg.DeployOpts.SkipArchitectureCheck, "skip-architecture-check", false, lang.CmdBundleDeployFlagSkipArchitectureCheck)
 	return devCmd
 }
 

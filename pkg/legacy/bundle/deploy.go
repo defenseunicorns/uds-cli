@@ -225,21 +225,22 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 	}
 
 	opts := packager.DeployOptions{
-		ForceConflicts:     b.cfg.DeployOpts.ForceConflicts,
-		Timeout:            timeout,
-		SetVariables:       pkgVars,
-		ValuesOverridesMap: valuesOverrides,
-		Retries:            b.cfg.DeployOpts.Retries,
-		NamespaceOverride:  pkg.Namespace,
-		RemoteOptions:      remoteOpts,
-		TakeOwnership:      false,
-		Connected:          config.Dev,
-		OCIConcurrency:     config.CommonOptions.OCIConcurrency,
-		GitServer:          newGitServerInfo(pkgVars, pkgKind),
-		RegistryInfo:       registryInfo,
-		ArtifactServer:     newArtifactServerInfo(pkgVars, pkgKind),
-		StorageClass:       newStorageClass(pkgVars, pkgKind),
-		IsInteractive:      !config.CommonOptions.Confirm,
+		ForceConflicts:        b.cfg.DeployOpts.ForceConflicts,
+		Timeout:               timeout,
+		SetVariables:          pkgVars,
+		ValuesOverridesMap:    valuesOverrides,
+		Retries:               b.cfg.DeployOpts.Retries,
+		NamespaceOverride:     pkg.Namespace,
+		RemoteOptions:         remoteOpts,
+		TakeOwnership:         false,
+		Connected:             config.Dev,
+		OCIConcurrency:        config.CommonOptions.OCIConcurrency,
+		GitServer:             newGitServerInfo(pkgVars, pkgKind),
+		RegistryInfo:          registryInfo,
+		ArtifactServer:        newArtifactServerInfo(pkgVars, pkgKind),
+		StorageClass:          newStorageClass(pkgVars, pkgKind),
+		IsInteractive:         !config.CommonOptions.Confirm,
+		SkipArchitectureCheck: b.cfg.DeployOpts.SkipArchitectureCheck,
 	}
 	if pkgKind == v1alpha1.ZarfInitConfig {
 		opts.InjectorImage = pkgVars[config.InjectorImage]
@@ -416,10 +417,11 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 
-	// validate bundle's arch against cluster
-	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
-	if err != nil {
-		return "", "", "", err
+	// validate bundle's arch against cluster unless the compatibility check was explicitly skipped
+	if !b.cfg.DeployOpts.SkipArchitectureCheck {
+		if err := ValidateArch(config.GetArch(b.bundle.Build.Architecture)); err != nil {
+			return "", "", "", fmt.Errorf("%w; if this architecture mismatch is expected, retry with --skip-architecture-check to bypass architecture validation", err)
+		}
 	}
 
 	b.prefetchPackageMetadata(provider)

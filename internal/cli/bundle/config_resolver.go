@@ -21,20 +21,22 @@ import (
 // It exists so config resolution does not depend on *cobra.Command, keeping
 // command execution independent of Cobra.
 type CLIFlags struct {
-	ConfigPath           string // --config (always read; empty when unset)
-	LogLevel             string
-	LogLevelChanged      bool
-	Architecture         string
-	ArchitectureChanged  bool
-	PlainHTTP            bool
-	PlainHTTPChanged     bool
-	SkipTLSVerify        bool
-	SkipTLSVerifyChanged bool
-	TmpDir               string
-	TmpDirChanged        bool
-	Concurrency          int
-	ConcurrencyChanged   bool
-	Prompt               bool
+	ConfigPath                   string // --config (always read; empty when unset)
+	LogLevel                     string
+	LogLevelChanged              bool
+	Architecture                 string
+	ArchitectureChanged          bool
+	SkipArchitectureCheck        bool
+	SkipArchitectureCheckChanged bool
+	PlainHTTP                    bool
+	PlainHTTPChanged             bool
+	SkipTLSVerify                bool
+	SkipTLSVerifyChanged         bool
+	TmpDir                       string
+	TmpDirChanged                bool
+	Concurrency                  int
+	ConcurrencyChanged           bool
+	Prompt                       bool
 }
 
 // SnapshotFlags reads every CLI flag the resolver needs from cmd, plus its Changed() bit.
@@ -45,6 +47,8 @@ func SnapshotFlags(cmd *cobra.Command) CLIFlags {
 	f.LogLevelChanged = cmd.Flags().Changed("log-level")
 	f.Architecture, _ = cmd.Flags().GetString("architecture")
 	f.ArchitectureChanged = cmd.Flags().Changed("architecture")
+	f.SkipArchitectureCheck, _ = cmd.Flags().GetBool("skip-architecture-check")
+	f.SkipArchitectureCheckChanged = cmd.Flags().Changed("skip-architecture-check")
 	f.PlainHTTP, _ = cmd.Flags().GetBool("plain-http")
 	f.PlainHTTPChanged = cmd.Flags().Changed("plain-http")
 	f.SkipTLSVerify, _ = cmd.Flags().GetBool("skip-tls-verify")
@@ -107,6 +111,9 @@ func (r *ConfigResolver) MergeHCL(base bundle.ConfigOptions, hcl *bundle.ConfigO
 	if hcl.Concurrency != 0 {
 		base.Concurrency = hcl.Concurrency
 	}
+	if hcl.SkipArchitectureCheck {
+		base.SkipArchitectureCheck = true
+	}
 	return base
 }
 
@@ -132,6 +139,9 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 	}
 	if flags.ConcurrencyChanged {
 		base.Concurrency = flags.Concurrency
+	}
+	if flags.SkipArchitectureCheckChanged {
+		base.SkipArchitectureCheck = flags.SkipArchitectureCheck
 	}
 	return base
 }
@@ -340,6 +350,7 @@ func fromInternalOptions(options *bundleinternal.ConfigOptions) *bundle.ConfigOp
 		LogLevel: options.LogLevel, Architecture: options.Architecture,
 		PlainHTTP: options.PlainHTTP, SkipTLSVerify: options.SkipTLSVerify,
 		TmpDir: options.TmpDir, Concurrency: options.Concurrency,
+		SkipArchitectureCheck: options.SkipArchitectureCheck,
 	}
 }
 
