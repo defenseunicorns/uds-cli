@@ -124,7 +124,7 @@ creation. Do not deploy a bundle, operate a cluster, or write to a registry.
 
 ## Included documentation: docs/how-to-guides/migrate-legacy-to-next.mdx
 
-<!-- Source SHA256: 4656bf8357ee6f7d25229cd6dc5c2ff90aaf86f181021490e7502a48c71ab63d -->
+<!-- Source SHA256: 90d89a46f0cd0b062c8e22ae0232c5360d6645052a771dc3efde22371670488d -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -163,7 +163,8 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
    | `uds pull` | `CLI_FEATURES=NextMode=true uds bundle pull` |
    | `uds remove` | `CLI_FEATURES=NextMode=true uds bundle remove` or `CLI_FEATURES=NextMode=true uds bundle dev remove` |
    | `uds zarf` | `CLI_FEATURES=NextMode=true uds tools zarf` |
-   | `uds run`, `uds monitor`, `uds completion`, `uds version` | unchanged |
+   | `uds monitor pepr` | `CLI_FEATURES=NextMode=true uds core operator monitor` |
+   | `uds run`, `uds completion`, `uds version` | unchanged |
 
    Vendored tools such as `kubectl` and `helm` still use `uds zarf tools <tool>`, not `uds tools zarf tools <tool>`.
 

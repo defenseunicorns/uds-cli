@@ -216,7 +216,7 @@ func stageArtifactPackageLayer(ctx context.Context, workspaceRoot *os.Root, src 
 			return nil
 		}
 	}
-	return copyFileContentsBetweenRoots(ctx, workspaceRoot, src, dstRoot, dst)
+	return CopyFileContentsBetweenRoots(ctx, workspaceRoot, src, dstRoot, dst)
 }
 
 // rootPathContainsSymlink reports whether name includes a symbolic-link
@@ -258,10 +258,12 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 		}
 	}
 	filter := BuildComponentFilter(pkg.OptionalComponents)
-	pkgLayout, err := source.PullFiltered(ctx, dstDir, layout.PackageLayoutOptions{
-		Filter:               filter,
-		IsPartial:            opts.IsPartial,
-		VerificationStrategy: layout.VerifyNever,
+	pkgLayout, err := WithTempDir(l.configOpts.TmpDir, func() (*layout.PackageLayout, error) {
+		return source.PullFiltered(ctx, dstDir, layout.PackageLayoutOptions{
+			Filter:               filter,
+			IsPartial:            opts.IsPartial,
+			VerificationStrategy: layout.VerifyNever,
+		})
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load package %q from %s: %w: %w", pkg.Name, pkg.Source, ErrLoadPackage, err)
@@ -274,7 +276,9 @@ func (l *SourcePackageLayoutLoader) LoadPackageLayout(ctx context.Context, pkg *
 func (l *SourcePackageLayoutLoader) LoadPackageSpec(ctx context.Context, pkg *spec.Package) (*PackageSpec, error) {
 	source := NewPackageSource(pkg.Source, l.configOpts, l.bundleDir, iostreams.IOStreams{})
 	filter := filters.Combine(BuildComponentFilter(pkg.OptionalComponents), filters.ByLocalOS(runtime.GOOS))
-	result, err := source.LoadPackageSpec(ctx, filter)
+	result, err := WithTempDir(l.configOpts.TmpDir, func() (*PackageSpec, error) {
+		return source.LoadPackageSpec(ctx, filter)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -291,9 +295,9 @@ func packageSpecFromLayout(pkgLayout *layout.PackageLayout) *PackageSpec {
 	return packageSpecFromDefinition(pkgLayout.Definition(), pkgLayout.Digest())
 }
 
-// copyFileContentsBetweenRoots copies src atomically between rooted
+// CopyFileContentsBetweenRoots copies src atomically between rooted
 // filesystems while observing context cancellation.
-func copyFileContentsBetweenRoots(ctx context.Context, srcRoot *os.Root, src string, dstRoot *os.Root, dst string) error {
+func CopyFileContentsBetweenRoots(ctx context.Context, srcRoot *os.Root, src string, dstRoot *os.Root, dst string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

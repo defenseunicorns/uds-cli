@@ -14,6 +14,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/internal/cli"
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/mode"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +29,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "inspect", bundlePath})
 
 	err := root.Execute()
@@ -53,7 +54,7 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 		t.Run(format, func(t *testing.T) {
 			artifact := createInspectArtifact(t)
 			streams, _, out, _ := iostreams.NewTestIOStreams()
-			root := cli.NewRootCommand(streams)
+			root := cli.NewRootCommand(streams, mode.FeatureSet{})
 			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format})
 			require.NoError(t, root.Execute())
 
@@ -95,7 +96,7 @@ func TestInspectOCICommand_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--output", "json"})
 	require.NoError(t, root.Execute())
 
@@ -121,7 +122,7 @@ func TestDeployCommand_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	// Use root command because --prompt is a root-level persistent flag
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt"})
 
 	err := root.Execute()
@@ -140,7 +141,7 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	// Use root command because --prompt is a root-level persistent flag
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt"})
 
 	err := root.Execute()
@@ -214,7 +215,7 @@ func TestRemoveCommand_Integration(t *testing.T) {
 	// Simulate user declining the removal via --prompt
 	in.WriteString("n\n")
 
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "remove", artifact, "--skip-signature-verification", "--prompt"})
 
 	err := root.Execute()
@@ -230,7 +231,7 @@ func TestDevRemoveCommand_WithBundleFile_Integration(t *testing.T) {
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
 
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--prompt"})
 
 	err := root.Execute()
@@ -246,7 +247,7 @@ func TestRemoveCommand_PackagesFlag_Integration(t *testing.T) {
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
 
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "remove", artifact, "--packages", "pkg", "--skip-signature-verification", "--prompt"})
 
 	err := root.Execute()
@@ -262,7 +263,7 @@ func TestDevRemoveCommand_PackagesFlag_Integration(t *testing.T) {
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
 
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init", "--prompt"})
 
 	err := root.Execute()
@@ -279,7 +280,7 @@ func TestRemoveCommand_HelpOutput_Integration(t *testing.T) {
 	streams, _, out, errOut := iostreams.NewTestIOStreams()
 
 	// Use root command so --prompt (a root-level persistent flag) is visible
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "remove", "--help"})
 
 	err := root.Execute()
@@ -297,7 +298,7 @@ func TestDevRemoveCommand_CustomDirWithPackages_Integration(t *testing.T) {
 	streams, in, _, errOut := iostreams.NewTestIOStreams()
 	in.WriteString("n\n")
 
-	root := cli.NewRootCommand(streams)
+	root := cli.NewRootCommand(streams, mode.FeatureSet{})
 	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init,uds_k3d_dev", "--prompt"})
 
 	err := root.Execute()

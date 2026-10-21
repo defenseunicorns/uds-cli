@@ -1,0 +1,11 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+apiVersion: v2
+name: upstream-app
+version: 1.0.0
+dependencies:
+  - name: child
+    version: 1.x
+    repository: file://../chart-dependency
+    alias: renamed-child

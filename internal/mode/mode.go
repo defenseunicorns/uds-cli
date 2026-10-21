@@ -16,7 +16,11 @@ import (
 	zarfconfig "github.com/zarf-dev/zarf/src/config"
 )
 
-const FeaturesEnv = "CLI_FEATURES"
+const (
+	FeaturesEnv       = "CLI_FEATURES"
+	FeatureNextMode   = "NextMode"
+	FeaturePackageMod = "PackageMod"
+)
 
 type Mode string
 
@@ -26,6 +30,11 @@ const (
 )
 
 type FeatureSet map[string]bool
+
+// Enabled reports whether a known feature is enabled.
+func (f FeatureSet) Enabled(name string) bool {
+	return f[name]
+}
 
 // processArgs preserves bootstrap options while dependent command packages see
 // the cleaned arguments they require during package initialization.
@@ -57,7 +66,10 @@ func (f FeatureSet) String() string {
 // Resolve merges Alpha defaults, the environment, then command line features.
 // It returns the arguments that Cobra should receive.
 func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, FeatureSet, []string, error) {
-	features := FeatureSet{"NextMode": false}
+	features := FeatureSet{
+		FeatureNextMode:   false,
+		FeaturePackageMod: false,
+	}
 	if value, ok := lookupEnv(FeaturesEnv); ok {
 		parsed, err := parse(value)
 		if err != nil {
@@ -110,7 +122,7 @@ func Resolve(args []string, lookupEnv func(string) (string, bool)) (Mode, Featur
 		}
 	}
 	remaining = append(remaining, zarfArgs...)
-	if features["NextMode"] {
+	if features.Enabled(FeatureNextMode) {
 		return Next, features, remaining, nil
 	}
 	return Legacy, features, remaining, nil
@@ -146,7 +158,12 @@ func parse(value string) (FeatureSet, error) {
 }
 
 func knownFeature(name string) bool {
-	return name == "NextMode"
+	switch name {
+	case FeatureNextMode, FeaturePackageMod:
+		return true
+	default:
+		return false
+	}
 }
 
 func zarfCommandIndex(args []string) int {

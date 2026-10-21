@@ -93,6 +93,7 @@ UDS CLI Next mode currently supports the core bundle flows needed to exercise HC
 | Package verification | Verify package signatures when configured by the bundle definition |
 | Bundle signing | Create signed bundles when signing options are configured, or unsigned bundles for local alpha workflows |
 | Bundle signature verification | Verify signed bundle artifacts during deploy, with an explicit skip flag available for unsigned local artifacts |
+| Package modification | Disassemble and reassemble complete Zarf packages with the additional `PackageMod` feature flag |
 | Retained Legacy commands | Non-bundle commands that are still needed during migration remain available in Next mode |
 
 ## Enabling UDS CLI Next mode
@@ -102,6 +103,13 @@ UDS CLI Next mode can be enabled per command with the `NextMode` feature flag:
 ```bash
 uds --features=NextMode=true version
 CLI_FEATURES=NextMode=true uds version
+```
+
+Preview command trees can require an additional feature flag. Package modification requires both `NextMode` and `PackageMod`:
+
+```bash
+uds --features=NextMode=true,PackageMod=true package mod --help
+CLI_FEATURES=NextMode=true,PackageMod=true uds package mod --help
 ```
 
 `CLI_FEATURES` and `--features` configure UDS only when they appear before a

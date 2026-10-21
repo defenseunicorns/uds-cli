@@ -1,0 +1,31 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: ZarfPackageConfig
+metadata:
+  name: disassembly-lifecycle
+  version: 1.0.0
+components:
+  - name: app
+    required: true
+    images:
+      # yamllint disable rule:line-length
+      # renovate: datasource=docker depName=registry.k8s.io/e2e-test-images/busybox
+      # yamllint enable rule:line-length
+      - registry.k8s.io/e2e-test-images/busybox:1.29-4
+    files:
+      - source: payload.txt
+        target: __FILE_TARGET__
+    repos:
+      - __REPOSITORY_URL__
+    charts:
+      - name: lifecycle
+        version: 0.1.0
+        localPath: chart
+        namespace: disassembly-lifecycle
+    manifests:
+      - name: lifecycle
+        namespace: disassembly-lifecycle
+        files:
+          - configmap.yaml
+          - deployment.yaml
