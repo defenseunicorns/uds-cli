@@ -221,9 +221,9 @@ jobs:
 
       - name: Cache the Next test Zarf tool
         if: matrix.supplied
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
-          version: 2026.10.17
+          version: 2026.10.18
           install_args: zarf@${{ steps.zarf-version.outputs.version }}
           cache: true
 
@@ -305,9 +305,9 @@ jobs:
         run: echo "version=$(go list -m -json github.com/zarf-dev/zarf | jq -r '.Version | ltrimstr("v")')" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Next test Zarf tool
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
-          version: 2026.10.17
+          version: 2026.10.18
           install_args: zarf@${{ steps.zarf-version.outputs.version }}
           cache: true
 
