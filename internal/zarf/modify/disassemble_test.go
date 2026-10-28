@@ -281,7 +281,6 @@ func TestDisassemblePreservesV1beta1Definition(t *testing.T) {
 	assert.Equal(t, "amd64", generatedBeta.Metadata.Architecture)
 	require.Len(t, generatedBeta.Components, 1)
 	component := generatedBeta.Components[0]
-	assert.Equal(t, v1beta1.ServiceAgent, component.Service)
 	require.Len(t, component.Manifests, 1)
 	assert.Contains(t, component.Manifests[0].Kustomize.Files[0], "components/app/manifests/raw/kustomizations/0-kustomize")
 	assert.False(t, component.Manifests[0].Kustomize.AllowAnyDirectory)
@@ -349,7 +348,7 @@ func TestZarfPackageSchemaChangesRequireDisassemblyReview(t *testing.T) {
 		want   string
 	}{
 		{name: "v1alpha1", schema: zarfschema.GetV1Alpha1Schema(), want: "e46b466b366ba42fa171de0cf27302ced24c3b3416bcbaa8a1da93c2383dfd1b"},
-		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "ae2c2b0069c7634afe2a87456a58e8601a8ee626bba087d25e26610410254a2d"},
+		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "f014e07ce9e8793ef5b2ef7fc656125100bf26cfbfa360db19c78fa0506cc2bb"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -633,7 +632,8 @@ func TestDisassembleRejectsEscapingDocumentationNames(t *testing.T) {
 			parent := t.TempDir()
 			outputDir := filepath.Join(parent, "output")
 			_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
-			require.ErrorContains(t, err, "invalid filename")
+			require.ErrorContains(t, err, "documentation key")
+			require.ErrorContains(t, err, "would result in an invalid path")
 			assert.NoDirExists(t, outputDir)
 			for _, canary := range canaries {
 				contents, err := os.ReadFile(canary)

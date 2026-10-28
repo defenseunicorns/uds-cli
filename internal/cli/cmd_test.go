@@ -52,17 +52,47 @@ func TestRootCommand_EmptyArchitectureFlagFails(t *testing.T) {
 }
 
 func TestRootCommand_PackageModFeatureGate(t *testing.T) {
-	streams, _, _, _ := iostreams.NewTestIOStreams()
-	disabled := NewRootCommand(streams, mode.FeatureSet{mode.FeaturePackageMod: false})
-	assert.Nil(t, childCommand(disabled, "package"))
+	for _, enabled := range []bool{false, true} {
+		features := mode.FeatureSet{mode.FeaturePackageMod: enabled}
+		t.Run(features.String(), func(t *testing.T) {
+			streams, _, out, _ := iostreams.NewTestIOStreams()
+			root := NewRootCommand(streams, features)
+			packageCmd := childCommand(root, "package")
+			require.NotNil(t, packageCmd)
+			modCmd := childCommand(packageCmd, "mod")
+			require.NotNil(t, modCmd)
+			assert.NotNil(t, childCommand(modCmd, "disassemble"))
+			assert.NotNil(t, childCommand(modCmd, "reassemble"))
+			root.SetArgs([]string{"package", "mod", "--help"})
+			require.NoError(t, root.Execute())
+			assert.Contains(t, out.String(), "disassemble")
+			assert.Contains(t, out.String(), "reassemble")
 
-	enabled := NewRootCommand(streams, mode.FeatureSet{mode.FeaturePackageMod: true})
-	packageCmd := childCommand(enabled, "package")
-	require.NotNil(t, packageCmd)
-	modCmd := childCommand(packageCmd, "mod")
-	require.NotNil(t, modCmd)
-	assert.NotNil(t, childCommand(modCmd, "disassemble"))
-	assert.NotNil(t, childCommand(modCmd, "reassemble"))
+			for _, command := range []struct {
+				name    string
+				args    []string
+				wantErr string
+			}{
+				{name: "disassemble", args: []string{"", ""}, wantErr: "source is required"},
+				{name: "reassemble", args: []string{""}, wantErr: "source directory is required"},
+			} {
+				t.Run(command.name, func(t *testing.T) {
+					streams, _, out, errOut := iostreams.NewTestIOStreams()
+					root := NewRootCommand(streams, features)
+					args := append([]string{"package", "mod", command.name}, command.args...)
+					root.SetArgs(args)
+					err := root.Execute()
+					if enabled {
+						require.ErrorContains(t, err, command.wantErr)
+						return
+					}
+					require.ErrorContains(t, err, "package modification requires the PackageMod feature flag")
+					assert.Empty(t, out.String())
+					assert.Empty(t, errOut.String())
+				})
+			}
+		})
+	}
 }
 
 func childCommand(parent interface{ Commands() []*cobra.Command }, name string) *cobra.Command {
