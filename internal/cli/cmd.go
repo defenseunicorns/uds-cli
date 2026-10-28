@@ -7,6 +7,7 @@ package cli
 import (
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/core"
@@ -32,6 +33,15 @@ func NewRootCommand(streams iostreams.IOStreams, features mode.FeatureSet) *cobr
 		Short:         "UDS CLI - The entrypoint to the Defense Unicorns ecosystem",
 		Long:          `UDS CLI is a command-line tool for managing UDS Bundles and interacting with the Defense Unicorns ecosystem.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if !features.Enabled(mode.FeaturePackageMod) && strings.HasPrefix(cmd.CommandPath(), "uds package mod ") {
+				return errors.New(`package modification requires the PackageMod feature flag
+
+This is an advanced, last-resort recovery workflow. Modifying a package breaks its original integrity and the original signature no longer applies. Prefer signed packages and immutable bundles built from the original source.
+
+Port all changes back to the upstream source as quickly as possible and rebuild through the normal signed release workflow. The generated worktree is temporary, not a replacement for upstream source; a later package update can erase local fixes.
+
+To explicitly opt in, rerun with --features=NextMode=true,PackageMod=true or set CLI_FEATURES=NextMode=true,PackageMod=true`)
+			}
 			if err := validateArchitectureFlag(cmd); err != nil {
 				return err
 			}
@@ -61,9 +71,7 @@ func NewRootCommand(streams iostreams.IOStreams, features mode.FeatureSet) *cobr
 	rootCmd.AddCommand(core.NewCoreCommand(streams))
 
 	rootCmd.AddCommand(tools.NewToolsCommand(streams))
-	if features.Enabled(mode.FeaturePackageMod) {
-		rootCmd.AddCommand(packagecli.NewPackageCommand(streams))
-	}
+	rootCmd.AddCommand(packagecli.NewPackageCommand(streams))
 
 	// Hidden root-level zarf command for internal Zarf callbacks.
 	// Zarf's ActionsCommandZarfPrefix is set to "zarf" (single word) at build time,

@@ -16,29 +16,40 @@ func TestNewRootCommandPackageModFeatureGate(t *testing.T) {
 		name    string
 		args    []string
 		env     string
-		wantMod bool
+		enabled bool
 	}{
-		{name: "disabled by default", args: []string{"package", "mod"}},
-		{name: "enabled by flag", args: []string{"--features=PackageMod", "package", "mod"}, wantMod: true},
-		{name: "enabled by environment", args: []string{"package", "mod"}, env: "PackageMod", wantMod: true},
+		{name: "disabled by default"},
+		{name: "enabled by flag", args: []string{"--features=PackageMod"}, enabled: true},
+		{name: "enabled by environment", env: "PackageMod", enabled: true},
+		{name: "disabled by flag overrides environment", args: []string{"--features=PackageMod=false"}, env: "PackageMod"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			streams, _, _, _ := iostreams.NewTestIOStreams()
 			lookupEnv := func(name string) (string, bool) {
 				require.Equal(t, mode.FeaturesEnv, name)
 				return tt.env, tt.env != ""
 			}
-			root, _, err := newRootCommand(tt.args, lookupEnv, streams)
-			require.NoError(t, err)
-			found := false
-			for _, cmd := range root.Commands() {
-				if cmd.Name() == "package" {
-					found = true
-				}
+			for _, command := range []struct {
+				name    string
+				args    []string
+				wantErr string
+			}{
+				{name: "disassemble", args: []string{"", ""}, wantErr: "source is required"},
+				{name: "reassemble", args: []string{""}, wantErr: "source directory is required"},
+			} {
+				t.Run(command.name, func(t *testing.T) {
+					streams, _, _, _ := iostreams.NewTestIOStreams()
+					args := append([]string(nil), tt.args...)
+					args = append(args, "package", "mod", command.name)
+					args = append(args, command.args...)
+					wantErr := "package modification requires the PackageMod feature flag"
+					if tt.enabled {
+						wantErr = command.wantErr
+					}
+					require.ErrorContains(t, run(args, lookupEnv, streams), wantErr)
+				})
 			}
-			require.Equal(t, tt.wantMod, found)
 		})
 	}
 }
