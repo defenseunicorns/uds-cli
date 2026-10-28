@@ -1155,8 +1155,8 @@ github.com/containerd/containerd/api/types
 github.com/containerd/containerd/api/types/runc/options
 github.com/containerd/containerd/api/types/task
 github.com/containerd/containerd/api/types/transfer
-# github.com/containerd/containerd/v2 v2.3.4
-## explicit; go 1.26.3
+# github.com/containerd/containerd/v2 v2.3.6
+## explicit; go 1.26.8
 github.com/containerd/containerd/v2/client
 github.com/containerd/containerd/v2/core/containers
 github.com/containerd/containerd/v2/core/content
@@ -1386,7 +1386,7 @@ github.com/diskfs/go-diskfs/filesystem/squashfs
 # github.com/distribution/reference v0.6.0
 ## explicit; go 1.20
 github.com/distribution/reference
-# github.com/docker/cli v29.8.0+incompatible
+# github.com/docker/cli v29.8.2+incompatible
 ## explicit
 github.com/docker/cli/cli/command
 github.com/docker/cli/cli/config
@@ -3210,8 +3210,8 @@ github.com/yuin/gopher-lua/pm
 ## explicit; go 1.18
 github.com/zalando/go-keyring
 github.com/zalando/go-keyring/secret_service
-# github.com/zarf-dev/zarf v0.87.0
-## explicit; go 1.26.6
+# github.com/zarf-dev/zarf v0.88.0
+## explicit; go 1.26.9
 github.com/zarf-dev/zarf/src/api
 github.com/zarf-dev/zarf/src/api/convert
 github.com/zarf-dev/zarf/src/api/v1alpha1
@@ -3226,6 +3226,7 @@ github.com/zarf-dev/zarf/src/internal/agent/http/admission
 github.com/zarf-dev/zarf/src/internal/agent/operations
 github.com/zarf-dev/zarf/src/internal/api/v1alpha1
 github.com/zarf-dev/zarf/src/internal/api/v1beta1
+github.com/zarf-dev/zarf/src/internal/checksum
 github.com/zarf-dev/zarf/src/internal/dns
 github.com/zarf-dev/zarf/src/internal/git
 github.com/zarf-dev/zarf/src/internal/gitea
@@ -4125,7 +4126,7 @@ k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/apiserver v0.37.0
 ## explicit; go 1.26.0
 k8s.io/apiserver/pkg/endpoints/deprecation
-# k8s.io/cli-runtime v0.37.0
+# k8s.io/cli-runtime v0.37.1
 ## explicit; go 1.26.0
 k8s.io/cli-runtime/pkg/genericclioptions
 k8s.io/cli-runtime/pkg/genericiooptions
@@ -4492,11 +4493,11 @@ k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/watchlist
 k8s.io/client-go/util/workqueue
-# k8s.io/component-base v0.37.0
+# k8s.io/component-base v0.37.1
 ## explicit; go 1.26.0
 k8s.io/component-base/cli/flag
 k8s.io/component-base/version
-# k8s.io/component-helpers v0.37.0
+# k8s.io/component-helpers v0.37.1
 ## explicit; go 1.26.0
 k8s.io/component-helpers/auth/rbac/reconciliation
 k8s.io/component-helpers/auth/rbac/validation
@@ -4530,7 +4531,7 @@ k8s.io/kube-openapi/pkg/util
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/util/proto/validation
 k8s.io/kube-openapi/pkg/validation/spec
-# k8s.io/kubectl v0.37.0
+# k8s.io/kubectl v0.37.1
 ## explicit; go 1.26.0
 k8s.io/kubectl/pkg/apps
 k8s.io/kubectl/pkg/cmd
@@ -4614,7 +4615,7 @@ k8s.io/kubectl/pkg/util/storage
 k8s.io/kubectl/pkg/util/templates
 k8s.io/kubectl/pkg/util/term
 k8s.io/kubectl/pkg/validation
-# k8s.io/metrics v0.37.0
+# k8s.io/metrics v0.37.1
 ## explicit; go 1.26.0
 k8s.io/metrics/pkg/apis/metrics
 k8s.io/metrics/pkg/apis/metrics/v1

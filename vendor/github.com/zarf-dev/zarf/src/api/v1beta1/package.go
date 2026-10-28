@@ -12,6 +12,8 @@ type PackageKind string
 const (
 	// ZarfPackageConfig is the default kind of Zarf package.
 	ZarfPackageConfig PackageKind = "ZarfPackageConfig"
+	// ZarfInitConfig is the kind of package used during zarf init.
+	ZarfInitConfig PackageKind = "ZarfInitConfig"
 	// ZarfComponentConfig is the kind of a Zarf component config file.
 	ZarfComponentConfig PackageKind = "ZarfComponentConfig"
 	// APIVersion is the api version of this package.
@@ -23,7 +25,7 @@ type Package struct {
 	// The API version of the Zarf package.
 	APIVersion string `json:"apiVersion" jsonschema:"enum=zarf.dev/v1beta1"`
 	// The kind of Zarf package.
-	Kind PackageKind `json:"kind" jsonschema:"enum=ZarfPackageConfig,default=ZarfPackageConfig"`
+	Kind PackageKind `json:"kind" jsonschema:"enum=ZarfInitConfig,enum=ZarfPackageConfig,default=ZarfPackageConfig"`
 	// Package metadata.
 	Metadata PackageMetadata `json:"metadata,omitempty"`
 	// Zarf-generated package build data.
@@ -46,20 +48,10 @@ func (pkg Package) GetComponent(name string) (Component, error) {
 	return Component{}, fmt.Errorf("no component named %q in package %q", name, pkg.Metadata.Name)
 }
 
-// HasImages returns true if one of the components contains an image.
+// HasImages returns true if one of the components contains an image or image archive.
 func (pkg Package) HasImages() bool {
 	for _, component := range pkg.Components {
-		if len(component.Images) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// IsSBOMAble checks if a package has contents that an SBOM can be created on (i.e. images, files, or image archives).
-func (pkg Package) IsSBOMAble() bool {
-	for _, c := range pkg.Components {
-		if len(c.Images) > 0 || len(c.Files) > 0 || len(c.ImageArchives) > 0 {
+		if len(component.Images) > 0 || len(component.ImageArchives) > 0 {
 			return true
 		}
 	}

@@ -212,6 +212,9 @@ func loadPackageArchive(ctx context.Context, path, tmpDir string, loadOptions la
 }
 
 func (s *localSource) ingestPackageLayout(ctx context.Context, pkgLayout *layout.PackageLayout, filter filters.ComponentFilterStrategy, store *udsoci.Store) ([]ocispec.Descriptor, error) {
+	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
+		return nil, fmt.Errorf("validating package %q for ingestion: %w", s.path, err)
+	}
 	root, err := pkgLayout.Manifest()
 	if err != nil {
 		return nil, fmt.Errorf("%w from %q: %w", ErrReadCanonicalManifest, s.path, err)

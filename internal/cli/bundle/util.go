@@ -268,12 +268,13 @@ func toInternalConfig(cfg *bundle.UDSBundleConfig) *bundleinternal.UDSBundleConf
 	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
 		options = &bundleinternal.ConfigOptions{
-			LogLevel:      cfg.Options.LogLevel,
-			Architecture:  cfg.Options.Architecture,
-			PlainHTTP:     cfg.Options.PlainHTTP,
-			SkipTLSVerify: cfg.Options.SkipTLSVerify,
-			TmpDir:        cfg.Options.TmpDir,
-			Concurrency:   cfg.Options.Concurrency,
+			LogLevel:              cfg.Options.LogLevel,
+			Architecture:          cfg.Options.Architecture,
+			PlainHTTP:             cfg.Options.PlainHTTP,
+			SkipTLSVerify:         cfg.Options.SkipTLSVerify,
+			TmpDir:                cfg.Options.TmpDir,
+			Concurrency:           cfg.Options.Concurrency,
+			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
 		}
 	}
 	return &bundleinternal.UDSBundleConfig{

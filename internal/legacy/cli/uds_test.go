@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package cmd contains the CLI commands for UDS.
@@ -51,6 +51,17 @@ optionx:
 				require.NoError(t, err, "Expected no error")
 			}
 		})
+	}
+}
+
+func TestDeployArchitectureOverrideFlags(t *testing.T) {
+	root := NewRootCommand()
+	for _, path := range [][]string{{"deploy"}, {"dev", "deploy"}} {
+		cmd, _, err := root.Find(path)
+		require.NoError(t, err)
+		flag := cmd.Flags().Lookup("skip-architecture-check")
+		require.NotNil(t, flag)
+		require.Equal(t, "false", flag.DefValue)
 	}
 }
 

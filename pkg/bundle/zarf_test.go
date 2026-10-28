@@ -50,7 +50,7 @@ func newV1beta1PackageLayout(t *testing.T) *layout.PackageLayout {
 					Local:  []v1beta1.ComponentImportLocal{{Path: "one.yaml"}, {Path: "two.yaml"}},
 					Remote: []v1beta1.ComponentImportRemote{{URL: "oci://example.com/component"}},
 				},
-				Service: v1beta1.ServiceRegistry,
+				Service: v1beta1.Service{Name: v1beta1.ServiceRegistry},
 			},
 		}},
 	})
@@ -272,10 +272,10 @@ func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 
 	component := zarfLayout.AsV1beta1().Components[0]
 	assert.Equal(t, "updated/image:v1", component.Images[0].Name)
-	assert.Equal(t, "daemon", component.Images[0].Source)
+	assert.Equal(t, v1beta1.ImageSourceDaemon, component.Images[0].Source)
 	assert.Len(t, component.Import.Local, 2)
 	assert.Len(t, component.Import.Remote, 1)
-	assert.Equal(t, v1beta1.ServiceRegistry, component.Service)
+	assert.Equal(t, v1beta1.ServiceRegistry, component.Service.Name)
 }
 
 func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
@@ -285,10 +285,10 @@ func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
 	assert.Equal(t, "beta-package", converted.Definition().Metadata.Name)
 
 	component := converted.AsV1beta1().Components[0]
-	assert.Equal(t, "daemon", component.Images[0].Source)
+	assert.Equal(t, v1beta1.ImageSourceDaemon, component.Images[0].Source)
 	assert.Len(t, component.Import.Local, 2)
 	assert.Len(t, component.Import.Remote, 1)
-	assert.Equal(t, v1beta1.ServiceRegistry, component.Service)
+	assert.Equal(t, v1beta1.ServiceRegistry, component.Service.Name)
 }
 
 func TestPrepareDeploySourceFindsAdjacentDefaults(t *testing.T) {
@@ -349,6 +349,76 @@ func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
 	assert.Empty(t, dst.AsV1alpha1().Components)
 }
 
+func TestDeployOptionsPropagateArchitectureOverrideToPackages(t *testing.T) {
+	for _, skip := range []bool{false, true} {
+		config := validValidationConfig()
+		config.Options.SkipArchitectureCheck = skip
+		opts := toZarfDeployOptions(DeployOptions{Config: config}, nil)
+		called := false
+		opts.PackageDeployFn = func(_ context.Context, _ *spec.Package, packageOpts internalzarf.DeployPackageOptions) error {
+			called = true
+			assert.Equal(t, skip, packageOpts.Config.Options.SkipArchitectureCheck)
+			return nil
+		}
+		b := &spec.UDSBundle{
+			UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+			Metadata: spec.Metadata{Name: "bundle"},
+			Packages: []spec.Package{{Name: "app", Source: "oci://example.com/app:v1"}},
+		}
+
+		_, err := internalzarf.NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), b, opts)
+
+		require.NoError(t, err)
+		assert.True(t, called)
+	}
+}
+
+func TestBundlePreDeployArchitectureOverridePropagatesToPackages(t *testing.T) {
+	config := validValidationConfig()
+	opts := toZarfDeployOptions(DeployOptions{
+		Config: config,
+		BundleDeployHooks: BundleDeployHooks{PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
+			opts.Config.Options.SkipArchitectureCheck = true
+			return nil
+		}},
+	}, nil)
+	called := false
+	opts.PackageDeployFn = func(_ context.Context, _ *spec.Package, packageOpts internalzarf.DeployPackageOptions) error {
+		called = true
+		assert.True(t, packageOpts.Config.Options.SkipArchitectureCheck)
+		return nil
+	}
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "bundle"},
+		Packages: []spec.Package{{Name: "app", Source: "oci://example.com/app:v1"}},
+	}
+
+	_, err := internalzarf.NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), b, opts)
+
+	require.NoError(t, err)
+	assert.True(t, called)
+}
+
+func TestDeployRejectsArchitectureOverrideForInit(t *testing.T) {
+	pkgDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "zarf.yaml"), []byte("kind: ZarfInitConfig\nmetadata:\n  name: init\n  architecture: amd64\n  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\ncomponents: []\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "checksums.txt"), nil, 0o600))
+	config := validValidationConfig()
+	config.Options.SkipArchitectureCheck = true
+
+	_, err := Deploy(t.Context(), &DeploySource{
+		Bundle: &spec.UDSBundle{
+			UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+			Metadata: spec.Metadata{Name: "bundle"},
+			Packages: []spec.Package{{Name: "init", Source: pkgDir}},
+		},
+	}, DeployOptions{Config: config})
+
+	require.ErrorIs(t, err, ErrDeployBundle)
+	require.ErrorContains(t, err, "architecture checks is not supported for init packages")
+}
+
 func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 	config := &UDSBundleConfig{Options: &ConfigOptions{LogLevel: "info", Concurrency: 2}}
 	internal := toZarfDeployOptions(DeployOptions{
@@ -357,6 +427,7 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 			PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *DeployOptions) error {
 				opts.Config.Options.LogLevel = "debug"
 				opts.Config.Options.Concurrency = 4
+				opts.Config.Options.SkipArchitectureCheck = true
 				return nil
 			},
 		},
@@ -365,6 +436,7 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 	require.NoError(t, internal.BundleDeployHooks.PreDeploy(t.Context(), &spec.UDSBundle{}, &internal))
 	assert.Equal(t, "debug", internal.Config.Options.LogLevel)
 	assert.Equal(t, 4, internal.Config.Options.Concurrency)
+	assert.True(t, internal.Config.Options.SkipArchitectureCheck)
 }
 
 func TestPackagePreDeployRejectsNilConfig(t *testing.T) {

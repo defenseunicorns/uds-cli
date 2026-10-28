@@ -73,7 +73,7 @@ func PackageFromV1alpha1(pkg v1alpha1.ZarfPackage) api.Package {
 	for _, c := range pkg.Components {
 		component := componentToGeneric(c)
 		if pkg.Kind == v1alpha1.ZarfInitConfig {
-			component.Service = serviceForComponentName(c.Name)
+			component.Service.Name = serviceNameForComponent(c.Name)
 		}
 		g.Components = append(g.Components, component)
 	}
@@ -81,7 +81,7 @@ func PackageFromV1alpha1(pkg v1alpha1.ZarfPackage) api.Package {
 	return g
 }
 
-func serviceForComponentName(name string) api.Service {
+func serviceNameForComponent(name string) api.ServiceName {
 	switch name {
 	case "zarf-registry":
 		return api.ServiceRegistry
@@ -136,9 +136,13 @@ func componentToGeneric(c v1alpha1.ZarfComponent) api.Component {
 	}
 
 	for _, f := range c.Files {
+		var fileChecksum api.FileChecksum
+		if f.Shasum != "" {
+			fileChecksum = api.FileChecksum{Algorithm: api.ChecksumSHA256, Digest: f.Shasum}
+		}
 		gc.Files = append(gc.Files, api.File{
 			Source:           f.Source,
-			Checksum:         f.Shasum,
+			Checksum:         fileChecksum,
 			Destination:      f.Target,
 			Executable:       f.Executable,
 			Symlinks:         f.Symlinks,
@@ -148,7 +152,7 @@ func componentToGeneric(c v1alpha1.ZarfComponent) api.Component {
 	}
 
 	for _, img := range c.Images {
-		gc.Images = append(gc.Images, api.Image{Name: img})
+		gc.Images = append(gc.Images, api.Image{Name: img, Source: api.ImageSourceRegistryDaemonFallback})
 	}
 
 	for _, ia := range c.ImageArchives {
@@ -418,14 +422,6 @@ func PackageToV1alpha1(g api.Package) v1alpha1.ZarfPackage {
 		pkg.Components = append(pkg.Components, componentFromGeneric(c))
 	}
 
-	// A component providing a Zarf CLI service marks this as an init package.
-	for _, c := range g.Components {
-		if c.Service != "" {
-			pkg.Kind = v1alpha1.ZarfInitConfig
-			break
-		}
-	}
-
 	return pkg
 }
 
@@ -520,12 +516,15 @@ func componentFromGeneric(c api.Component) v1alpha1.ZarfComponent {
 	for _, f := range c.Files {
 		af := v1alpha1.ZarfFile{
 			Source:      f.Source,
-			Shasum:      f.Checksum,
 			Target:      f.Destination,
 			Executable:  f.Executable,
 			Symlinks:    f.Symlinks,
 			ExtractPath: f.ExtractPath,
 			Template:    boolPointer(f.EnableTemplating),
+		}
+		// v1alpha1 shasum stores only an unprefixed SHA-256 digest.
+		if f.Checksum.GetAlgorithm() == api.ChecksumSHA256 {
+			af.Shasum = f.Checksum.Digest
 		}
 		ac.Files = append(ac.Files, af)
 	}
