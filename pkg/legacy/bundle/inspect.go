@@ -17,8 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/pterm/pterm"
-	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -155,13 +154,13 @@ func (b *Bundle) listImages() error {
 			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
 		)
 
-		filteredPackage, err := filters.Apply(convert.PackageFromV1alpha1(zarfPkg), inspectFilter)
+		filteredPackage, err := filters.Apply(zarfPkg, inspectFilter)
 		if err != nil {
 			return err
 		}
 
 		// grab images from each filtered component
-		pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], gatherComponentImages(convert.PackageToV1alpha1(filteredPackage).Components)...)
+		pkgImgMap[pkg.Name] = append(pkgImgMap[pkg.Name], gatherComponentImages(filteredPackage.Components)...)
 	}
 
 	pkgImgsOut, err := goyaml.Marshal(pkgImgMap)
@@ -174,12 +173,24 @@ func (b *Bundle) listImages() error {
 
 // gatherComponentImages returns all images across the given components, including
 // images bundled via imageArchives (component.GetImages accounts for both).
-func gatherComponentImages(components []v1alpha1.ZarfComponent) []string {
+func gatherComponentImages(components []api.Component) []string {
 	var images []string
 	for _, component := range components {
 		images = append(images, component.GetImages()...)
 	}
 	return images
+}
+
+// inspectVariable preserves inspect output without coupling it to Zarf's alpha schema.
+type inspectVariable struct {
+	Name        string           `json:"name"`
+	Sensitive   bool             `json:"sensitive,omitempty"`
+	AutoIndent  bool             `json:"autoIndent,omitempty"`
+	Pattern     string           `json:"pattern,omitempty"`
+	Type        api.VariableType `json:"type,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Default     string           `json:"default,omitempty"`
+	Prompt      bool             `json:"prompt,omitempty"`
 }
 
 // listVariables prints the variables and overrides for each package in the bundle
@@ -195,9 +206,17 @@ func (b *Bundle) listVariables() error {
 
 		variables := make([]interface{}, 0)
 
-		// add each zarf var to variables for better formatting in output
 		for _, zarfVar := range zarfPkg.Variables {
-			variables = append(variables, zarfVar)
+			variables = append(variables, inspectVariable{
+				Name:        zarfVar.Name,
+				Sensitive:   zarfVar.Sensitive,
+				AutoIndent:  zarfVar.AutoIndent,
+				Pattern:     zarfVar.Pattern,
+				Type:        zarfVar.Type,
+				Description: zarfVar.Description,
+				Default:     zarfVar.Default,
+				Prompt:      zarfVar.Prompt,
+			})
 		}
 
 		if len(pkg.Overrides) > 0 {
@@ -213,7 +232,7 @@ func (b *Bundle) listVariables() error {
 	return nil
 }
 
-func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
+func (b *Bundle) getMetadata(pkg types.Package) (api.Package, error) {
 	// Fast path: metadata was pre-fetched for the whole bundle in a single
 	// pass. Verify and load it the same keyless-capable way as the non-cached
 	// path below, just against the directory the prefetcher already wrote so we
@@ -221,13 +240,13 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	if cached, ok := b.pkgMetaCache[pkg.Name]; ok {
 		keyTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, err
+			return api.Package{}, err
 		}
 		defer os.RemoveAll(keyTmp)
 
 		verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, keyTmp)
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+			return api.Package{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
 		pkgLayout, err := utils.LoadPackageFromDir(context.TODO(), cached.dirPath, layout.PackageLayoutOptions{
@@ -236,16 +255,16 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			VerifyBlobOptions:    verifyOpts,
 		})
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+			return api.Package{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
-		return pkgLayout.AsV1alpha1(), nil
+		return pkgLayout.Definition(), nil
 	}
 
 	// if we are inspecting a built bundle, get the metadata from the bundle
 	if !b.cfg.InspectOpts.IsYAMLFile {
 		pkgTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, err
+			return api.Package{}, err
 		}
 		defer os.RemoveAll(pkgTmp)
 
@@ -253,26 +272,26 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 		// temp dir so pkgTmp contains only package files and passes LoadFromDir integrity checks.
 		keyTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, err
+			return api.Package{}, err
 		}
 		defer os.RemoveAll(keyTmp)
 
 		verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, keyTmp)
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+			return api.Package{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
 		manifestDigest, err := packageManifestDigest(pkg)
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, err
+			return api.Package{}, err
 		}
 		source, err := sources.NewFromLocation(*b.cfg, pkg, pkgTmp, verifyOpts, config.CommonOptions.SkipSignatureValidation, manifestDigest, nil)
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, err
+			return api.Package{}, err
 		}
 
 		if _, _, err := source.LoadPackageMetadata(context.TODO(), false, true); err != nil {
-			return v1alpha1.ZarfPackage{}, err
+			return api.Package{}, err
 		}
 
 		pkgLayout, err := utils.LoadPackageFromDir(context.TODO(), pkgTmp, layout.PackageLayoutOptions{
@@ -281,10 +300,10 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 			VerifyBlobOptions:    verifyOpts,
 		})
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+			return api.Package{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 
-		return pkgLayout.AsV1alpha1(), nil
+		return pkgLayout.Definition(), nil
 	}
 
 	// otherwise we are inspecting a yaml file, get the metadata from the packages directly
@@ -292,18 +311,18 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 	source, err := utils.GetPkgSource(pkg, config.GetArch(b.bundle.Metadata.Architecture), sourceDir)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 
 	yamlTmp, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 	defer os.RemoveAll(yamlTmp)
 
 	verifyOpts, err := utils.BuildVerifyBlobOptions(pkg, yamlTmp)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+		return api.Package{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
 
 	ctx := context.TODO()
@@ -311,7 +330,7 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 	if pkg.Repository != "" {
 		plainHTTP, err = utils.NegotiatePlainHTTPForOCIRef(ctx, source, config.CommonOptions.Insecure)
 		if err != nil {
-			return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+			return api.Package{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 	}
 	remoteOpts := zarfTypes.RemoteOptions{
@@ -331,13 +350,13 @@ func (b *Bundle) getMetadata(pkg types.Package) (v1alpha1.ZarfPackage, error) {
 
 	pkgLayout, err := utils.LoadPackage(ctx, source, loadOpts)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, fmt.Errorf("package %q: %w", pkg.Name, err)
+		return api.Package{}, fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
 
-	zarfPkg := pkgLayout.AsV1alpha1()
+	zarfPkg := pkgLayout.Definition()
 	err = pkgLayout.Cleanup()
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 
 	return zarfPkg, nil

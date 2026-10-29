@@ -20,7 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -73,7 +73,7 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 	}
 
 	// if in dev mode and package is a zarf init config, return an empty package
-	if config.Dev && pkg.Kind == v1alpha1.ZarfInitConfig {
+	if config.Dev && pkg.Kind == api.ZarfInitConfig {
 		return nil, nil, nil
 	}
 
@@ -104,20 +104,20 @@ func (r *RemoteBundle) LoadPackage(ctx context.Context, filter filters.Component
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a remote bundle
-func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
+func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) (api.Package, []string, error) {
 	root, err := r.Remote.FetchRoot(ctx)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 	pkgManifestDesc := root.Locate(r.PkgManifestDigest.Encoded())
 	if oci.IsEmptyDescriptor(pkgManifestDesc) {
-		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf("zarf package %s with manifest digest %s not found", r.Pkg.Name, r.PkgManifestDigest)
+		return api.Package{}, nil, fmt.Errorf("zarf package %s with manifest digest %s not found", r.Pkg.Name, r.PkgManifestDigest)
 	}
 
 	// look at Zarf pkg manifest, grab zarf.yaml desc and download it
 	pkgManifest, err := r.Remote.FetchManifest(ctx, pkgManifestDesc)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 
 	var zarfYAMLDesc ocispec.Descriptor
@@ -129,15 +129,15 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 	}
 	pkgBytes, err := r.Remote.FetchLayer(ctx, zarfYAMLDesc)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 	if err = os.WriteFile(filepath.Join(r.TmpDir, layout.ZarfYAML), pkgBytes, 0600); err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 
 	pkg, err := utils.ReadPackageYAMLBytes(pkgBytes)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 
 	// grab checksums.txt so we can validate pkg integrity
@@ -145,11 +145,11 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 		if layer.Annotations[ocispec.AnnotationTitle] == config.ChecksumsTxt {
 			checksumBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
-				return v1alpha1.ZarfPackage{}, nil, err
+				return api.Package{}, nil, err
 			}
 			err = os.WriteFile(filepath.Join(r.TmpDir, layout.Checksums), checksumBytes, 0600)
 			if err != nil {
-				return v1alpha1.ZarfPackage{}, nil, err
+				return api.Package{}, nil, err
 			}
 			break
 		}
@@ -161,18 +161,18 @@ func (r *RemoteBundle) LoadPackageMetadata(ctx context.Context, _ bool, _ bool) 
 		case config.LegacySignature:
 			signatureBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
-				return v1alpha1.ZarfPackage{}, nil, err
+				return api.Package{}, nil, err
 			}
 			if err = os.WriteFile(filepath.Join(r.TmpDir, config.LegacySignature), signatureBytes, 0600); err != nil {
-				return v1alpha1.ZarfPackage{}, nil, err
+				return api.Package{}, nil, err
 			}
 		case layout.Bundle:
 			bundleSigBytes, err := r.Remote.FetchLayer(ctx, layer)
 			if err != nil {
-				return v1alpha1.ZarfPackage{}, nil, err
+				return api.Package{}, nil, err
 			}
 			if err = os.WriteFile(filepath.Join(r.TmpDir, layout.Bundle), bundleSigBytes, 0600); err != nil {
-				return v1alpha1.ZarfPackage{}, nil, err
+				return api.Package{}, nil, err
 			}
 		}
 	}

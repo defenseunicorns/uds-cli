@@ -21,7 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 	"github.com/zarf-dev/zarf/src/pkg/state"
@@ -124,7 +124,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		if pkg.Ref == "" {
 			return fmt.Errorf("%s .packages[%s] is missing required field: ref", config.BundleYAML, pkg.Repository)
 		}
-		var zarfYAML v1alpha1.ZarfPackage
+		var zarfYAML api.Package
 		var url string
 		ctx := context.TODO()
 		// if using a remote repository
@@ -190,7 +190,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 		if len(pkg.OptionalComponents) > 0 {
 			// validate the optional components exist in the package and support the bundle's target architecture
 			for _, component := range pkg.OptionalComponents {
-				c := helpers.Find(zarfYAML.Components, func(c v1alpha1.ZarfComponent) bool {
+				c := helpers.Find(zarfYAML.Components, func(c api.Component) bool {
 					return c.Name == component
 				})
 				// make sure the component exists
@@ -198,7 +198,7 @@ func (b *Bundle) ValidateBundleResources(spinner *message.Spinner) error {
 					return fmt.Errorf("%s .packages[%s].components[%s] does not exist in upstream: %s", config.BundleYAML, pkg.Repository, component, url)
 				}
 				// make sure the component supports the bundle's target architecture
-				if c.Only.Cluster.Architecture != "" && c.Only.Cluster.Architecture != bundle.Metadata.Architecture {
+				if c.Selector.Architecture != "" && c.Selector.Architecture != bundle.Metadata.Architecture {
 					return fmt.Errorf("%s .packages[%s].components[%s] does not support architecture: %s", config.BundleYAML, pkg.Repository, component, bundle.Metadata.Architecture)
 				}
 			}
@@ -264,9 +264,9 @@ func ValidateBundleSignature(bundleYAMLPath, signaturePath, publicKeyPath string
 }
 
 // validateOverrides ensures that the overrides have matching components and charts in the zarf package
-func validateOverrides(pkg types.Package, zarfYAML v1alpha1.ZarfPackage) error {
+func validateOverrides(pkg types.Package, zarfYAML api.Package) error {
 	for componentName, chartsValues := range pkg.Overrides {
-		var foundComponent *v1alpha1.ZarfComponent
+		var foundComponent *api.Component
 		for _, component := range zarfYAML.Components {
 			if component.Name == componentName {
 				componentCopy := component // Create a copy of the component
@@ -279,7 +279,7 @@ func validateOverrides(pkg types.Package, zarfYAML v1alpha1.ZarfPackage) error {
 		}
 
 		for chartName := range chartsValues {
-			var foundChart *v1alpha1.ZarfChart
+			var foundChart *api.Chart
 			for _, chart := range foundComponent.Charts {
 				if chart.Name == chartName {
 					chartCopy := chart // Create a copy of the chart

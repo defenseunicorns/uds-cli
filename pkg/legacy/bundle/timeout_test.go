@@ -11,7 +11,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 )
@@ -123,7 +123,7 @@ func TestNewDeployOptionsPassesArchitectureOverride(t *testing.T) {
 	for _, skip := range []bool{false, true} {
 		bndl := Bundle{cfg: &types.BundleConfig{DeployOpts: types.BundleDeployOptions{SkipArchitectureCheck: skip}}}
 
-		opts, err := bndl.newDeployOptions(t.Context(), types.Package{Name: "app"}, nil, nil, v1alpha1.ZarfPackageConfig, state.RegistryInfo{})
+		opts, err := bndl.newDeployOptions(t.Context(), types.Package{Name: "app"}, nil, nil, api.ZarfPackageConfig, state.RegistryInfo{})
 
 		require.NoError(t, err)
 		require.Equal(t, skip, opts.SkipArchitectureCheck)
@@ -140,7 +140,7 @@ func TestNewDeployOptionsUsesPackageNamespace(t *testing.T) {
 		types.Package{Name: "podinfo", Namespace: "podinfo-system"},
 		zarfVarData{"THING": "value"},
 		packager.ValuesOverrides{},
-		v1alpha1.ZarfPackageConfig,
+		api.ZarfPackageConfig,
 		state.RegistryInfo{},
 	)
 
