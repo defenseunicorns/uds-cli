@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -264,20 +265,34 @@ func (c *K8sClient) WaitForStatefulSetReady(namespace, name string, timeout time
 	})
 }
 
-func (c *K8sClient) WaitForReadyPodBySelector(namespace, labelSelector string, timeout time.Duration) {
+// WaitForReadyPodBySelector returns a ready, non-terminating Pod whose UID is not excluded.
+func (c *K8sClient) WaitForReadyPodBySelector(namespace, labelSelector string, timeout time.Duration, excludedUIDs ...types.UID) corev1.Pod {
 	c.t.Helper()
+	excluded := make(map[types.UID]struct{}, len(excludedUIDs))
+	for _, uid := range excludedUIDs {
+		excluded[uid] = struct{}{}
+	}
+	var readyPod corev1.Pod
 	waitFor(c.t, timeout, fmt.Sprintf("ready pod with selector %q in namespace %q", labelSelector, namespace), func(ctx context.Context) bool {
 		pods, err := c.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
 		if err != nil {
 			return false
 		}
 		for _, pod := range pods.Items {
+			if pod.DeletionTimestamp != nil {
+				continue
+			}
+			if _, found := excluded[pod.UID]; found {
+				continue
+			}
 			if podReady(&pod) {
+				readyPod = pod
 				return true
 			}
 		}
 		return false
 	})
+	return readyPod
 }
 
 func waitFor(t *testing.T, timeout time.Duration, description string, ready func(context.Context) bool) {
