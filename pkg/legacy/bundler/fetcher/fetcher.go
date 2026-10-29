@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package fetcher contains functionality to fetch local and remote Zarf pkgs for local bundling
@@ -13,14 +13,14 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
 
 // Fetcher is the interface for fetching packages
 type Fetcher interface {
 	Fetch() ([]ocispec.Descriptor, error)
-	GetPkgMetadata() (v1alpha1.ZarfPackage, error)
+	GetPkgMetadata() (api.Package, error)
 }
 
 // Config is the configuration for the fetcher

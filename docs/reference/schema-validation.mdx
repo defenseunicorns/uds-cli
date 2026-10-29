@@ -7,6 +7,17 @@ sidebar:
 
 UDS CLI ships with JSON schemas for its configuration files. Setting up schema validation in your IDE enables autocompletion and inline validation.
 
+## Zarf package schema compatibility
+
+Legacy and Next support packages defined with `zarf.dev/v1beta1`. Package metadata and component selection use Zarf's shared package model. Zarf selects the newest supported schema when a package contains multiple schema documents.
+
+The beta schema removes Zarf variables and constants. Switching an existing package to beta does not translate its variable interface into package values. Update the package and its consumers together:
+
+- In Legacy, chart `overrides` still supply Helm values directly. Zarf variable templates and variable exports need a package-specific migration; they are not converted to beta values.
+- In Next, use package `values_files` to pass configuration to beta packages. UDS config variables remain available to those files through `.vars`; top-level scalar passthrough to Zarf variables applies to alpha packages.
+
+Legacy Go integrations using package readers or fetchers must consume Zarf's `api.Package` and `api.Component` types instead of the alpha schema types.
+
 ## Recommended Method (All IDEs)
 
 Add a `yaml-language-server` header comment to your file:

@@ -589,7 +589,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: cd97002b80c274317bd090859389985dd7e332ca8cf5d983e5a2b8ef28f834a5 -->
+<!-- Source SHA256: 3432079e5656e4a578ef8d52f9aef4f8d663304c83ea5168ac5c1837f0e02273 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -705,7 +705,7 @@ variables = {
 }
 ```
 
-Variables are used by `bundle dev deploy` and `bundle deploy`. Top-level scalar values are also exposed to Zarf as uppercase variable names. Nested objects and collection values are intended for [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates.
+Variables are used by `bundle dev deploy` and `bundle deploy`. Top-level scalar values are also exposed to alpha Zarf packages as uppercase variable names. Beta Zarf packages use package values through `values_files`; UDS does not translate Zarf variables into beta package values. Nested objects and collection values are intended for [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates.
 
 A package values file can read variables with Go template expressions:
 

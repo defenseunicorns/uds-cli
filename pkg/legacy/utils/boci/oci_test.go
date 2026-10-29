@@ -16,12 +16,12 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 )
 
-func TestFilterComponentsConvertsV1beta1RequiredAndOptional(t *testing.T) {
+func TestFilterComponentsV1beta1RequiredAndOptional(t *testing.T) {
 	pkg, err := utils.ReadPackageYAMLBytes([]byte(`
 apiVersion: zarf.dev/v1beta1
 kind: ZarfPackageConfig
@@ -75,15 +75,15 @@ func TestFilterImageIndex(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		components []v1alpha1.ZarfComponent
+		components []api.Component
 		wantImages []string
 	}{
 		{
 			name: "only imageArchives",
-			components: []v1alpha1.ZarfComponent{
+			components: []api.Component{
 				{
 					Name: "hookos-artifacts",
-					ImageArchives: []v1alpha1.ImageArchive{
+					ImageArchives: []api.ImageArchive{
 						{Path: "image.tar", Images: []string{archiveImg}},
 					},
 				},
@@ -92,18 +92,18 @@ func TestFilterImageIndex(t *testing.T) {
 		},
 		{
 			name: "only images",
-			components: []v1alpha1.ZarfComponent{
-				{Name: "regular", Images: []string{regularImg}},
+			components: []api.Component{
+				{Name: "regular", Images: []api.Image{{Name: regularImg}}},
 			},
 			wantImages: []string{regularImg},
 		},
 		{
 			name: "both images and imageArchives",
-			components: []v1alpha1.ZarfComponent{
+			components: []api.Component{
 				{
 					Name:   "mixed",
-					Images: []string{regularImg},
-					ImageArchives: []v1alpha1.ImageArchive{
+					Images: []api.Image{{Name: regularImg}},
+					ImageArchives: []api.ImageArchive{
 						{Path: "image.tar", Images: []string{archiveImg}},
 					},
 				},
@@ -112,7 +112,7 @@ func TestFilterImageIndex(t *testing.T) {
 		},
 		{
 			name: "no matching images",
-			components: []v1alpha1.ZarfComponent{
+			components: []api.Component{
 				{Name: "empty"},
 			},
 			wantImages: []string{},
