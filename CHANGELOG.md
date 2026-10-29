@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.0](https://github.com/defenseunicorns/uds-cli/compare/v0.40.0...v0.41.0) (2026-10-29)
+
+
+### Features
+
+* add Zarf package disassembly/reassembly flows ([#1520](https://github.com/defenseunicorns/uds-cli/issues/1520)) ([60c5cfb](https://github.com/defenseunicorns/uds-cli/commit/60c5cfbc6a2a57d21226c04636221ed79a221302))
+
 ## [0.40.0](https://github.com/defenseunicorns/uds-cli/compare/v0.39.0...v0.40.0) (2026-10-21)
 
 
