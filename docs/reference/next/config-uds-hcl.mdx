@@ -119,7 +119,7 @@ variables = {
 }
 ```
 
-Variables are used by `bundle dev deploy` and `bundle deploy`. Top-level scalar values are also exposed to alpha Zarf packages as uppercase variable names. Beta Zarf packages use package values through `values_files`; UDS does not translate Zarf variables into beta package values. Nested objects and collection values are intended for [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates.
+Variables are used by `bundle dev deploy` and `bundle deploy`. Top-level scalar values are also exposed to Zarf as uppercase variable names. Nested objects and collection values are intended for [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates.
 
 A package values file can read variables with Go template expressions:
 

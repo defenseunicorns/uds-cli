@@ -181,6 +181,7 @@ func gatherComponentImages(components []api.Component) []string {
 	return images
 }
 
+// inspectVariable preserves inspect output without coupling it to Zarf's alpha schema.
 type inspectVariable struct {
 	Name        string           `json:"name"`
 	Sensitive   bool             `json:"sensitive,omitempty"`
