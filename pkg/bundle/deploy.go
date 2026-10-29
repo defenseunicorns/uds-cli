@@ -511,15 +511,12 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 	return source, nil
 }
 
-// TargetDeploySourceOptions supplies a read-only bundle target and a package
-// loader. The loader is responsible for obtaining and staging complete Zarf
-// package layouts when Deploy selects packages. Preparation fetches bundle
-// indexes and definition layers, including defaults and values files.
+// TargetDeploySourceOptions configures preparation from a read-only ORAS target.
 type TargetDeploySourceOptions struct {
 	Target oras.ReadOnlyTarget
 	// Reference is a tag or digest understood by Target, not a full OCI URL.
 	Reference string
-	// Loader is required so deployment never falls back to package source URLs.
+	// Loader stages and verifies package layouts; it must be non-nil.
 	Loader ZarfPackageLayoutLoader
 	// TmpDir is the parent for a private workspace; empty uses os.TempDir.
 	TmpDir string
@@ -527,12 +524,8 @@ type TargetDeploySourceOptions struct {
 	Architecture string
 }
 
-// PrepareDeploySourceFromTarget prepares a bundle from an ORAS read-only target.
-// The caller must close the returned source to remove its temporary files.
-// Resume is unavailable because a custom loader cannot supply the private
-// package metadata needed to compare deployed package state. Preparation
-// verifies the metadata and definition layers it reads, but package content
-// verification remains the caller's loader responsibility.
+// PrepareDeploySourceFromTarget prepares a bundle from a read-only ORAS target.
+// Close the returned source after use. Resume is not supported.
 func PrepareDeploySourceFromTarget(ctx context.Context, streams iostreams.IOStreams, opts TargetDeploySourceOptions) (*DeploySource, error) {
 	if opts.Target == nil {
 		return nil, fmt.Errorf("target is required: %w", ErrSourceRequired)

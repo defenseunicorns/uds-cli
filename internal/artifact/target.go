@@ -15,8 +15,8 @@ import (
 	oras "oras.land/oras-go/v2"
 )
 
-// MaterializeTargetDefinition prepares bundle-owned files from an ORAS target.
-// The caller owns dstDir and its cleanup. Package payloads are never fetched.
+// MaterializeTargetDefinition writes bundle files from a read-only ORAS target.
+// It does not fetch packages; the caller cleans up dstDir.
 func MaterializeTargetDefinition(ctx context.Context, streams iostreams.IOStreams, target oras.ReadOnlyTarget, reference, architecture, dstDir string) (*ExtractedBundle, *spec.UDSBundle, error) {
 	if architecture == "" {
 		architecture = runtime.GOARCH

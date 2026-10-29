@@ -190,8 +190,7 @@ func materializeBundleSrcFiles(ctx context.Context, streams iostreams.IOStreams,
 	})
 }
 
-// materializeBundleSrcFilesWithReader writes HCL and values layers beneath dstDir.
-// Returns the absolute path to the materialized bundle.uds.hcl file.
+// materializeBundleSrcFilesWithReader writes bundle files and returns the HCL path.
 func materializeBundleSrcFilesWithReader(ctx context.Context, streams iostreams.IOStreams, bundleDef ocispec.Manifest, dstDir string, readLayer func(context.Context, ocispec.Descriptor) ([]byte, error)) (string, error) {
 	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
