@@ -183,10 +183,16 @@ func (e *ExtractedBundle) ValuesFilesByPackage() (map[string][]string, error) {
 	return result, nil
 }
 
-// materializeBundleSrcFiles writes HCL and values file layers from the bundle
-// definition manifest to disk at their annotated title paths under dstDir.
+// materializeBundleSrcFiles writes definition layers from an extracted OCI layout.
+func materializeBundleSrcFiles(ctx context.Context, streams iostreams.IOStreams, bundleDef ocispec.Manifest, blobDir, dstDir string) (string, error) {
+	return materializeBundleSrcFilesWithReader(ctx, streams, bundleDef, dstDir, func(_ context.Context, layer ocispec.Descriptor) ([]byte, error) {
+		return os.ReadFile(filepath.Join(blobDir, layer.Digest.Hex()))
+	})
+}
+
+// materializeBundleSrcFilesWithReader writes HCL and values layers beneath dstDir.
 // Returns the absolute path to the materialized bundle.uds.hcl file.
-func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, bundleDef ocispec.Manifest, blobDir, dstDir string) (string, error) {
+func materializeBundleSrcFilesWithReader(ctx context.Context, streams iostreams.IOStreams, bundleDef ocispec.Manifest, dstDir string, readLayer func(context.Context, ocispec.Descriptor) ([]byte, error)) (string, error) {
 	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
 		return "", fmt.Errorf("%w %q: %w", ErrResolvingDestinationDirectory, dstDir, err)
@@ -210,7 +216,7 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 			continue
 		}
 
-		data, err := os.ReadFile(filepath.Join(blobDir, layer.Digest.Hex()))
+		data, err := readLayer(ctx, layer)
 		if err != nil {
 			return "", ReadingLayerBlobError{Title: title, Digest: layer.Digest, Err: err}
 		}
