@@ -124,6 +124,20 @@ Use `bundle dev deploy` for a definition and `bundle deploy` for a created artif
 
 </Steps>
 
+## Go library deployment timeouts
+
+Go callers can set these fields on `bundle.DeployOptions` when calling `bundle.Deploy`:
+
+| Field | Effect | Zero value |
+| --- | --- | --- |
+| `Timeout` | Deadline for the `Deploy` call, including bundle parsing and all selected package deployments. | No additional deadline; the caller's context still applies. |
+| `ZarfTimeout` | Timeout for Zarf Helm and component health-check operations within each package deployment. | Zarf's default of 15 minutes. |
+| `ZarfRetries` | Maximum attempts for Zarf operations that support retries. Set to `1` for one attempt. | Zarf's default of 3 attempts. |
+
+`Timeout` starts when `bundle.Deploy` is called. If you need a deadline for `bundle.PrepareDeploySource` or an earlier artifact pull, put a deadline on the context passed to those calls. A deadline cancels work through the context; already completed packages are not rolled back.
+
+Negative values are rejected. These are Go library options; the Next mode commands do not expose corresponding flags or HCL fields.
+
 ## Verification
 
 Confirm that the deployed packages are ready:

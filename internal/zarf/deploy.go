@@ -13,6 +13,7 @@ import (
 	"sync"
 	"syscall"
 	"text/template"
+	"time"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
@@ -53,7 +54,11 @@ type DeployOptions struct {
 	// Packages restricts deployment when non-empty.
 	Packages []string
 	// Resume skips packages already recorded by Zarf as the exact intended deployment.
-	Resume             bool
+	Resume bool
+	// ZarfTimeout limits Helm and component health-check operations; zero uses Zarf's default.
+	ZarfTimeout time.Duration
+	// ZarfRetries limits attempts for retryable Zarf operations; zero uses Zarf's default.
+	ZarfRetries        int
 	SpecLoader         PackageSpecLoader
 	DeployedPackagesFn DeployedPackagesFn
 	BundleDeployHooks  BundleDeployHooks
@@ -84,6 +89,10 @@ type DeployPackageOptions struct {
 	BundleDir string
 	// PackageDeployHooks supplies optional package callbacks.
 	PackageDeployHooks PackageDeployHooks
+	// ZarfTimeout limits Helm and component health-check operations; zero uses Zarf's default.
+	ZarfTimeout time.Duration
+	// ZarfRetries limits attempts for retryable Zarf operations; zero uses Zarf's default.
+	ZarfRetries int
 	// IsPartial reports whether the loaded layout omits checksum-referenced layers.
 	IsPartial bool
 	// ClusterDeployFn performs the cluster-side deployment; nil uses Zarf.
@@ -221,6 +230,8 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		Config:             opts.Config,
 		BundleDir:          bundleDir,
 		PackageDeployHooks: opts.PackageDeployHooks,
+		ZarfTimeout:        opts.ZarfTimeout,
+		ZarfRetries:        opts.ZarfRetries,
 		Streams:            s,
 		bundlePath:         opts.BundlePath,
 	}
@@ -331,6 +342,8 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 
 	deployOpts := packager.DeployOptions{
 		SkipArchitectureCheck: opts.Config.Options.SkipArchitectureCheck,
+		Timeout:               opts.ZarfTimeout,
+		Retries:               opts.ZarfRetries,
 		Values:                zarfValues, // Helm chart values from values_files
 		SetVariables:          setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
 		IsInteractive:         false,

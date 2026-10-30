@@ -6,6 +6,7 @@ package bundle
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,6 +98,26 @@ func TestValidationErrorContracts(t *testing.T) {
 	require.ErrorIs(t, (ReconfigureOptions{Config: validValidationConfig()}).Validate(), ErrInvalidSuffix)
 	require.ErrorIs(t, (SigningOptions{Mode: SigningModeKey}).Validate(), ErrInvalidSigningOptions)
 	require.ErrorIs(t, (VerificationPolicy{}).Validate(), ErrInvalidVerificationPolicy)
+}
+
+func TestDeployTimeoutAndRetryValidation(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		opts DeployOptions
+	}{
+		{name: "negative bundle timeout", opts: DeployOptions{Timeout: -time.Second}},
+		{name: "negative zarf timeout", opts: DeployOptions{ZarfTimeout: -time.Second}},
+		{name: "negative zarf retries", opts: DeployOptions{ZarfRetries: -1}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.opts.Config = validValidationConfig()
+			require.ErrorIs(t, tt.opts.Validate(), ErrInvalidDeployOptions)
+		})
+	}
+
+	require.NoError(t, (DeployOptions{Config: validValidationConfig(), Timeout: time.Minute, ZarfTimeout: 2 * time.Minute, ZarfRetries: 1}).Validate())
 }
 
 func TestFormatDependencyError(t *testing.T) {

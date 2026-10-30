@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -663,6 +664,28 @@ func TestDeployPackagePassesArchitectureOverrideToZarf(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, called)
 	}
+}
+
+func TestDeployPackagePassesTimeoutAndRetriesToZarf(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "app")
+
+	called := false
+	err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{Name: "app", Source: pkgDir}, DeployPackageOptions{
+		Config:      newDeployTestConfig(1),
+		BundleDir:   t.TempDir(),
+		ZarfTimeout: 2 * time.Minute,
+		ZarfRetries: 1,
+		ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+			called = true
+			assert.Equal(t, 2*time.Minute, opts.Timeout)
+			assert.Equal(t, 1, opts.Retries)
+			return nil
+		},
+	})
+
+	require.NoError(t, err)
+	assert.True(t, called)
 }
 
 func TestDeployPackageUsesArchitectureOverrideFromHookConfig(t *testing.T) {

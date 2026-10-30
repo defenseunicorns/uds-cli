@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
@@ -371,6 +372,31 @@ func TestDeployOptionsPropagateArchitectureOverrideToPackages(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, called)
 	}
+}
+
+func TestDeployOptionsPropagateZarfSettingsToPackages(t *testing.T) {
+	opts := toZarfDeployOptions(DeployOptions{
+		Config:      validValidationConfig(),
+		ZarfTimeout: 4 * time.Minute,
+		ZarfRetries: 1,
+	}, nil)
+	called := false
+	opts.PackageDeployFn = func(_ context.Context, _ *spec.Package, packageOpts internalzarf.DeployPackageOptions) error {
+		called = true
+		assert.Equal(t, 4*time.Minute, packageOpts.ZarfTimeout)
+		assert.Equal(t, 1, packageOpts.ZarfRetries)
+		return nil
+	}
+	b := &spec.UDSBundle{
+		UDS:      spec.UDSBlock{BundleAPIVersion: "uds.dev/v1alpha1"},
+		Metadata: spec.Metadata{Name: "bundle"},
+		Packages: []spec.Package{{Name: "app", Source: "oci://example.com/app:v1"}},
+	}
+
+	_, err := internalzarf.NewZarfDeployer(iostreams.IOStreams{}, nil).DeployBundle(t.Context(), b, opts)
+
+	require.NoError(t, err)
+	assert.True(t, called)
 }
 
 func TestBundlePreDeployArchitectureOverridePropagatesToPackages(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	bundle "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
@@ -195,4 +196,24 @@ func TestDeployValidatesOptionsBeforeHooks(t *testing.T) {
 
 	require.ErrorContains(t, err, "config is required")
 	assert.False(t, invoked)
+}
+
+func TestDeployTimeoutCancelsBundleHook(t *testing.T) {
+	var sawDeadline bool
+	hookErr := errors.New("hook stopped after deadline")
+	_, err := bundle.Deploy(t.Context(), deploySource(singlePkgBundle()), bundle.DeployOptions{
+		Config:  newTestConfig(),
+		Force:   true,
+		Timeout: 100 * time.Millisecond,
+		BundleDeployHooks: bundle.BundleDeployHooks{PreDeploy: func(ctx context.Context, _ *spec.UDSBundle, _ *bundle.DeployOptions) error {
+			_, sawDeadline = ctx.Deadline()
+			<-ctx.Done()
+			return hookErr
+		}},
+	})
+
+	require.ErrorIs(t, err, bundle.ErrDeployBundle)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, hookErr)
+	assert.True(t, sawDeadline)
 }
