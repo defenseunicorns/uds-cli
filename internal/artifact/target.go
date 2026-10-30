@@ -5,9 +5,12 @@ package artifact
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"runtime"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -33,11 +36,27 @@ func MaterializeTargetDefinition(ctx context.Context, streams iostreams.IOStream
 	if found := read.Index.Annotations[udsoci.AnnotationBundleArchitecture]; found != architecture {
 		return nil, nil, fmt.Errorf("bundle architecture %q does not match requested architecture %q: %w", found, architecture, udsoci.ErrArchitectureUnavailable)
 	}
-	bundlePath, err := materializeBundleSrcFilesWithReader(ctx, streams, read.Manifest, dstDir, func(ctx context.Context, layer ocispec.Descriptor) ([]byte, error) {
+	bundlePath, err := materializeBundleSrcFilesWithWriter(ctx, streams, read.Manifest, dstDir, func(ctx context.Context, layer ocispec.Descriptor, root *os.Root, path string) error {
+		title := layer.Annotations[ocispec.AnnotationTitle]
 		if layer.Digest == read.HCLLayer.Digest && layer.Size == read.HCLLayer.Size {
-			return read.HCLBytes, nil
+			if err := root.WriteFile(path, read.HCLBytes, filesystem.PrivateFileMode); err != nil {
+				return WritingLayerError{Title: title, Err: err}
+			}
+			return nil
 		}
-		return udsoci.FetchBytes(ctx, target, layer)
+		file, err := root.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, filesystem.PrivateFileMode)
+		if err != nil {
+			return WritingLayerError{Title: title, Err: err}
+		}
+		copyErr := udsoci.FetchVerifiedTo(ctx, target, layer, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return ReadingLayerBlobError{Title: title, Digest: layer.Digest, Err: errors.Join(copyErr, closeErr)}
+		}
+		if closeErr != nil {
+			return WritingLayerError{Title: title, Err: closeErr}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, nil, err

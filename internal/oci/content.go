@@ -32,8 +32,8 @@ func IsImageManifestMediaType(mediaType string) bool {
 // digest and size, and returns the full content in memory.
 //
 // This is the buffered path. Use it only when the caller needs the complete
-// []byte value, such as for OCI indexes, manifests, configs, or bundle
-// definition layers. The size limit is checked before reading so a registry or
+// []byte value, such as for OCI indexes, manifests, configs, or bundle HCL
+// parsed in memory. The size limit is checked before reading so a registry or
 // archive cannot force unbounded memory use.
 //
 // Do not use FetchBytes for package layers or arbitrary content blobs. Those can
@@ -52,6 +52,27 @@ func FetchBytes(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descr
 		return nil, fmt.Errorf("fetching %s: %w: %w", desc.Digest, ErrFetchContent, err)
 	}
 	return data, nil
+}
+
+// FetchVerifiedTo streams a descriptor to dst and verifies its digest and size.
+func FetchVerifiedTo(ctx context.Context, fetcher content.Fetcher, desc ocispec.Descriptor, dst io.Writer) (retErr error) {
+	if desc.Size < 0 {
+		return content.ErrInvalidDescriptorSize
+	}
+	r, err := fetcher.Fetch(ctx, desc)
+	if err != nil {
+		return fmt.Errorf("fetching %s: %w: %w", desc.Digest, ErrFetchContent, err)
+	}
+	defer func() { retErr = errors.Join(retErr, r.Close()) }()
+
+	verified := content.NewVerifyReader(r, desc)
+	if _, err := io.Copy(dst, verified); err != nil {
+		return fmt.Errorf("copying %s: %w", desc.Digest, err)
+	}
+	if err := verified.Verify(); err != nil {
+		return fmt.Errorf("verifying %s: %w", desc.Digest, err)
+	}
+	return nil
 }
 
 // NewDescriptorFromBytes returns the descriptor for data using ORAS digest and

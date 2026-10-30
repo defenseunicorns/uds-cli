@@ -7,12 +7,14 @@ package bundle_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
@@ -168,6 +170,31 @@ func TestPrepareDeploySourceFromTargetValidatesInputsAndCleansFailures(t *testin
 	entries, err := os.ReadDir(workspace)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+}
+
+func TestPrepareDeploySourceFromTargetAcceptsLargeValuesLayer(t *testing.T) {
+	values := []byte("payload: " + strings.Repeat("x", 16<<20) + "\n")
+	fixture := createLibraryBundleWithValues(t, true, true, values)
+	registryHost := startLibraryRegistry(t)
+	ref := fmt.Sprintf("%s/library/large-values:v1", registryHost)
+	_, err := bundle.Push(t.Context(), fixture.ArtifactPath, ref, bundle.PushOptions{Config: libraryRegistryConfig(fixture.Config)})
+	require.NoError(t, err)
+
+	repository, err := remote.NewRepository(registryHost + "/library/large-values")
+	require.NoError(t, err)
+	repository.PlainHTTP = true
+	source, err := bundle.PrepareDeploySourceFromTarget(t.Context(), iostreams.IOStreams{}, bundle.TargetDeploySourceOptions{
+		Target: repository, Reference: "v1", Loader: &staticLoaderImpl{}, TmpDir: t.TempDir(), Architecture: runtime.GOARCH,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, source.Close()) })
+	require.Len(t, source.Bundle.Packages, 2)
+	require.Len(t, source.Bundle.Packages[1].ValuesFiles, 1)
+	valuesPath := filepath.Join(filepath.Dir(source.BundlePath), source.Bundle.Packages[1].ValuesFiles[0])
+	got, err := os.ReadFile(valuesPath)
+	require.NoError(t, err)
+	assert.Equal(t, len(values), len(got))
+	assert.Equal(t, sha256.Sum256(values), sha256.Sum256(got))
 }
 
 type failingReadOnlyTarget struct{ oras.ReadOnlyTarget }
