@@ -6,9 +6,11 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
@@ -122,6 +124,15 @@ func (s *DeploySource) Close() error {
 type DeployOptions struct {
 	Config   *UDSBundleConfig
 	Packages []string
+	// Timeout limits this Deploy call, including parsing and package deployment.
+	// Zero adds no deadline. Source preparation happens before this call.
+	Timeout time.Duration
+	// ZarfTimeout limits Helm and component health-check operations in each package.
+	// Zero uses Zarf's default.
+	ZarfTimeout time.Duration
+	// ZarfRetries is the maximum number of attempts for Zarf retryable operations.
+	// Zero uses Zarf's default; one disables retries.
+	ZarfRetries int
 	// Force bypasses ValidateDeploySafety, allowing selected packages to deploy
 	// even when required dependencies are absent.
 	Force bool
@@ -149,6 +160,11 @@ type DeployPackageResult struct {
 func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*DeployResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
+	}
+	if opts.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, opts.Timeout)
+		defer cancel()
 	}
 	if source == nil {
 		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
@@ -199,6 +215,12 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 	deployer := newZarfDeployer(s, source.Loader)
 	result, err := deployer.deployBundle(ctx, b, opts, source)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil && !errors.Is(err, ctxErr) {
+			err = errors.Join(err, ctxErr)
+		}
+		return result, fmt.Errorf("%w %q: %w", ErrDeployBundle, b.Metadata.Name, err)
+	}
+	if err := ctx.Err(); err != nil {
 		return result, fmt.Errorf("%w %q: %w", ErrDeployBundle, b.Metadata.Name, err)
 	}
 	if result == nil {
@@ -357,6 +379,8 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 		BundleDir:          bundleDir,
 		Packages:           opts.Packages,
 		Resume:             opts.Resume,
+		ZarfTimeout:        opts.ZarfTimeout,
+		ZarfRetries:        opts.ZarfRetries,
 		PackageDeployHooks: toZarfPackageHooks(opts.PackageDeployHooks),
 	}
 	if opts.BundleDeployHooks.PreDeploy != nil {

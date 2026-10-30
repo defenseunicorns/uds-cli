@@ -18,6 +18,12 @@ func (o DeployPackageOptions) Validate() error {
 	if o.BundleDir == "" {
 		return ErrBundleDirRequired
 	}
+	if o.ZarfTimeout < 0 {
+		return fmt.Errorf("ZarfTimeout %s must not be negative", o.ZarfTimeout)
+	}
+	if o.ZarfRetries < 0 {
+		return fmt.Errorf("ZarfRetries %d must not be negative", o.ZarfRetries)
+	}
 	return nil
 }
 
