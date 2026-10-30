@@ -56,13 +56,17 @@ func createLibraryBundleWithoutDefaults(t *testing.T) libraryBundleFixture {
 }
 
 func createLibraryBundleWithOptions(t *testing.T, includeOptional, includeDefaults bool) libraryBundleFixture {
+	return createLibraryBundleWithValues(t, includeOptional, includeDefaults, []byte("replicas: 1\n"))
+}
+
+func createLibraryBundleWithValues(t *testing.T, includeOptional, includeDefaults bool, values []byte) libraryBundleFixture {
 	t.Helper()
 
 	root := t.TempDir()
 	baseSource := createLibraryPackage(t, root, "base")
 	appSource := createLibraryPackage(t, root, "app")
 	require.NoError(t, os.Mkdir(filepath.Join(root, "values"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "values", "app.yaml"), []byte("replicas: 1\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "values", "app.yaml"), values, 0o600))
 	if includeDefaults {
 		require.NoError(t, os.WriteFile(filepath.Join(root, "defaults.uds.hcl"), []byte("variables = { fixture = \"default\" }\n"), 0o600))
 	}

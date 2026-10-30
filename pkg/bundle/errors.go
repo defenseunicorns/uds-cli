@@ -43,6 +43,8 @@ var (
 	ErrInspectBundle = errors.New("inspecting bundle")
 	// ErrPrepareDeploySource occurs when an artifact cannot be prepared for deployment.
 	ErrPrepareDeploySource = errors.New("preparing deploy source")
+	// ErrPackageLayoutLoaderRequired occurs when a target source has no package loader.
+	ErrPackageLayoutLoaderRequired = errors.New("package layout loader is required for a target source")
 	// ErrResumeSourceNotPrepared occurs when resume is requested for a source that cannot provide private resume metadata.
 	ErrResumeSourceNotPrepared = errors.New("resume requires a prepared deployment source")
 	// ErrRemoveBundle occurs when bundle parsing or removal fails.
