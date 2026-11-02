@@ -22,6 +22,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 	"github.com/zarf-dev/zarf/src/pkg/value"
 )
 
@@ -335,6 +336,9 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		SetVariables:          setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
 		IsInteractive:         false,
 		NamespaceOverride:     pkg.Namespace, // empty string is fine - Zarf ignores it
+	}
+	if pkgLayout.Definition().IsInitConfig() {
+		deployOpts.AgentMutationPolicy = state.MutationPolicyAll
 	}
 
 	log.Info("deploying zarf package to cluster", "name", pkg.Name)

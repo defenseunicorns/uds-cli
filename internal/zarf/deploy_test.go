@@ -25,6 +25,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 type stagingRetryLoader struct {
@@ -656,6 +657,7 @@ func TestDeployPackagePassesArchitectureOverrideToZarf(t *testing.T) {
 			ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
 				called = true
 				assert.Equal(t, skip, opts.SkipArchitectureCheck)
+				assert.Empty(t, opts.AgentMutationPolicy)
 				return nil
 			},
 		})
@@ -663,6 +665,31 @@ func TestDeployPackagePassesArchitectureOverrideToZarf(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, called)
 	}
+}
+
+func TestDeployPackageSetsAgentMutationPolicyForInit(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "init")
+
+	zarfYAMLPath := filepath.Join(pkgDir, layout.ZarfYAML)
+	zarfYAML, err := os.ReadFile(zarfYAMLPath)
+	require.NoError(t, err)
+	//nolint:gosec // G703 treats the test-owned fixture path beneath t.TempDir as attacker-controlled.
+	require.NoError(t, os.WriteFile(zarfYAMLPath, []byte(strings.Replace(string(zarfYAML), "ZarfPackageConfig", "ZarfInitConfig", 1)), 0o600))
+
+	called := false
+	err = NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{Name: "init", Source: pkgDir}, DeployPackageOptions{
+		Config:    newDeployTestConfig(1),
+		BundleDir: t.TempDir(),
+		ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+			called = true
+			assert.Equal(t, state.MutationPolicyAll, opts.AgentMutationPolicy)
+			return nil
+		},
+	})
+
+	require.NoError(t, err)
+	assert.True(t, called)
 }
 
 func TestDeployPackageUsesArchitectureOverrideFromHookConfig(t *testing.T) {

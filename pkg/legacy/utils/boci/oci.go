@@ -282,14 +282,13 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *zarfoci.Manifest, option
 		}
 	}
 
-	// Get all the layers for relevant components, exclude images if it's a skeleton package
-	layerTypes := zoci.GetAllLayerTypes()
+	// Get all the layers for relevant components, exclude images if it's a skeleton package.
+	selection := zoci.AllLayerSelection()
+	selection.RequestedComponents = append([]api.Component{}, components...)
 	if zarfPkg.Build.Architecture == v1alpha1.SkeletonArch || strings.HasSuffix(remote.Repo().Reference.Reference, v1alpha1.SkeletonArch) {
-		layerTypes = helpers.RemoveMatches(layerTypes, func(lt zoci.LayerType) bool {
-			return lt == zoci.ImageLayers
-		})
+		selection.IncludeImages = false
 	}
-	layersFromComponents, err := remote.AssembleLayers(ctx, components, layerTypes...)
+	layersFromComponents, err := remote.AssembleLayers(ctx, selection)
 	if err != nil {
 		return nil, err
 	}

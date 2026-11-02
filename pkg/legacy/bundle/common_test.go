@@ -27,6 +27,7 @@ import (
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/state"
@@ -513,7 +514,9 @@ func Test_deployedPackageIsSuccessful(t *testing.T) {
 			})
 			t.Run("current PackageData", func(t *testing.T) {
 				pkg := state.DeployedPackage{Name: "test", DeployedComponents: tt.deployedComponents}
-				require.NoError(t, pkg.SetPackageDefinition(convert.PackageFromV1alpha1(tt.definition)))
+				definition := convert.PackageFromV1alpha1(tt.definition)
+				definition.APIVersion = v1beta1.APIVersion
+				require.NoError(t, pkg.SetPackageDefinition(definition))
 				require.NotEmpty(t, pkg.PackageData)
 				require.Equal(t, tt.want, deployedPackageIsSuccessful(pkg))
 			})

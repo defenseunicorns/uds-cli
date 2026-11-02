@@ -1668,7 +1668,7 @@ github.com/go-gorp/gorp/v3
 # github.com/go-ini/ini v1.67.0
 ## explicit
 github.com/go-ini/ini
-# github.com/go-jose/go-jose/v4 v4.1.4
+# github.com/go-jose/go-jose/v4 v4.1.6
 ## explicit; go 1.24.0
 github.com/go-jose/go-jose/v4
 github.com/go-jose/go-jose/v4/cipher
@@ -3210,8 +3210,8 @@ github.com/yuin/gopher-lua/pm
 ## explicit; go 1.18
 github.com/zalando/go-keyring
 github.com/zalando/go-keyring/secret_service
-# github.com/zarf-dev/zarf v0.88.0
-## explicit; go 1.26.9
+# github.com/zarf-dev/zarf v0.89.0
+## explicit; go 1.26.10
 github.com/zarf-dev/zarf/src/api
 github.com/zarf-dev/zarf/src/api/convert
 github.com/zarf-dev/zarf/src/api/v1alpha1

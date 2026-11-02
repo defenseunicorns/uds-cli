@@ -70,7 +70,7 @@ func disassemble(ctx context.Context, opts Options) (string, error) {
 	}()
 
 	pkg := pkgLayout.Definition()
-	if pkg.Build.Differential {
+	if pkg.Build.Differential != nil {
 		return "", errors.New("differential Zarf packages do not contain complete recreatable source")
 	}
 	if pkg.Metadata.Architecture == v1alpha1.SkeletonArch {

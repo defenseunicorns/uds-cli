@@ -11,9 +11,7 @@ import (
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
-	"github.com/mholt/archives"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/pkg/archive"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
@@ -41,17 +39,12 @@ func localizePackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLa
 		return err
 	}
 
-	if len(pkg.Documentation) == 0 {
+	if len(pkg.Attachments) == 0 {
 		return nil
 	}
-	docArchive, err := packageRoot.Open(layout.DocumentationTar)
-	if err != nil {
-		return fmt.Errorf("opening documentation archive: %w", err)
-	}
-	defer func() { _ = docArchive.Close() }()
 	docDir := filepath.Join(tmpRoot, "documentation")
-	if err := archive.DecompressStream(ctx, docArchive, docDir, archive.DecompressOpts{Extractor: archives.Tar{}}); err != nil {
-		return fmt.Errorf("extracting documentation: %w", err)
+	if err := pkgLayout.GetAttachments(ctx, docDir, nil); err != nil {
+		return fmt.Errorf("extracting package attachments: %w", err)
 	}
 	docRoot, err := os.OpenRoot(docDir)
 	if err != nil {
@@ -59,8 +52,12 @@ func localizePackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLa
 	}
 	defer func() { _ = docRoot.Close() }()
 
-	localized := make(map[string]string, len(pkg.Documentation))
-	for key, name := range layout.GetDocumentationFileNames(pkg.Documentation) {
+	localized := make(map[string]string, len(pkg.Attachments))
+	fileNames, err := layout.GetAttachmentFileNames(pkg.Attachments, nil)
+	if err != nil {
+		return fmt.Errorf("validating package attachments: %w", err)
+	}
+	for key, name := range fileNames {
 		if !filepath.IsLocal(name) {
 			return fmt.Errorf("documentation %q has invalid filename %q", key, name)
 		}
@@ -73,7 +70,7 @@ func localizePackageLevelAssets(ctx context.Context, pkgLayout *layout.PackageLa
 		}
 		localized[key] = filepath.ToSlash(rel)
 	}
-	pkg.Documentation = localized
+	pkg.Attachments = localized
 	return nil
 }
 

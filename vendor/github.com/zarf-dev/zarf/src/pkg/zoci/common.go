@@ -13,6 +13,7 @@ import (
 	"time"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
@@ -20,34 +21,56 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
 	"github.com/zarf-dev/zarf/src/types"
 	ociDirectory "oras.land/oras-go/v2/content/oci"
+	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
-// LayerType specifies a category of layers in a Zarf OCI package.
-type LayerType string
+// LayerSelection controls optional OCI package layers to retrieve.
+// Metadata layers are always retrieved; a zero-value selection retrieves metadata only.
+type LayerSelection struct {
+	// RequestedComponents scopes component and image layers.
+	// A nil slice selects every package component; a non-nil empty slice selects none.
+	RequestedComponents []api.Component
+	// IncludeComponents retrieves component archive layers in the requested scope.
+	IncludeComponents bool
+	// IncludeImages retrieves image layers referenced by components in the requested scope.
+	IncludeImages bool
+	// SBOMs selects SBOM resources; nil skips SBOM layers.
+	SBOMs *SBOMSelection
+	// Attachments selects attachment resources; nil skips attachment layers.
+	Attachments *AttachmentSelection
+}
+
+// SBOMSelection specifies which checksum-declared SBOM resources to retrieve.
+// Keys are exact component names or image references. A key selects every matching resource.
+// An empty key set selects every declared SBOM.
+type SBOMSelection struct {
+	Keys []string
+}
+
+// AttachmentSelection specifies which declared attachment resources to retrieve.
+// An empty key set selects every declared attachment.
+type AttachmentSelection struct {
+	Keys []string
+}
+
+// AllLayerSelection returns a selection for every package resource.
+func AllLayerSelection() LayerSelection {
+	return LayerSelection{
+		IncludeComponents: true,
+		IncludeImages:     true,
+		SBOMs:             &SBOMSelection{},
+		Attachments:       &AttachmentSelection{},
+	}
+}
 
 const (
-	// DefaultConcurrency is the default concurrency used for operations
+	// DefaultConcurrency is the default concurrency used for operations.
 	DefaultConcurrency = 6
-	//DefaultRetries is the default number of retries for operations
+	// DefaultRetries is the default number of retries for operations.
 	DefaultRetries = 1
-	// ImageCacheDirectory is the directory within the Zarf cache containing an OCI store
+	// ImageCacheDirectory is the directory within the Zarf cache containing OCI blobs.
 	ImageCacheDirectory = "images"
-	// MetadataLayers includes zarf.yaml, signature, and checksums.
-	MetadataLayers LayerType = "metadata"
-	// ComponentLayers includes component tarballs.
-	ComponentLayers LayerType = "components"
-	// ImageLayers includes container image blobs.
-	ImageLayers LayerType = "images"
-	// SbomLayers includes the SBOM tarball.
-	SbomLayers LayerType = "sbom"
-	// DocLayers includes the documentation tarball.
-	DocLayers LayerType = "documentation"
 )
-
-// GetAllLayerTypes returns the complete set of layer types in a Zarf OCI package.
-func GetAllLayerTypes() []LayerType {
-	return []LayerType{MetadataLayers, ComponentLayers, ImageLayers, SbomLayers, DocLayers}
-}
 
 const (
 	defaultDelayTime    = 500 * time.Millisecond
@@ -68,6 +91,9 @@ type PublishOptions struct {
 type RemoteClientOptions struct {
 	// CachePath stores OCI layers locally when non-empty.
 	CachePath string
+	// CredentialFunc supplies registry credentials.
+	// If nil, the Docker credential store is used instead.
+	CredentialFunc auth.CredentialFunc
 	// Transport configures HTTP transport behavior such as proxies and mTLS.
 	// It is cloned before use and is never modified.
 	Transport *http.Transport
@@ -87,16 +113,19 @@ func NewRemote(ctx context.Context, url string, platform ocispec.Platform, mods 
 }
 
 // NewRemoteWithOptions returns an ORAS remote repository configured with Zarf's
-// cache and transport options.
+// cache, credential, and transport options.
 func NewRemoteWithOptions(ctx context.Context, url string, platform ocispec.Platform, options RemoteClientOptions) (*Remote, error) {
 	modifiers := []oci.Modifier{
 		oci.WithInsecureSkipVerify(options.InsecureSkipTLSVerify),
+	}
+	if options.CredentialFunc != nil {
+		modifiers = append(modifiers, oci.WithCredentialFunc(options.CredentialFunc))
 	}
 	if options.Transport != nil {
 		modifiers = append(modifiers, oci.WithTransport(options.Transport))
 	}
 	if options.CachePath != "" {
-		cacheModifier, err := GetOCICacheModifier(ctx, options.CachePath)
+		cacheModifier, err := GetOCICacheModifier(options.CachePath)
 		if err != nil {
 			return nil, err
 		}
@@ -156,8 +185,8 @@ func newRemote(ctx context.Context, url string, platform ocispec.Platform, mods 
 }
 
 // GetOCICacheModifier takes in a Zarf cachePath and uses it to return an oci.WithCache modifier
-func GetOCICacheModifier(ctx context.Context, cachePath string) (oci.Modifier, error) {
-	ociCache, err := ociDirectory.NewWithContext(ctx, filepath.Join(cachePath, ImageCacheDirectory))
+func GetOCICacheModifier(cachePath string) (oci.Modifier, error) {
+	ociCache, err := ociDirectory.NewStorage(filepath.Join(cachePath, ImageCacheDirectory))
 	if err != nil {
 		return nil, err
 	}
