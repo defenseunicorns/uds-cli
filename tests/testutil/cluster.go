@@ -172,28 +172,42 @@ func DeleteK3dClusterContext(ctx context.Context, clusterName string) error {
 	return nil
 }
 
-// AllocateTestNamespace creates a unique namespace and registers its cleanup.
-func AllocateTestNamespace(t *testing.T, clusterName string, cleanupTimeout time.Duration) (string, *K8sClient) {
+// ReserveTestNamespace returns a unique namespace name and registers its cleanup
+// without creating it, allowing the system under test to own namespace creation.
+func ReserveTestNamespace(t *testing.T, cleanupTimeout time.Duration) (string, *K8sClient) {
 	t.Helper()
 
 	suffix, err := randomHex(3)
 	require.NoError(t, err)
-	base := invalidDNSLabelChars.ReplaceAllString(strings.ToLower(t.Name()), "-")
-	base = strings.Trim(base, "-")
-	if len(base) > 45 {
-		base = strings.TrimRight(base[:45], "-")
-	}
+	base := testNamespaceBase(t.Name())
 	namespace := fmt.Sprintf("%s-%s", base, suffix)
 
 	k8s := NewK8sClientOrFail(t)
-	k8s.CreateNamespace(namespace, map[string]string{
-		"uds-cli-test-run":  clusterName,
-		"uds-cli-test-name": base,
-	})
 	t.Cleanup(func() {
 		k8s.DeleteNamespaceAndWait(namespace, cleanupTimeout)
 	})
 	return namespace, k8s
+}
+
+// AllocateTestNamespace creates a unique namespace and registers its cleanup.
+func AllocateTestNamespace(t *testing.T, clusterName string, cleanupTimeout time.Duration) (string, *K8sClient) {
+	t.Helper()
+
+	namespace, k8s := ReserveTestNamespace(t, cleanupTimeout)
+	k8s.CreateNamespace(namespace, map[string]string{
+		"uds-cli-test-run":  clusterName,
+		"uds-cli-test-name": testNamespaceBase(t.Name()),
+	})
+	return namespace, k8s
+}
+
+func testNamespaceBase(name string) string {
+	base := invalidDNSLabelChars.ReplaceAllString(strings.ToLower(name), "-")
+	base = strings.Trim(base, "-")
+	if len(base) > 45 {
+		base = strings.TrimRight(base[:45], "-")
+	}
+	return base
 }
 
 // ZarfPackageStateSecretName returns the state secret name for a package override.

@@ -1,0 +1,21 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+kind: ZarfPackageConfig
+metadata:
+  name: deprecated
+  version: 1.0.0
+  architecture: amd64
+components:
+  - name: app
+    required: true
+    scripts:
+      prepare:
+        - echo legacy-create
+      before:
+        - echo legacy-deploy
+    actions:
+      onDeploy:
+        after:
+          - cmd: echo legacy-variable
+            setVariable: RESULT
