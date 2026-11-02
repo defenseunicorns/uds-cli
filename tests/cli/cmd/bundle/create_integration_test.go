@@ -6,7 +6,9 @@
 package bundle_test
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -211,4 +213,56 @@ package "uds_k3d_dev" {
 `)...)
 	require.NoError(t, os.WriteFile(bundleFile, contents, 0o600)) //nolint:gosec // bundleFile is inside a test-owned temporary directory.
 	return dir
+}
+
+func TestCreateAndDeployBetaPackage(t *testing.T) {
+	root := t.TempDir()
+	packageDir := filepath.Join(root, "pkg")
+	require.NoError(t, os.Mkdir(packageDir, 0o755))
+	outputPath := filepath.Join(root, "deployed.txt")
+	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "payload.txt"), []byte("{{ .Values.message }}"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "values.yaml"), []byte("message: beta-default\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "zarf.yaml"), []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: beta
+  version: 1.0.0
+values:
+  files: [values.yaml]
+components:
+  - name: required
+    files:
+      - source: payload.txt
+        destination: %q
+        enableTemplating: true
+`, outputPath)), 0o600))
+	packageOutput := t.TempDir()
+	cmd := exec.CommandContext(t.Context(), "mise", "exec", "--", "zarf", "package", "create", packageDir, "-o", packageOutput, "--confirm", "--features=v1beta1=true")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(output))
+	packages, err := filepath.Glob(filepath.Join(packageOutput, "zarf-package-beta-*-1.0.0.tar.zst"))
+	require.NoError(t, err)
+	require.Len(t, packages, 1)
+	packagePath := packages[0]
+	require.NoError(t, os.WriteFile(filepath.Join(root, "bundle.uds.hcl"), []byte(fmt.Sprintf(`uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata {
+  name = "beta"
+  version = "1.0.0"
+}
+package "beta" {
+  source = %q
+  signature_verification { verify = false }
+}
+`, packagePath)), 0o600))
+
+	_, err = executeCLI(t, "", "bundle", "create", "--unsigned", root)
+	require.NoError(t, err)
+	artifacts, err := filepath.Glob(filepath.Join(root, "uds-bundle-*.tar.zst"))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	_, err = executeCLI(t, "", "bundle", "deploy", "--skip-signature-verification", artifacts[0])
+	require.NoError(t, err)
+	deployed, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+	assert.Equal(t, "beta-default\n", string(deployed))
 }
