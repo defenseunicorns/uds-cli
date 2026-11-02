@@ -96,7 +96,9 @@ func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher content.F
 	}
 	pkg := filteredPackage
 	components := pkg.Components
-	layers, err := zoci.AssembleLayers(ctx, root, fetcher, components)
+	selection := zoci.AllLayerSelection()
+	selection.RequestedComponents = append([]api.Component{}, components...)
+	layers, err := zoci.AssembleLayers(ctx, root, fetcher, selection)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w for package %q: %w", ErrAssemblePackageLayers, pkg.Metadata.Name, err)
 	}

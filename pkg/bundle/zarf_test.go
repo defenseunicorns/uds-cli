@@ -45,7 +45,8 @@ func newV1beta1PackageLayout(t *testing.T) *layout.PackageLayout {
 		Components: []v1beta1.Component{{
 			Name: "main",
 			ComponentSpec: v1beta1.ComponentSpec{
-				Images: []v1beta1.Image{{Name: "example/image:v1", Source: "daemon"}},
+				Images:        []v1beta1.Image{{Name: "example/image:v1", ID: "image-id", Source: "daemon"}},
+				ImageArchives: []v1beta1.ImageArchive{{Path: "images.tar", Images: []v1beta1.ArchiveImage{{Name: "example/archive:v1", ID: "archive-image-id"}}}},
 				Import: v1beta1.ComponentImport{
 					Local:  []v1beta1.ComponentImportLocal{{Path: "one.yaml"}, {Path: "two.yaml"}},
 					Remote: []v1beta1.ComponentImportRemote{{URL: "oci://example.com/component"}},
@@ -203,6 +204,8 @@ build:
   versionRequirements:
     - version: 0.87.0
       reason: original
+  differential: true
+  differentialPackageVersion: 0.86.0
   provenanceFiles: [original.sig]
   differentialMissing: [original-component]
   signed: true
@@ -227,18 +230,21 @@ components: []
 	require.Len(t, definition.Constants, 1)
 	require.NotEmpty(t, definition.Build.Migrations)
 	require.NotNil(t, definition.Build.Signed)
+	require.NotNil(t, definition.Build.Differential)
 	originalMigration := definition.Build.Migrations[0]
+	originalDifferential := *definition.Build.Differential
 
 	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
 		pkgLayout.PackageDefinition.Variables[0].Default = "changed"
 		pkgLayout.PackageDefinition.Constants[0].Value = "changed"
 		pkgLayout.PackageDefinition.Values.Files[0] = "changed.yaml"
-		pkgLayout.PackageDefinition.Documentation["guide"] = "changed.md"
+		pkgLayout.PackageDefinition.Attachments["guide"] = "changed.md"
 		pkgLayout.PackageDefinition.Build.Migrations[0] = "changed"
 		pkgLayout.PackageDefinition.Build.RegistryOverrides["registry.example"] = "changed"
 		pkgLayout.PackageDefinition.Build.VersionRequirements[0].Reason = "changed"
 		pkgLayout.PackageDefinition.Build.ProvenanceFiles[0] = "changed.sig"
 		pkgLayout.PackageDefinition.Build.DifferentialMissing[0] = "changed-component"
+		pkgLayout.PackageDefinition.Build.Differential.FromVersion = "changed-version"
 		*pkgLayout.PackageDefinition.Build.Signed = false
 		return nil
 	}})
@@ -249,12 +255,13 @@ components: []
 	assert.Equal(t, "original", definition.Variables[0].Default)
 	assert.Equal(t, "original", definition.Constants[0].Value)
 	assert.Equal(t, "original.yaml", definition.Values.Files[0])
-	assert.Equal(t, "original.md", definition.Documentation["guide"])
+	assert.Equal(t, "original.md", definition.Attachments["guide"])
 	assert.Equal(t, originalMigration, definition.Build.Migrations[0])
 	assert.Equal(t, "original", definition.Build.RegistryOverrides["registry.example"])
 	assert.Equal(t, "original", definition.Build.VersionRequirements[0].Reason)
 	assert.Equal(t, "original.sig", definition.Build.ProvenanceFiles[0])
 	assert.Equal(t, "original-component", definition.Build.DifferentialMissing[0])
+	assert.Equal(t, originalDifferential, *definition.Build.Differential)
 	assert.True(t, *definition.Build.Signed)
 }
 
@@ -272,6 +279,8 @@ func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 
 	component := zarfLayout.AsV1beta1().Components[0]
 	assert.Equal(t, "updated/image:v1", component.Images[0].Name)
+	assert.Equal(t, "image-id", component.Images[0].ID)
+	assert.Equal(t, "archive-image-id", component.ImageArchives[0].Images[0].ID)
 	assert.Equal(t, v1beta1.ImageSourceDaemon, component.Images[0].Source)
 	assert.Len(t, component.Import.Local, 2)
 	assert.Len(t, component.Import.Remote, 1)

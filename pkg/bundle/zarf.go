@@ -133,8 +133,12 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 		signed := *definition.Build.Signed
 		definition.Build.Signed = &signed
 	}
+	if definition.Build.Differential != nil {
+		differential := *definition.Build.Differential
+		definition.Build.Differential = &differential
+	}
 	definition.Values.Files = slices.Clone(definition.Values.Files)
-	definition.Documentation = maps.Clone(definition.Documentation)
+	definition.Attachments = maps.Clone(definition.Attachments)
 	definition.Variables = slices.Clone(definition.Variables)
 	definition.Constants = slices.Clone(definition.Constants)
 	result := &ZarfPackageLayout{

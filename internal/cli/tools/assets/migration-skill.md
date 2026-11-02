@@ -944,7 +944,7 @@ Replace `<ARCH>` with the target architecture, such as `amd64` or `arm64`.
 
 ## Included documentation: docs/how-to-guides/verify-keyless-package-signatures.mdx
 
-<!-- Source SHA256: f10eb4aa71f9d0016a942e6d1a59b55186338067953d7e02694737a3c51b3298 -->
+<!-- Source SHA256: 64831ad762d83a3c09d17b841ac71c72d5e6d9fdb48f51bdc1243dfc925db335 -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -1006,7 +1006,7 @@ packages:
    packages:
      - name: init
        repository: ghcr.io/zarf-dev/packages/init
-       ref: v0.88.0
+       ref: v0.89.0
        keylessVerification:
          certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
          certificateOIDCIssuer: https://token.actions.githubusercontent.com

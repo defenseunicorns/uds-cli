@@ -81,7 +81,6 @@ func deploy(ctx context.Context, bndlClient *bundle.Bundle) error {
 func configureZarf() {
 	zarfConfig.CommonOptions = zarfTypes.ZarfCommonOptions{
 		TempDirectory: config.CommonOptions.TempDirectory,
-		CachePath:     config.CommonOptions.CachePath, // use uds-cache instead of zarf-cache
 	}
 }
 

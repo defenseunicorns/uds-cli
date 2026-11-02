@@ -244,6 +244,7 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 	}
 	if pkgKind == v1alpha1.ZarfInitConfig {
 		opts.InjectorImage = pkgVars[config.InjectorImage]
+		opts.AgentMutationPolicy = state.MutationPolicyAll
 	}
 	return opts, nil
 }
