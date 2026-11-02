@@ -4,6 +4,7 @@
 package oci
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -15,6 +16,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 )
 
@@ -76,6 +78,37 @@ func TestFetchBytesRejectsOversizedDescriptor(t *testing.T) {
 	assert.Equal(t, desc.Digest, sizeErr.Digest)
 	assert.Equal(t, desc.Size, sizeErr.Size)
 	assert.Equal(t, int64(MaxFetchBytesSize), sizeErr.Limit)
+}
+
+func TestFetchVerifiedToChecksDigestAndSize(t *testing.T) {
+	data := []byte("verified content")
+	desc := ocispec.Descriptor{Digest: godigest.FromBytes(data), Size: int64(len(data))}
+	var dst bytes.Buffer
+	require.NoError(t, FetchVerifiedTo(t.Context(), staticContentFetcher{data}, desc, &dst))
+	assert.Equal(t, data, dst.Bytes())
+
+	dst.Reset()
+	err := FetchVerifiedTo(t.Context(), staticContentFetcher{[]byte("verified contenx")}, desc, &dst)
+	require.ErrorIs(t, err, content.ErrMismatchedDigest)
+
+	dst.Reset()
+	err = FetchVerifiedTo(t.Context(), staticContentFetcher{[]byte("short")}, desc, &dst)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+
+	dst.Reset()
+	err = FetchVerifiedTo(t.Context(), staticContentFetcher{append(data, '!')}, desc, &dst)
+	require.ErrorIs(t, err, content.ErrTrailingData)
+
+	desc.Size = -1
+	dst.Reset()
+	err = FetchVerifiedTo(t.Context(), staticContentFetcher{data}, desc, &dst)
+	require.ErrorIs(t, err, content.ErrInvalidDescriptorSize)
+}
+
+type staticContentFetcher struct{ data []byte }
+
+func (f staticContentFetcher) Fetch(context.Context, ocispec.Descriptor) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(f.data)), nil
 }
 
 func TestEnsureTagAvailableRejectsExistingTag(t *testing.T) {
