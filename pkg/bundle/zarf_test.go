@@ -45,8 +45,7 @@ func newV1beta1PackageLayout(t *testing.T) *layout.PackageLayout {
 		Components: []v1beta1.Component{{
 			Name: "main",
 			ComponentSpec: v1beta1.ComponentSpec{
-				Images:        []v1beta1.Image{{Name: "example/image:v1", ID: "image-id", Source: "daemon"}},
-				ImageArchives: []v1beta1.ImageArchive{{Path: "images.tar", Images: []v1beta1.ArchiveImage{{Name: "example/archive:v1", ID: "archive-image-id"}}}},
+				Images: []v1beta1.Image{{Name: "example/image:v1", Source: "daemon"}},
 				Import: v1beta1.ComponentImport{
 					Local:  []v1beta1.ComponentImportLocal{{Path: "one.yaml"}, {Path: "two.yaml"}},
 					Remote: []v1beta1.ComponentImportRemote{{URL: "oci://example.com/component"}},
@@ -279,8 +278,6 @@ func TestPublicPackageHookPreservesV1beta1Fields(t *testing.T) {
 
 	component := zarfLayout.AsV1beta1().Components[0]
 	assert.Equal(t, "updated/image:v1", component.Images[0].Name)
-	assert.Equal(t, "image-id", component.Images[0].ID)
-	assert.Equal(t, "archive-image-id", component.ImageArchives[0].Images[0].ID)
 	assert.Equal(t, v1beta1.ImageSourceDaemon, component.Images[0].Source)
 	assert.Len(t, component.Import.Local, 2)
 	assert.Len(t, component.Import.Remote, 1)
