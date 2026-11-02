@@ -471,12 +471,6 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		_ = cleanup()
 		return nil, fmt.Errorf("%w: extracting bundle artifact: %w", ErrPrepareDeploySource, err)
 	}
-	valuesOverride, err := extracted.ValuesFilesByPackage()
-	if err != nil {
-		_ = cleanup()
-		return nil, fmt.Errorf("%w: collecting values files from artifact: %w", ErrPrepareDeploySource, err)
-	}
-
 	bundleBytes, err := os.ReadFile(extracted.BundleDefPath)
 	if err != nil {
 		_ = cleanup()
@@ -487,9 +481,10 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		_ = cleanup()
 		return nil, fmt.Errorf("%w: parsing extracted bundle definition: %w", ErrPrepareDeploySource, err)
 	}
-	if err := applyArtifactValuesFiles(preparedBundle, valuesOverride, extracted.Dir); err != nil {
+	defaultsPath, err := prepareMaterializedBundle(preparedBundle, extracted, path, "artifact")
+	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("%w from %q: %w", ErrPrepareDeploySource, path, err)
+		return nil, err
 	}
 
 	artifactLoader := &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{
@@ -497,16 +492,12 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 	}}
 	source := &DeploySource{
 		BundlePath:       extracted.BundleDefPath,
+		DefaultsPath:     defaultsPath,
 		Bundle:           preparedBundle,
 		Loader:           artifactLoader,
 		packageZarfNames: extracted.PackageZarfNames,
 		resumePrepared:   true,
 		close:            cleanup,
-	}
-	source.DefaultsPath, err = bundleinternal.AdjacentDefaultsPath(filepath.Dir(extracted.BundleDefPath))
-	if err != nil {
-		_ = cleanup()
-		return nil, fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
 	}
 	return source, nil
 }
@@ -555,19 +546,10 @@ func PrepareDeploySourceFromTarget(ctx context.Context, streams iostreams.IOStre
 		_ = cleanup()
 		return nil, fmt.Errorf("%w: reading bundle target %q: %w", ErrPrepareDeploySource, opts.Reference, err)
 	}
-	valuesOverride, err := extracted.ValuesFilesByPackage()
+	defaultsPath, err := prepareMaterializedBundle(preparedBundle, extracted, opts.Reference, "target")
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("%w: collecting values files from target: %w", ErrPrepareDeploySource, err)
-	}
-	if err := applyArtifactValuesFiles(preparedBundle, valuesOverride, extracted.Dir); err != nil {
-		_ = cleanup()
-		return nil, fmt.Errorf("%w from %q: %w", ErrPrepareDeploySource, opts.Reference, err)
-	}
-	defaultsPath, err := bundleinternal.AdjacentDefaultsPath(filepath.Dir(extracted.BundleDefPath))
-	if err != nil {
-		_ = cleanup()
-		return nil, fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
+		return nil, err
 	}
 	return &DeploySource{
 		BundlePath:     extracted.BundleDefPath,
@@ -577,6 +559,21 @@ func PrepareDeploySourceFromTarget(ctx context.Context, streams iostreams.IOStre
 		requiresLoader: true,
 		close:          cleanup,
 	}, nil
+}
+
+func prepareMaterializedBundle(preparedBundle *spec.UDSBundle, extracted *artifact.ExtractedBundle, source, kind string) (string, error) {
+	valuesOverride, err := extracted.ValuesFilesByPackage()
+	if err != nil {
+		return "", fmt.Errorf("%w: collecting values files from %s: %w", ErrPrepareDeploySource, kind, err)
+	}
+	if err := applyArtifactValuesFiles(preparedBundle, valuesOverride, extracted.Dir); err != nil {
+		return "", fmt.Errorf("%w from %q: %w", ErrPrepareDeploySource, source, err)
+	}
+	defaultsPath, err := bundleinternal.AdjacentDefaultsPath(filepath.Dir(extracted.BundleDefPath))
+	if err != nil {
+		return "", fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
+	}
+	return defaultsPath, nil
 }
 
 func applyArtifactValuesFiles(b *spec.UDSBundle, valuesByPackage map[string][]string, bundleDir string) error {

@@ -42,21 +42,17 @@ type libraryBundleFixture struct {
 
 func createLibraryBundle(t *testing.T) libraryBundleFixture {
 	t.Helper()
-	return createLibraryBundleWithOptions(t, true, true)
+	return createLibraryBundleWithValues(t, true, true, []byte("replicas: 1\n"))
 }
 
 func createLibraryBundleWithoutOptionalComponent(t *testing.T) libraryBundleFixture {
 	t.Helper()
-	return createLibraryBundleWithOptions(t, false, true)
+	return createLibraryBundleWithValues(t, false, true, []byte("replicas: 1\n"))
 }
 
 func createLibraryBundleWithoutDefaults(t *testing.T) libraryBundleFixture {
 	t.Helper()
-	return createLibraryBundleWithOptions(t, true, false)
-}
-
-func createLibraryBundleWithOptions(t *testing.T, includeOptional, includeDefaults bool) libraryBundleFixture {
-	return createLibraryBundleWithValues(t, includeOptional, includeDefaults, []byte("replicas: 1\n"))
+	return createLibraryBundleWithValues(t, true, false, []byte("replicas: 1\n"))
 }
 
 func createLibraryBundleWithValues(t *testing.T, includeOptional, includeDefaults bool, values []byte) libraryBundleFixture {
