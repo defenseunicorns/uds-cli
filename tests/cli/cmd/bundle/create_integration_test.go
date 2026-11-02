@@ -8,7 +8,6 @@ package bundle_test
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -18,6 +17,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
+	"github.com/zarf-dev/zarf/src/pkg/packager/load"
 
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -236,14 +237,13 @@ components:
         destination: %q
         enableTemplating: true
 `, outputPath)), 0o600))
-	packageOutput := t.TempDir()
-	cmd := exec.CommandContext(t.Context(), "mise", "exec", "--", "zarf", "package", "create", packageDir, "-o", packageOutput, "--confirm", "--features=v1beta1=true")
-	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(output))
-	packages, err := filepath.Glob(filepath.Join(packageOutput, "zarf-package-beta-*-1.0.0.tar.zst"))
+	resolved, err := load.Package(t.Context(), packageDir, load.PackageOptions{})
 	require.NoError(t, err)
-	require.Len(t, packages, 1)
-	packagePath := packages[0]
+	layout, err := assemble.AssemblePackage(t.Context(), resolved, assemble.AssembleOptions{SkipSBOM: true, CachePath: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, layout.Cleanup()) })
+	packagePath, err := layout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "bundle.uds.hcl"), []byte(fmt.Sprintf(`uds { bundle_api_version = "uds.dev/v1alpha1" }
 metadata {
   name = "beta"
