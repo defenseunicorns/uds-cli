@@ -24,7 +24,7 @@ import (
 	"github.com/mholt/archives"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
@@ -60,7 +60,7 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 	}
 
 	// if in dev mode and package is a zarf init config, return an empty package
-	if config.Dev && pkg.Kind == v1alpha1.ZarfInitConfig {
+	if config.Dev && pkg.Kind == api.ZarfInitConfig {
 		return nil, nil, nil
 	}
 
@@ -92,17 +92,17 @@ func (t *TarballBundle) LoadPackage(ctx context.Context, filter filters.Componen
 }
 
 // LoadPackageMetadata loads a Zarf package's metadata from a local tarball bundle
-func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (v1alpha1.ZarfPackage, []string, error) {
+func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (api.Package, []string, error) {
 	ctx := context.TODO()
 
 	sourceArchive, err := os.Open(t.BundleLocation)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 
 	imageManifest, err := t.extractPackageManifest(ctx, sourceArchive)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 
 	var zarfYamlSHA string
@@ -114,7 +114,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 	}
 
 	if zarfYamlSHA == "" {
-		return v1alpha1.ZarfPackage{}, nil, fmt.Errorf("zarf.yaml with SHA %s not found", zarfYamlSHA)
+		return api.Package{}, nil, fmt.Errorf("zarf.yaml with SHA %s not found", zarfYamlSHA)
 	}
 
 	// grab SHA of checksums.txt
@@ -147,7 +147,7 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 	// reset file reader
 	_, err = sourceArchive.Seek(0, 0)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 
 	// grab zarf.yaml, checksums.txt, and signature(s) (if present)
@@ -205,13 +205,13 @@ func (t *TarballBundle) LoadPackageMetadata(_ context.Context, _ bool, _ bool) (
 		if closeErr := sourceArchive.Close(); closeErr != nil {
 			message.Debugf("close after extract error: %v", closeErr)
 		}
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 
 	// deserialize zarf.yaml to grab checksum for validating pkg integrity
 	pkg, err := utils.ReadPackageYAML(filepath.Join(t.TmpDir, layout.ZarfYAML))
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, nil, err
+		return api.Package{}, nil, err
 	}
 
 	err = sourceArchive.Close()

@@ -21,7 +21,6 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -309,7 +308,7 @@ func FindPkgLayers(remote zoci.Remote, pkgRootManifest *zarfoci.Manifest, option
 }
 
 // FilterImageIndex filters out optional components from the images index
-func FilterImageIndex(components []v1alpha1.ZarfComponent, imgIndex ocispec.Index) ([]ocispec.Descriptor, error) {
+func FilterImageIndex(components []api.Component, imgIndex ocispec.Index) ([]ocispec.Descriptor, error) {
 	// include only images that are in the components using a map to dedup manifests
 	manifestIncludeMap := map[string]ocispec.Descriptor{}
 	for _, manifest := range imgIndex.Manifests {
@@ -529,7 +528,7 @@ func handleImgIndex(ctx context.Context, fetcher BundleLayerFetcher, desc ocispe
 	return index, nil
 }
 
-func getFilteredComponents(ctx context.Context, fetcher BundleLayerFetcher, manifest oci.Manifest, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
+func getFilteredComponents(ctx context.Context, fetcher BundleLayerFetcher, manifest oci.Manifest, optionalComponents []string) ([]api.Component, error) {
 	// get Zarf pkg from manifest
 	for _, desc := range manifest.Layers {
 		if desc.Annotations[ocispec.AnnotationTitle] == config.ZarfYAML {
@@ -544,13 +543,13 @@ func getFilteredComponents(ctx context.Context, fetcher BundleLayerFetcher, mani
 			return filterComponents(zarfPkg, optionalComponents)
 		}
 	}
-	return filterComponents(v1alpha1.ZarfPackage{}, optionalComponents)
+	return filterComponents(api.Package{}, optionalComponents)
 }
 
-func filterComponents(zarfPkg v1alpha1.ZarfPackage, optionalComponents []string) ([]v1alpha1.ZarfComponent, error) {
-	filtered, err := filters.Apply(convert.PackageFromV1alpha1(zarfPkg), filters.ForDeploy(strings.Join(optionalComponents, ","), false))
+func filterComponents(zarfPkg api.Package, optionalComponents []string) ([]api.Component, error) {
+	filtered, err := filters.Apply(zarfPkg, filters.ForDeploy(strings.Join(optionalComponents, ","), false))
 	if err != nil {
 		return nil, err
 	}
-	return convert.PackageToV1alpha1(filtered).Components, nil
+	return filtered.Components, nil
 }

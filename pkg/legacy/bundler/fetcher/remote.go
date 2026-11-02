@@ -17,8 +17,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -166,7 +165,7 @@ func (f *remoteFetcher) verifyPackageSignature() error {
 	return nil
 }
 
-func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
+func (f *remoteFetcher) GetPkgMetadata() (api.Package, error) {
 	ctx := context.TODO()
 	platform := ocispec.Platform{
 		Architecture: config.GetArch(),
@@ -177,9 +176,9 @@ func (f *remoteFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 	url := fmt.Sprintf("%s:%s", f.pkg.Repository, f.pkg.Ref)
 	remote, err := NewZarfOCIRemote(ctx, url, platform)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 
 	pkg, err := remote.FetchZarfYAML(ctx)
-	return convert.PackageToV1alpha1(pkg), err
+	return pkg, err
 }

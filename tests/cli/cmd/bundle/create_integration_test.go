@@ -6,6 +6,7 @@
 package bundle_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +17,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
+	"github.com/zarf-dev/zarf/src/pkg/packager/load"
 
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -211,4 +214,55 @@ package "uds_k3d_dev" {
 `)...)
 	require.NoError(t, os.WriteFile(bundleFile, contents, 0o600)) //nolint:gosec // bundleFile is inside a test-owned temporary directory.
 	return dir
+}
+
+func TestCreateAndDeployBetaPackage(t *testing.T) {
+	root := t.TempDir()
+	packageDir := filepath.Join(root, "pkg")
+	require.NoError(t, os.Mkdir(packageDir, 0o755))
+	outputPath := filepath.Join(root, "deployed.txt")
+	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "payload.txt"), []byte("{{ .Values.message }}"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "values.yaml"), []byte("message: beta-default\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "zarf.yaml"), []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: beta
+  version: 1.0.0
+values:
+  files: [values.yaml]
+components:
+  - name: required
+    files:
+      - source: payload.txt
+        destination: %q
+        enableTemplating: true
+`, outputPath)), 0o600))
+	resolved, err := load.Package(t.Context(), packageDir, load.PackageOptions{})
+	require.NoError(t, err)
+	layout, err := assemble.AssemblePackage(t.Context(), resolved, assemble.AssembleOptions{SkipSBOM: true, CachePath: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, layout.Cleanup()) })
+	packagePath, err := layout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "bundle.uds.hcl"), []byte(fmt.Sprintf(`uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata {
+  name = "beta"
+  version = "1.0.0"
+}
+package "beta" {
+  source = %q
+  signature_verification { verify = false }
+}
+`, packagePath)), 0o600))
+
+	_, err = executeCLI(t, "", "bundle", "create", "--unsigned", root)
+	require.NoError(t, err)
+	artifacts, err := filepath.Glob(filepath.Join(root, "uds-bundle-*.tar.zst"))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	_, err = executeCLI(t, "", "bundle", "deploy", "--skip-signature-verification", artifacts[0])
+	require.NoError(t, err)
+	deployed, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+	assert.Equal(t, "beta-default\n", string(deployed))
 }
