@@ -50,7 +50,7 @@ components:
 	alphaPackagePath, err := alphaLayout.Archive(t.Context(), root, 0)
 	require.NoError(t, err)
 	excluded := filepath.Join(root, "excluded.txt")
-	require.NoError(t, os.WriteFile(filepath.Join(root, "payload.txt"), []byte("{{ .Values.message }}"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "payload.txt"), []byte("{{ .Values.message }}\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "values.yaml"), []byte("message: beta-default"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "override.yaml"), []byte("message: '{{ .vars.message }}'"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "zarf.yaml"), []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1beta1
