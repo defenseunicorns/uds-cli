@@ -16,7 +16,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -79,7 +79,7 @@ func getImgLayerDigests(pkgDir string, manifestsToInclude []ocispec.Descriptor) 
 }
 
 // filterPkgPaths grabs paths that either not in the blobs dir or are in includeLayers
-func filterPkgPaths(pkgLayout *layout.PackageLayout, includeLayers []string, optionalComponents []v1alpha1.ZarfComponent) []string {
+func filterPkgPaths(pkgLayout *layout.PackageLayout, includeLayers []string, optionalComponents []api.Component) []string {
 	var filteredPaths []string
 	paths, err := pkgLayout.Files()
 	if err != nil {

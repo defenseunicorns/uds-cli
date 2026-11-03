@@ -1,10 +1,11 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package utils provides utility fns for UDS-CLI
 package utils
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,47 +26,37 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mholt/archives"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
-	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/api/v1beta1"
+	"github.com/zarf-dev/zarf/src/api"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/signing"
+	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	"oras.land/oras-go/v2/content"
 )
 
-// ReadPackageYAML decodes either supported Zarf package schema and returns
-// the legacy v1alpha1 compatibility view through Zarf's public converter.
-func ReadPackageYAML(path string) (v1alpha1.ZarfPackage, error) {
+// ReadPackageYAML reads a package definition using Zarf's schema-neutral parser.
+func ReadPackageYAML(path string) (api.Package, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 	return ReadPackageYAMLBytes(data)
 }
 
-// ReadPackageYAMLBytes decodes either supported Zarf package schema and returns
-// the legacy v1alpha1 compatibility view through Zarf's public converter.
-func ReadPackageYAMLBytes(data []byte) (v1alpha1.ZarfPackage, error) {
-	var header struct {
-		APIVersion string `yaml:"apiVersion"`
-	}
-	if err := goyaml.Unmarshal(data, &header); err != nil {
-		return v1alpha1.ZarfPackage{}, err
-	}
-	if header.APIVersion == v1beta1.APIVersion {
-		var pkg v1beta1.Package
-		if err := goyaml.Unmarshal(data, &pkg); err != nil {
-			return v1alpha1.ZarfPackage{}, err
-		}
-		return convert.PackageV1beta1ToV1alpha1(pkg), nil
-	}
-	var pkg v1alpha1.ZarfPackage
-	if err := goyaml.Unmarshal(data, &pkg); err != nil {
-		return v1alpha1.ZarfPackage{}, err
-	}
-	return pkg, nil
+// ReadPackageYAMLBytes parses a package definition using Zarf's schema-neutral parser.
+func ReadPackageYAMLBytes(data []byte) (api.Package, error) {
+	// Zarf exposes its multi-document parser through the OCI metadata reader.
+	desc := content.NewDescriptorFromBytes(layout.ZarfLayerMediaTypeBlob, data)
+	desc.Annotations = map[string]string{ocispec.AnnotationTitle: layout.ZarfYAML}
+	root := &zarfoci.Manifest{Manifest: ocispec.Manifest{Layers: []ocispec.Descriptor{desc}}}
+	fetcher := content.FetcherFunc(func(context.Context, ocispec.Descriptor) (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(data)), nil
+	})
+	return zoci.FetchZarfYAML(context.Background(), root, fetcher)
 }
 
 // IsValidTarballPath returns true if the path is a valid tarball path to a bundle tarball
@@ -85,7 +76,7 @@ func IsValidTarballPath(path string) bool {
 }
 
 // IncludeComponent checks if a component has been specified in a a list of components (used for filtering optional components)
-func IncludeComponent(componentToCheck string, filteredComponents []v1alpha1.ZarfComponent) bool {
+func IncludeComponent(componentToCheck string, filteredComponents []api.Component) bool {
 	for _, component := range filteredComponents {
 		// get component name from annotation
 		nameWithSuffix := strings.Split(componentToCheck, "components/")[1]

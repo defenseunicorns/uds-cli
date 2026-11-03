@@ -30,8 +30,15 @@ func localizeImages(ctx context.Context, pkgLayout *layout.PackageLayout, output
 	if err != nil {
 		return err
 	}
+	archiveImages := make([]api.ArchiveImage, 0, len(images))
+	for _, image := range component.Images {
+		archiveImages = append(archiveImages, api.ArchiveImage{Name: image.Name, ID: image.ID})
+	}
+	for _, imageArchive := range component.ImageArchives {
+		archiveImages = append(archiveImages, imageArchive.Images...)
+	}
 	component.Images = nil
-	component.ImageArchives = []api.ImageArchive{{Path: archiveRel, Images: images}}
+	component.ImageArchives = []api.ImageArchive{{Path: archiveRel, Images: archiveImages}}
 	return nil
 }
 

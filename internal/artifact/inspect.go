@@ -142,6 +142,22 @@ func InspectBundleDefinition(ctx context.Context, opts InspectOptions) (*Inspect
 
 // ReadBundleDefinition reads the bundle definition from a resolved metadata source.
 func ReadBundleDefinition(ctx context.Context, source *MetadataSource, streams iostreams.IOStreams) (*InspectResult, error) {
+	read, err := readBundleDefinition(ctx, source, streams)
+	if err != nil {
+		return nil, err
+	}
+	return read.Inspection, nil
+}
+
+type bundleDefinitionRead struct {
+	Inspection *InspectResult
+	Index      ocispec.Index
+	Manifest   ocispec.Manifest
+	HCLLayer   ocispec.Descriptor
+	HCLBytes   []byte
+}
+
+func readBundleDefinition(ctx context.Context, source *MetadataSource, streams iostreams.IOStreams) (*bundleDefinitionRead, error) {
 	var idx ocispec.Index
 	if err := json.Unmarshal(source.IndexBytes, &idx); err != nil {
 		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleIndex, source.ArtifactDigest, err)
@@ -222,7 +238,13 @@ func ReadBundleDefinition(ctx context.Context, source *MetadataSource, streams i
 		PackageSignatures: make(map[string]PackageSignatureSummary),
 	}
 
-	return result, nil
+	return &bundleDefinitionRead{
+		Inspection: result,
+		Index:      idx,
+		Manifest:   definition,
+		HCLLayer:   hclDesc,
+		HCLBytes:   hclBytes,
+	}, nil
 }
 
 // ReadZarfPackageNames reads selected deployed Zarf names from a resolved source.

@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package fetcher contains functionality to fetch local and remote Zarf pkgs for local bundling
@@ -20,7 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	zarfUtils "github.com/zarf-dev/zarf/src/pkg/utils"
@@ -48,17 +48,17 @@ func (f *localFetcher) Fetch() ([]ocispec.Descriptor, error) {
 }
 
 // GetPkgMetadata grabs metadata from a local Zarf package's zarf.yaml
-func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
+func (f *localFetcher) GetPkgMetadata() (api.Package, error) {
 	// todo: can we refactor to use Zarf fns?
 	tmpDir, err := zarfUtils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 	zarfTarball, err := os.Open(f.cfg.Bundle.Packages[f.cfg.PkgIter].Path)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 	if err := config.BundleArchiveFormat.Extract(context.TODO(), zarfTarball, func(_ context.Context, fileInArchive archives.FileInfo) error {
 		if fileInArchive.NameInArchive != config.ZarfYAML {
@@ -83,12 +83,12 @@ func (f *localFetcher) GetPkgMetadata() (v1alpha1.ZarfPackage, error) {
 		return nil
 	}); err != nil {
 		zarfTarball.Close()
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 	zarfYAMLPath := filepath.Join(tmpDir, config.ZarfYAML)
 	zarfYAML, err := utils.ReadPackageYAML(zarfYAMLPath)
 	if err != nil {
-		return v1alpha1.ZarfPackage{}, err
+		return api.Package{}, err
 	}
 	return zarfYAML, err
 }
@@ -132,7 +132,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, error) {
 	}
 
 	pkgTmp := pkgLayout.DirPath()
-	zarfPkg := pkgLayout.AsV1alpha1()
+	zarfPkg := pkgLayout.Definition()
 
 	// get paths from pkgs to put in the bundle
 	var pathsToBundle []string
