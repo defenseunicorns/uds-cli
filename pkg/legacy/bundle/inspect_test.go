@@ -57,7 +57,7 @@ func TestGatherComponentImages(t *testing.T) {
 				{
 					Name: "hookos-artifacts",
 					ImageArchives: []api.ImageArchive{
-						{Path: "image.tar", Images: []string{archiveImg}},
+						{Path: "image.tar", Images: []api.ArchiveImage{{Name: archiveImg}}},
 					},
 				},
 			},
@@ -70,7 +70,7 @@ func TestGatherComponentImages(t *testing.T) {
 				{
 					Name: "hookos-artifacts",
 					ImageArchives: []api.ImageArchive{
-						{Path: "image.tar", Images: []string{archiveImg}},
+						{Path: "image.tar", Images: []api.ArchiveImage{{Name: archiveImg}}},
 					},
 				},
 			},
