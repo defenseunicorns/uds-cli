@@ -264,5 +264,5 @@ package "beta" {
 	require.NoError(t, err)
 	deployed, err := os.ReadFile(outputPath)
 	require.NoError(t, err)
-	assert.Equal(t, "beta-default\n", string(deployed))
+	assert.Equal(t, "beta-default", string(deployed))
 }
