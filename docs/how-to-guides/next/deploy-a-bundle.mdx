@@ -130,7 +130,7 @@ Go callers can set these fields on `bundle.DeployOptions` when calling `bundle.D
 
 | Field | Effect | Zero value |
 | --- | --- | --- |
-| `Timeout` | Deadline for the `Deploy` call, including bundle parsing and all selected package deployments. | No additional deadline; the caller's context still applies. |
+| `Timeout` | Sets a deadline for `Deploy`. Parsing counts toward it but cannot be interrupted. | No additional deadline. The caller's context still applies. |
 | `ZarfTimeout` | Timeout for Zarf Helm and component health-check operations within each package deployment. | Zarf's default of 15 minutes. |
 | `ZarfRetries` | Maximum attempts for Zarf operations that support retries. Set to `1` for one attempt. | Zarf's default of 3 attempts. |
 

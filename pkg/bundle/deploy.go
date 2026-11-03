@@ -126,8 +126,8 @@ func (s *DeploySource) Close() error {
 type DeployOptions struct {
 	Config   *UDSBundleConfig
 	Packages []string
-	// Timeout limits this Deploy call, including parsing and package deployment.
-	// Zero adds no deadline. Source preparation happens before this call.
+	// Timeout sets a context deadline for Deploy. Parsing counts toward it but cannot be interrupted.
+	// Zero adds no deadline. Source preparation happens before Deploy.
 	Timeout time.Duration
 	// ZarfTimeout limits Helm and component health-check operations in each package.
 	// Zero uses Zarf's default.
