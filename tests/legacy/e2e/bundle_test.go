@@ -1047,7 +1047,7 @@ packages:
 	for _, path := range []string{betaOutput, selected} {
 		data, err := os.ReadFile(path)
 		require.NoError(t, err)
-		require.Equal(t, "beta-default\n", string(data))
+		require.Equal(t, "beta-default", string(data))
 	}
 	require.NoFileExists(t, excluded)
 }

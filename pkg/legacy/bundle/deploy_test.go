@@ -853,7 +853,7 @@ func TestInitDeployOptions(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, opts.InjectorImage)
-			if tt.kind == v1alpha1.ZarfInitConfig {
+			if tt.kind == api.ZarfInitConfig {
 				require.Equal(t, state.MutationPolicyAll, opts.AgentMutationPolicy)
 			} else {
 				require.Empty(t, opts.AgentMutationPolicy)
