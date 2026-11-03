@@ -127,6 +127,6 @@ package "beta" {
 	require.Equal(t, "beta-override\n", string(alphaData))
 	data, err := os.ReadFile(output)
 	require.NoError(t, err)
-	require.Equal(t, "beta-override\n", string(data))
+	require.Equal(t, "beta-override", string(data))
 	require.NoFileExists(t, excluded)
 }

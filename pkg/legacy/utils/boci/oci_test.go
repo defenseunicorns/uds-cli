@@ -84,7 +84,7 @@ func TestFilterImageIndex(t *testing.T) {
 				{
 					Name: "hookos-artifacts",
 					ImageArchives: []api.ImageArchive{
-						{Path: "image.tar", Images: []string{archiveImg}},
+						{Path: "image.tar", Images: []api.ArchiveImage{{Name: archiveImg}}},
 					},
 				},
 			},
@@ -104,7 +104,7 @@ func TestFilterImageIndex(t *testing.T) {
 					Name:   "mixed",
 					Images: []api.Image{{Name: regularImg}},
 					ImageArchives: []api.ImageArchive{
-						{Path: "image.tar", Images: []string{archiveImg}},
+						{Path: "image.tar", Images: []api.ArchiveImage{{Name: archiveImg}}},
 					},
 				},
 			},
