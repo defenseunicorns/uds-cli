@@ -102,7 +102,16 @@ func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, 
 		return nil, fmt.Errorf("%w %s: %w", ErrParsingBundleDefinitionManifest, defEntry.Digest, err)
 	}
 
-	bundleDefPath, err := materializeBundleSrcFiles(ctx, streams, bundleDef, blobDir, dstDir)
+	bundleDefPath, err := materializeBundleSrcFilesWithWriter(ctx, streams, bundleDef, dstDir, func(_ context.Context, layer ocispec.Descriptor, root *os.Root, path string) error {
+		data, err := os.ReadFile(filepath.Join(blobDir, layer.Digest.Hex()))
+		if err != nil {
+			return ReadingLayerBlobError{Title: layer.Annotations[ocispec.AnnotationTitle], Digest: layer.Digest, Err: err}
+		}
+		if err := root.WriteFile(path, data, filesystem.PrivateFileMode); err != nil {
+			return WritingLayerError{Title: layer.Annotations[ocispec.AnnotationTitle], Err: err}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -183,10 +192,8 @@ func (e *ExtractedBundle) ValuesFilesByPackage() (map[string][]string, error) {
 	return result, nil
 }
 
-// materializeBundleSrcFiles writes HCL and values file layers from the bundle
-// definition manifest to disk at their annotated title paths under dstDir.
-// Returns the absolute path to the materialized bundle.uds.hcl file.
-func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, bundleDef ocispec.Manifest, blobDir, dstDir string) (string, error) {
+// materializeBundleSrcFilesWithWriter writes bundle files and returns the HCL path.
+func materializeBundleSrcFilesWithWriter(ctx context.Context, streams iostreams.IOStreams, bundleDef ocispec.Manifest, dstDir string, writeLayer func(context.Context, ocispec.Descriptor, *os.Root, string) error) (string, error) {
 	cleanDstDir, err := filepath.Abs(filepath.Clean(dstDir))
 	if err != nil {
 		return "", fmt.Errorf("%w %q: %w", ErrResolvingDestinationDirectory, dstDir, err)
@@ -210,11 +217,6 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 			continue
 		}
 
-		data, err := os.ReadFile(filepath.Join(blobDir, layer.Digest.Hex()))
-		if err != nil {
-			return "", ReadingLayerBlobError{Title: title, Digest: layer.Digest, Err: err}
-		}
-
 		dst, err := safeLayerDestinationPath(cleanDstDir, cleanDstDir, title)
 		if err != nil {
 			return "", err
@@ -226,8 +228,8 @@ func materializeBundleSrcFiles(_ context.Context, streams iostreams.IOStreams, b
 		if err := dstRoot.MkdirAll(filepath.Dir(relDst), filesystem.PrivateDirectoryMode); err != nil {
 			return "", CreatingLayerDirectoryError{Title: title, Err: err}
 		}
-		if err := dstRoot.WriteFile(relDst, data, filesystem.PrivateFileMode); err != nil {
-			return "", WritingLayerError{Title: title, Err: err}
+		if err := writeLayer(ctx, layer, dstRoot, relDst); err != nil {
+			return "", err
 		}
 		if layer.MediaType == oci.MediaTypeBundleHCL && title == bundleinternal.BundleFileName {
 			bundleDefPath = dst

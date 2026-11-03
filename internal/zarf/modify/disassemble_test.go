@@ -154,7 +154,7 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{layout.ValuesYAML}, pkg.Values.Files)
 	assert.Equal(t, layout.ValuesSchema, pkg.Values.Schema)
-	assert.Equal(t, "documentation/guide.md", pkg.Documentation["guide"])
+	assert.Equal(t, "documentation/guide.md", pkg.Attachments["guide"])
 	generatedYAML, err := os.ReadFile(filepath.Join(outputDir, layout.ZarfYAML))
 	require.NoError(t, err)
 	assert.NotContains(t, string(generatedYAML), "\nbuild:")
@@ -412,7 +412,7 @@ func TestZarfPackageSchemaChangesRequireDisassemblyReview(t *testing.T) {
 		want   string
 	}{
 		{name: "v1alpha1", schema: zarfschema.GetV1Alpha1Schema(), want: "e46b466b366ba42fa171de0cf27302ced24c3b3416bcbaa8a1da93c2383dfd1b"},
-		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "f014e07ce9e8793ef5b2ef7fc656125100bf26cfbfa360db19c78fa0506cc2bb"},
+		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "0bc3f70ed80b6bbc76a2d17cf63583398fe73af801ff4a42fb732842aa564302"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -569,7 +569,7 @@ func TestDisassembleRoundTripsImagesOffline(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, generated.Components[0].ImageArchives, 1)
 			imageArchive = filepath.Join(outputDir, generated.Components[0].ImageArchives[0].Path)
-			assert.Equal(t, []string{image}, generated.Components[0].ImageArchives[0].Images)
+			assert.Equal(t, []api.ArchiveImage{{Name: image, ID: "offline-image"}}, generated.Components[0].ImageArchives[0].Images)
 
 			manifests, err := images.GetManifestsFromArchive(t.Context(), imageArchive)
 			require.NoError(t, err)
@@ -644,33 +644,38 @@ func TestDisassembleFailureDoesNotPublishPartialOutput(t *testing.T) {
 }
 
 func TestDisassembleSeparatesPackageDocumentationFromComponentAssets(t *testing.T) {
-	sourceDir := copyFixture(t, "namespace-collision")
-	definition, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	definition.Documentation["second"] = definition.Documentation["guide"]
-	require.NoError(t, writeSourceDefinition(filepath.Join(sourceDir, layout.ZarfYAML), definition))
-	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
-	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
-	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
-	require.NoError(t, err)
+	for _, version := range []string{v1alpha1.APIVersion, v1beta1.APIVersion} {
+		t.Run(version, func(t *testing.T) {
+			sourceDir := copyFixture(t, "namespace-collision")
+			definition, err := load.PackageDefinition(t.Context(), sourceDir, load.DefinitionOptions{SkipVersionCheck: true})
+			require.NoError(t, err)
+			definition.APIVersion = version
+			definition.Attachments["second"] = definition.Attachments["guide"]
+			require.NoError(t, writeSourceDefinition(filepath.Join(sourceDir, layout.ZarfYAML), definition))
+			pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
+			t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
+			archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+			require.NoError(t, err)
 
-	outputDir := filepath.Join(t.TempDir(), "output")
-	_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
-	require.NoError(t, err)
-	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
-	require.NoError(t, err)
-	generatedPkg := generated
-	assert.Equal(t, "documentation/guide-files", generatedPkg.Documentation["guide"])
-	assert.Equal(t, "documentation/second-files", generatedPkg.Documentation["second"])
-	for _, path := range generatedPkg.Documentation {
-		contents, err := os.ReadFile(filepath.Join(outputDir, path))
-		require.NoError(t, err)
-		assert.Equal(t, "documentation\n", string(contents))
+			outputDir := filepath.Join(t.TempDir(), "output")
+			_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
+			require.NoError(t, err)
+			generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
+			require.NoError(t, err)
+			assert.Equal(t, version, generated.APIVersion)
+			assert.Equal(t, "documentation/guide-files", generated.Attachments["guide"])
+			assert.Equal(t, "documentation/second-files", generated.Attachments["second"])
+			for _, path := range generated.Attachments {
+				contents, err := os.ReadFile(filepath.Join(outputDir, path))
+				require.NoError(t, err)
+				assert.Equal(t, "documentation\n", string(contents))
+			}
+			assert.Contains(t, generated.Components[0].Files[0].Source, "components/documentation/files/")
+
+			reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
+			t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
+		})
 	}
-	assert.Contains(t, generatedPkg.Components[0].Files[0].Source, "components/documentation/files/")
-
-	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true})
-	t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 }
 
 func TestDisassembleRejectsEscapingDocumentationNames(t *testing.T) {
@@ -702,7 +707,7 @@ func TestDisassembleRejectsEscapingDocumentationNames(t *testing.T) {
 			parent := t.TempDir()
 			outputDir := filepath.Join(parent, "output")
 			_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
-			require.ErrorContains(t, err, "documentation key")
+			require.ErrorContains(t, err, "attachment key")
 			require.ErrorContains(t, err, "would result in an invalid path")
 			assert.NoDirExists(t, outputDir)
 			for _, canary := range canaries {
@@ -871,7 +876,7 @@ func TestWriteSourceDefinitionFormatting(t *testing.T) {
 				Metadata:   api.PackageMetadata{Name: "readable", Version: "1.0.0"},
 				Components: []api.Component{{Name: "first"}, {Name: "second"}, {Name: "third"}},
 				Values:     api.Values{Files: []string{"values.yaml"}, Schema: "values.schema.json"},
-				Documentation: map[string]string{
+				Attachments: map[string]string{
 					"guide": "guide.md",
 				},
 			}
@@ -892,10 +897,14 @@ func TestWriteSourceDefinitionFormatting(t *testing.T) {
 			if version != "" {
 				prefix = "apiVersion: " + version + "\n\n"
 			}
+			assetName := "documentation"
+			if version == v1beta1.APIVersion {
+				assetName = "attachments"
+			}
 			want := prefix + "kind: ZarfPackageConfig\nmetadata:\n  name: readable\n  version: 1.0.0\n" + metadataSuffix +
 				"\ncomponents:\n  - name: first\n" + componentSuffix + "\n  - name: second\n" + componentSuffix +
 				"\n  - name: third\n" + componentSuffix + alphaFields +
-				"\nvalues:\n  files:\n    - values.yaml\n  schema: values.schema.json\n\ndocumentation:\n  guide: guide.md\n"
+				"\nvalues:\n  files:\n    - values.yaml\n  schema: values.schema.json\n\n" + assetName + ":\n  guide: guide.md\n"
 			assert.Equal(t, want, string(contents))
 		})
 	}
@@ -915,8 +924,8 @@ func TestWriteSourceDefinitionFormattingPreservesMultilineScalars(t *testing.T) 
 						{Name: "command", Actions: api.ComponentActions{OnDeploy: api.ActionSet{Before: []api.Action{{Cmd: command}}}}},
 						{Name: "description", Description: text},
 					},
-					Values:        api.Values{Files: []string{"values.yaml"}},
-					Documentation: map[string]string{"guide": text},
+					Values:      api.Values{Files: []string{"values.yaml"}},
+					Attachments: map[string]string{"guide": text},
 				}
 				var definition any = convert.PackageToV1alpha1(pkg)
 				if version == v1beta1.APIVersion {
