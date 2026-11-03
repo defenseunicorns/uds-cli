@@ -78,6 +78,14 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	require.Len(t, warnings, 1)
 	assert.Contains(t, warnings[0], "last resort")
 	assert.Contains(t, warnings[0], "upstream source")
+	assert.Contains(t, warnings[0], "uds package mod diff")
+	clean, err := Diff(t.Context(), outputDir)
+	require.NoError(t, err)
+	assert.Empty(t, clean.Changes)
+	assert.Equal(t, pkgLayout.Digest(), clean.PackageDigest)
+	assert.Equal(t, filepath.Base(archivePath), clean.SourceHint)
+	// The report depends only on the captured baseline, not the source artifact.
+	require.NoError(t, os.Remove(archivePath))
 
 	generated, err := load.PackageDefinition(t.Context(), outputDir, load.DefinitionOptions{SkipVersionCheck: true})
 	require.NoError(t, err)
@@ -131,6 +139,8 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	repoSource, err := url.Parse(pkg.Components[0].Repositories[0].URL)
 	require.NoError(t, err)
 	assert.Contains(t, repoSource.Path, filepath.ToSlash(outputDir))
+	require.DirExists(t, filepath.Join(repoSource.Path, ".git"))
+	require.FileExists(t, filepath.Join(repoSource.Path, ".git", "HEAD"))
 	repo, err := git.PlainOpen(repoSource.Path)
 	require.NoError(t, err)
 	worktree, err := repo.Worktree()
@@ -151,12 +161,35 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Contains(t, string(generatedYAML), "\ncomponents:\n  - name: app\n")
 	disassemblyJSON, err := os.ReadFile(filepath.Join(outputDir, disassemblyMetadataDir, disassemblyMetadataFile))
 	require.NoError(t, err)
-	assert.JSONEq(t, fmt.Sprintf("{\n  \"formatVersion\": \"v1alpha1\",\n  \"architecture\": %q,\n  \"flavor\": \"\"\n}\n", packageArchitecture), string(disassemblyJSON))
+	var metadata disassemblyMetadata
+	require.NoError(t, json.Unmarshal(disassemblyJSON, &metadata))
+	assert.Equal(t, disassemblyFormatVersion, metadata.FormatVersion)
+	assert.Equal(t, packageArchitecture, metadata.Architecture)
+	assert.Equal(t, pkgLayout.Digest(), metadata.PackageDigest)
+	assert.NotEmpty(t, metadata.Files)
+	for _, record := range metadata.Files {
+		assert.NotContains(t, record.Path, ".git")
+		assert.NotContains(t, record.Path, ".uds")
+	}
+	changed, err := Diff(t.Context(), outputDir)
+	require.NoError(t, err)
+	require.Len(t, changed.Changes, 1)
+	assert.Contains(t, changed.Changes[0].Diff, "+edited offline repository")
+	assert.NotEqual(t, clean.WorkingTreeDigest, changed.WorkingTreeDigest)
+	assert.NotContains(t, string(generatedYAML), ".uds")
 
 	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{
 		SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir(),
 	})
 	defer func() { require.NoError(t, reassembled.Cleanup()) }()
+	assert.NoDirExists(t, filepath.Join(reassembled.DirPath(), ".uds"))
+	componentDir := t.TempDir()
+	require.NoError(t, archive.Decompress(t.Context(), filepath.Join(reassembled.DirPath(), layout.ComponentsDir, "app.tar"), componentDir, archive.DecompressOpts{}))
+	require.NoError(t, filepath.WalkDir(componentDir, func(_ string, entry os.DirEntry, err error) error {
+		require.NoError(t, err)
+		assert.NotEqual(t, ".uds", entry.Name(), "rebuilt component must not contain the private baseline")
+		return nil
+	}))
 	reassembledRepositoryRoot, err := reassembled.GetComponentDir(t.Context(), t.TempDir(), pkg.Components[0].Name, layout.RepoComponentDir)
 	require.NoError(t, err)
 	reassembledRepositoryName, err := transform.GitURLtoFolderName(pkg.Components[0].Repositories[0].URL)
@@ -211,6 +244,33 @@ func TestDisassembleRoundTripsCollidingManifestBasenames(t *testing.T) {
 	assert.Equal(t, rendered, gotRendered)
 }
 
+func TestDisassembleRejectsNonUTF8FilenamesWithoutPublishingOutput(t *testing.T) {
+	// JSON replaces invalid UTF-8 with U+FFFD, so a rewritten baseline path
+	// could not identify the generated file. Reject it before publishing output.
+	sourceDir := copyFixture(t, "flavored")
+	assetDir := filepath.Join(sourceDir, "payload")
+	require.NoError(t, os.Mkdir(assetDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(assetDir, "non-utf8-\xff"), []byte("text\n"), 0o600))
+	definitionPath := filepath.Join(sourceDir, layout.ZarfYAML)
+	definition, err := os.ReadFile(definitionPath)
+	require.NoError(t, err)
+	definition = bytes.ReplaceAll(definition, []byte("source: payload.txt"), []byte("source: payload"))
+	//nolint:gosec // G703 treats the test-owned fixture path as attacker-controlled.
+	require.NoError(t, os.WriteFile(definitionPath, definition, 0o600))
+	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
+	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
+	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)
+	require.NoError(t, err)
+	parent := t.TempDir()
+	outputDir := filepath.Join(parent, "source")
+	_, err = Disassemble(t.Context(), Options{PackageOptions: testPackageOptions(t), Source: archivePath, OutputDir: outputDir})
+	require.ErrorContains(t, err, "use a UTF-8 relative path")
+	assert.NoDirExists(t, outputDir)
+	entries, err := os.ReadDir(parent)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "baseline failure must not publish source or leave staging behind")
+}
+
 func TestDisassemblePullsOCIPackage(t *testing.T) {
 	nonHostArchitecture := "arm64"
 	if runtime.GOARCH == nonHostArchitecture {
@@ -247,9 +307,13 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 				OutputDir:      outputDir,
 			})
 			require.NoError(t, err)
-			metadata, err := readDisassemblyMetadata(outputDir)
+			root, err := os.OpenRoot(outputDir)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, root.Close()) })
+			metadata, err := readDisassemblyMetadata(root)
 			require.NoError(t, err)
 			assert.Equal(t, tc.packageArchitecture, metadata.Architecture)
+			assert.Equal(t, pkgLayout.Digest(), metadata.PackageDigest)
 			reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
 			t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 			assert.Equal(t, tc.packageArchitecture, reassembled.Definition().Build.Architecture)
@@ -394,9 +458,15 @@ func TestDisassemblePreservesFlavorSelectors(t *testing.T) {
 			assert.Equal(t, "offline", generated.Components[0].Selector.Flavor)
 			assert.Equal(t, tc.wantVersion, generated.Metadata.Version)
 
-			metadata, err := readDisassemblyMetadata(outputDir)
+			root, err := os.OpenRoot(outputDir)
 			require.NoError(t, err)
-			assert.Equal(t, disassemblyMetadata{FormatVersion: "v1alpha1", Architecture: "amd64", Flavor: "offline"}, metadata)
+			t.Cleanup(func() { require.NoError(t, root.Close()) })
+			metadata, err := readDisassemblyMetadata(root)
+			require.NoError(t, err)
+			assert.Equal(t, disassemblyFormatVersion, metadata.FormatVersion)
+			assert.Equal(t, "amd64", metadata.Architecture)
+			assert.Equal(t, "offline", metadata.Flavor)
+			assert.Equal(t, pkgLayout.Digest(), metadata.PackageDigest)
 
 			result, err := Reassemble(t.Context(), ReassembleOptions{PackageOptions: testPackageOptions(t), SourceDir: outputDir, Output: t.TempDir()})
 			require.NoError(t, err)
@@ -421,7 +491,7 @@ func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
 			name: "version suffix",
 			prepare: func(t *testing.T) string {
 				sourceDir := copyFixture(t, "flavored")
-				require.NoError(t, writeDisassemblyMetadata(sourceDir, "amd64", "offline"))
+				require.NoError(t, captureBaseline(t.Context(), sourceDir, "amd64", "offline", contentDigest([]byte("package")), "package.tar.zst"))
 				return sourceDir
 			},
 			wantError: `must end with "disassembled"`,
@@ -436,7 +506,7 @@ func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
 				contents = bytes.Replace(contents, []byte("version: 1.0.0"), []byte("version: 1.0.0-disassembled"), 1)
 				//nolint:gosec // G703 treats the test-owned fixture path beneath t.TempDir as attacker-controlled.
 				require.NoError(t, os.WriteFile(definitionPath, contents, helpers.ReadWriteUser))
-				require.NoError(t, writeDisassemblyMetadata(sourceDir, "arm64", "offline"))
+				require.NoError(t, captureBaseline(t.Context(), sourceDir, "arm64", "offline", contentDigest([]byte("package")), "package.tar.zst"))
 				return sourceDir
 			},
 			wantError: `package architecture "amd64" does not match disassembly metadata architecture "arm64"`,

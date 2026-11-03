@@ -19,15 +19,18 @@ import (
 
 const (
 	disassembleVersionSuffix = "disassembled"
-	disassemblyFormatVersion = "v1alpha1"
+	disassemblyFormatVersion = "v1alpha2"
 	disassemblyMetadataDir   = ".uds"
 	disassemblyMetadataFile  = "disassembly.json"
 )
 
 type disassemblyMetadata struct {
-	FormatVersion string `json:"formatVersion"`
-	Architecture  string `json:"architecture"`
-	Flavor        string `json:"flavor"`
+	FormatVersion string       `json:"formatVersion"`
+	Architecture  string       `json:"architecture"`
+	Flavor        string       `json:"flavor"`
+	PackageDigest string       `json:"packageDigest"`
+	SourceHint    string       `json:"sourceHint"`
+	Files         []FileRecord `json:"files"`
 }
 
 func normalizeMetadata(metadata *api.PackageMetadata) {
@@ -38,14 +41,9 @@ func normalizeMetadata(metadata *api.PackageMetadata) {
 	}
 }
 
-func writeDisassemblyMetadata(sourceDir, architecture, flavor string) error {
-	if strings.TrimSpace(architecture) == "" {
-		return errors.New("package build architecture is required")
-	}
-	metadata := disassemblyMetadata{
-		FormatVersion: disassemblyFormatVersion,
-		Architecture:  architecture,
-		Flavor:        flavor,
+func writeDisassemblyMetadata(sourceDir string, metadata disassemblyMetadata) error {
+	if err := validateDisassemblyMetadata(metadata); err != nil {
+		return err
 	}
 	contents, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
@@ -63,27 +61,23 @@ func writeDisassemblyMetadata(sourceDir, architecture, flavor string) error {
 	return nil
 }
 
-func readDisassemblyMetadata(sourceDir string) (disassemblyMetadata, error) {
-	path := filepath.Join(sourceDir, disassemblyMetadataDir, disassemblyMetadataFile)
-	contents, err := os.ReadFile(path)
+func readDisassemblyMetadata(root *os.Root) (disassemblyMetadata, error) {
+	contents, err := root.ReadFile(filepath.Join(disassemblyMetadataDir, disassemblyMetadataFile))
 	if err != nil {
-		return disassemblyMetadata{}, fmt.Errorf("reading disassembly metadata: %w", err)
+		return disassemblyMetadata{}, fmt.Errorf("reading disassembly metadata: %w; use a source directory produced by disassembly with its original .uds directory", err)
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(contents))
 	decoder.DisallowUnknownFields()
 	var metadata disassemblyMetadata
 	if err := decoder.Decode(&metadata); err != nil {
-		return disassemblyMetadata{}, fmt.Errorf("decoding disassembly metadata: %w", err)
+		return disassemblyMetadata{}, fmt.Errorf("decoding disassembly metadata: %w; restore the original .uds/disassembly.json", err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return disassemblyMetadata{}, errors.New("decoding disassembly metadata: unexpected trailing content")
+		return disassemblyMetadata{}, errors.New("decoding disassembly metadata: unexpected trailing content; restore the original .uds/disassembly.json")
 	}
-	if metadata.FormatVersion != disassemblyFormatVersion {
-		return disassemblyMetadata{}, fmt.Errorf("unsupported disassembly metadata format version %q", metadata.FormatVersion)
-	}
-	if strings.TrimSpace(metadata.Architecture) == "" {
-		return disassemblyMetadata{}, errors.New("disassembly metadata architecture is required")
+	if err := validateDisassemblyMetadata(metadata); err != nil {
+		return disassemblyMetadata{}, err
 	}
 	return metadata, nil
 }
