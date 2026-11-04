@@ -100,14 +100,13 @@ func TestValidationErrorContracts(t *testing.T) {
 	require.ErrorIs(t, (VerificationPolicy{}).Validate(), ErrInvalidVerificationPolicy)
 }
 
-func TestDeployTimeoutAndRetryValidation(t *testing.T) {
+func TestDeployZarfSettingsValidation(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
 		name string
 		opts DeployOptions
 	}{
-		{name: "negative bundle timeout", opts: DeployOptions{Timeout: -time.Second}},
 		{name: "negative zarf timeout", opts: DeployOptions{ZarfTimeout: -time.Second}},
 		{name: "negative zarf retries", opts: DeployOptions{ZarfRetries: -1}},
 	} {
@@ -117,7 +116,7 @@ func TestDeployTimeoutAndRetryValidation(t *testing.T) {
 		})
 	}
 
-	require.NoError(t, (DeployOptions{Config: validValidationConfig(), Timeout: time.Minute, ZarfTimeout: 2 * time.Minute, ZarfRetries: 1}).Validate())
+	require.NoError(t, (DeployOptions{Config: validValidationConfig(), ZarfTimeout: 2 * time.Minute, ZarfRetries: 1}).Validate())
 }
 
 func TestFormatDependencyError(t *testing.T) {

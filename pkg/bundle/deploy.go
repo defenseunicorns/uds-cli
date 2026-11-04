@@ -126,9 +126,6 @@ func (s *DeploySource) Close() error {
 type DeployOptions struct {
 	Config   *UDSBundleConfig
 	Packages []string
-	// Timeout sets a context deadline for Deploy. Parsing counts toward it but cannot be interrupted.
-	// Zero adds no deadline. Source preparation happens before Deploy.
-	Timeout time.Duration
 	// ZarfTimeout limits Helm and component health-check operations in each package.
 	// Zero uses Zarf's default.
 	ZarfTimeout time.Duration
@@ -162,11 +159,6 @@ type DeployPackageResult struct {
 func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*DeployResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
-	}
-	if opts.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, opts.Timeout)
-		defer cancel()
 	}
 	if source == nil {
 		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
