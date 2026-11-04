@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.41.0](https://github.com/defenseunicorns/uds-cli/compare/v0.40.0...v0.41.0) (2026-11-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* Legacy Go integrations must use Zarf's api.Package and api.Component types for package readers and fetchers. CLI commands and Next public APIs remain compatible.
+
+### Features
+
+* add Zarf package disassembly/reassembly flows ([#1520](https://github.com/defenseunicorns/uds-cli/issues/1520)) ([60c5cfb](https://github.com/defenseunicorns/uds-cli/commit/60c5cfbc6a2a57d21226c04636221ed79a221302))
+* **bundle:** prepare deploy source from read-only oras target ([#1623](https://github.com/defenseunicorns/uds-cli/issues/1623)) ([18cae3b](https://github.com/defenseunicorns/uds-cli/commit/18cae3bb8e978331904b704ea38821b84bada8d9))
+* support Zarf beta schemas in both CLI modes ([74b2549](https://github.com/defenseunicorns/uds-cli/commit/74b2549c784a93a2f4184bba431022b75a321e7d))
+
+
+### Bug Fixes
+
+* testsuite fixed for the release ([#1629](https://github.com/defenseunicorns/uds-cli/issues/1629)) ([7f7b7d0](https://github.com/defenseunicorns/uds-cli/commit/7f7b7d0c2735dd81ad0e4816ee0a98099e102318))
+
+
+### Miscellaneous
+
+* **deps:** update application-deps ([#1612](https://github.com/defenseunicorns/uds-cli/issues/1612)) ([f3c72f2](https://github.com/defenseunicorns/uds-cli/commit/f3c72f2b6ce5e3f7fe16df6be69da1096a180da3))
+* **deps:** update support-deps ([#1620](https://github.com/defenseunicorns/uds-cli/issues/1620)) ([1d77910](https://github.com/defenseunicorns/uds-cli/commit/1d779101871b7bf1b73b4c6d2039b515d8da0fdd))
+* **deps:** update zarf to v0.89.0 ([#1624](https://github.com/defenseunicorns/uds-cli/issues/1624)) ([a6d26b3](https://github.com/defenseunicorns/uds-cli/commit/a6d26b3a126341afe43500b31ec6a4510e8425e7))
+
 ## [0.40.0](https://github.com/defenseunicorns/uds-cli/compare/v0.39.0...v0.40.0) (2026-10-21)
 
 

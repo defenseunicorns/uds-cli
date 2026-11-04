@@ -17,6 +17,8 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
@@ -107,13 +109,42 @@ func filterPkgPaths(pkgLayout *layout.PackageLayout, includeLayers []string, opt
 		}
 	}
 
-	// Keep package metadata. SBOM files are already included from the native
-	// inventory, whether stored as an archive or per-resource files.
+	// Keep package metadata and all SBOMs. Per-resource SBOM paths can overlap
+	// component paths, but SBOMs are not filtered or modified.
 	pkgDir := pkgLayout.DirPath()
 	alwaysInclude := []string{filepath.Join(pkgDir, layout.ZarfYAML), filepath.Join(pkgDir, layout.Checksums)}
+	switch pkgLayout.Definition().GetAPIVersion() {
+	case v1alpha1.APIVersion:
+		alwaysInclude = append(alwaysInclude, archivedSBOMPaths(pkgDir)...)
+	case v1beta1.APIVersion:
+		alwaysInclude = append(alwaysInclude, individualSBOMPaths(paths)...)
+	default:
+		// Zarf uses the granular resource layout for every API version except v1alpha1.
+		alwaysInclude = append(alwaysInclude, individualSBOMPaths(paths)...)
+	}
 	filteredPaths = helpers.MergeSlices(filteredPaths, alwaysInclude, func(a, b string) bool {
 		return a == b
 	})
 
 	return filteredPaths
+}
+
+// archivedSBOMPaths returns the v1alpha1 SBOM archive path when it exists.
+func archivedSBOMPaths(pkgDir string) []string {
+	sbomPath := filepath.Join(pkgDir, layout.SBOMTar)
+	if helpers.InvalidPath(sbomPath) {
+		return nil
+	}
+	return []string{sbomPath}
+}
+
+// individualSBOMPaths returns existing v1beta1 SBOM resource paths from the package files.
+func individualSBOMPaths(paths map[string]string) []string {
+	var sbomPaths []string
+	for filePath, relativePath := range paths {
+		if _, _, ok := layout.ParseSBOMResourcePath(relativePath); ok {
+			sbomPaths = append(sbomPaths, filePath)
+		}
+	}
+	return sbomPaths
 }
