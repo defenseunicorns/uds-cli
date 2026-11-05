@@ -13,6 +13,8 @@ import (
 var (
 	// ErrInvalidConfig occurs when bundle configuration fails validation.
 	ErrInvalidConfig = errors.New("invalid bundle configuration")
+	// ErrInvalidDeployOptions occurs when a deployment timeout or retry count is invalid.
+	ErrInvalidDeployOptions = errors.New("invalid deployment options")
 	// ErrValidateDependencies occurs when bundle dependency relationships cannot be evaluated.
 	ErrValidateDependencies = errors.New("validating bundle dependencies")
 	// ErrBundleInputRequired occurs when neither a bundle path nor an in-memory bundle is provided.
