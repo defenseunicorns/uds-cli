@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/defenseunicorns/pkg/helpers/v2"
@@ -150,8 +151,8 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 
 	fileHandler := utils.ExtractJSON(&index, "index.json")
 	err = config.BundleArchiveFormat.Extract(context.TODO(), tarFile, func(ctx context.Context, file archives.FileInfo) error {
-		if file.NameInArchive == "oci/index.json" {
-			return errors.New("bundle requires Next mode; to inspect it, run: CLI_FEATURES=NextMode=true uds bundle inspect <bundle-reference>")
+		if path.Clean(file.NameInArchive) == "oci/index.json" {
+			return utils.ErrNextBundle
 		}
 		return fileHandler(ctx, file)
 	})
@@ -340,6 +341,11 @@ func (tp *tarballBundleProvider) PublishBundle(bundle types.UDSBundle, remote *o
 	srcRef := bundle.Metadata.Version
 	// use tag given to remote e.g. ghcr.io/path/my-bundle:tag
 	dstRef := remote.Repo().Reference.Reference
+	if dstRef != srcRef {
+		if _, err := boci.GetIndex(remote, dstRef); err != nil {
+			return err
+		}
+	}
 
 	// check for existing index
 	index, err := boci.GetIndex(remote, srcRef)

@@ -78,6 +78,9 @@ func NewBundleProviderWithOptions(source, destination string, opts ProviderOptio
 		if err != nil {
 			return nil, err
 		}
+		if err := fetcher.CheckLegacyBundleRemote(ctx, remote); err != nil {
+			return nil, err
+		}
 		op.OrasRemote = remote
 
 		// get root manifest
@@ -90,6 +93,9 @@ func NewBundleProviderWithOptions(source, destination string, opts ProviderOptio
 		return &op, nil
 	}
 	if !utils.IsValidTarballPath(source) {
+		if err := utils.CheckLegacyBundlePath(source); err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("invalid tarball path: %s", source)
 	}
 	tp := tarballBundleProvider{ctx: ctx, src: source, dst: destination, forceUpload: opts.ForceUpload}

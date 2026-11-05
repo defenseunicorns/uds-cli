@@ -8,19 +8,50 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/mholt/archives"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"oras.land/oras-go/v2/content"
 	ocistore "oras.land/oras-go/v2/content/oci"
 )
+
+func TestPublishBundleRejectsNextDestinationTag(t *testing.T) {
+	index := []byte(`{"schemaVersion":2,"artifactType":"application/vnd.defenseunicorns.uds.bundle.v1","manifests":[]}`)
+	desc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageIndex, index)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, []string{http.MethodHead, http.MethodGet}, r.Method)
+		if !strings.HasSuffix(r.URL.Path, "/custom") && !strings.HasSuffix(r.URL.Path, "/"+desc.Digest.String()) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", ocispec.MediaTypeImageIndex)
+		w.Header().Set("Docker-Content-Digest", desc.Digest.String())
+		w.Header().Set("Content-Length", strconv.Itoa(len(index)))
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(index)
+		}
+	}))
+	t.Cleanup(server.Close)
+	remote, err := oci.NewOrasRemote(strings.TrimPrefix(server.URL, "http://")+"/bundle:custom", ocispec.Platform{}, oci.WithPlainHTTP(true))
+	require.NoError(t, err)
+	provider := tarballBundleProvider{ctx: t.Context(), dst: t.TempDir(), rootManifest: &oci.Manifest{}}
+	err = provider.PublishBundle(types.UDSBundle{Metadata: types.UDSMetadata{Version: "1.0.0"}}, remote)
+	require.ErrorIs(t, err, utils.ErrNextBundle)
+}
 
 func TestBundleProviderArchiveFormat(t *testing.T) {
 	manifestJSON := []byte(`{"schemaVersion":2}`)
@@ -35,7 +66,8 @@ func TestBundleProviderArchiveFormat(t *testing.T) {
 		wantError string
 	}{
 		{"legacy bundle", "index.json", string(indexJSON), ""},
-		{"next bundle", "oci/index.json", `{}`, "CLI_FEATURES=NextMode=true uds bundle inspect <bundle-reference>"},
+		{"next bundle", "oci/index.json", `{}`, "CLI_FEATURES=NextMode=true uds bundle --help"},
+		{"normalized next bundle", "./oci/index.json", `{}`, "CLI_FEATURES=NextMode=true uds bundle --help"},
 		{"missing index", "other.json", `{}`, "expected only one manifest in index.json, found 0"},
 		{"empty index", "index.json", `{"manifests":[]}`, "expected only one manifest in index.json, found 0"},
 		{"multiple manifests", "index.json", `{"manifests":[{},{}]}`, "expected only one manifest in index.json, found 2"},

@@ -262,7 +262,9 @@ Use `uds bundle push` to publish a local bundle artifact and `uds bundle pull` t
 
 The `inspect` command shows metadata from a local `.tar.zst` artifact or an OCI bundle reference. It does not replace bundle signature verification for integrity decisions. See [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next/inspect-verify/) for the procedure and structured-output examples.
 
-Legacy `uds inspect` rejects Next bundle archives and directs you to `CLI_FEATURES=NextMode=true uds bundle inspect <bundle-reference>`. Replace `<bundle-reference>` with your bundle archive path.
+Legacy bundle commands reject Next bundle definitions, archives, and OCI references with guidance to enable Next mode. Run `CLI_FEATURES=NextMode=true uds bundle --help` to find the matching command. Use `bundle push` in Next mode instead of Legacy `publish`.
+
+Legacy publishing and creation also reject existing Next OCI destinations. When a source directory contains both formats, Legacy `create` and `dev deploy` continue to use `uds-bundle.yaml` or `uds-bundle.yml`.
 
 ## Structured output
 
