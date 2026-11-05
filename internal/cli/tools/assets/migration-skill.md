@@ -591,7 +591,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 655c312c22b8ed30c685669004140e449de6e2eafaa6233a2788529e86b9792f -->
+<!-- Source SHA256: 5eb4142a4e70fc72b7b69cfeccf805113d3d53540b3c8e75f2786e1975677202 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -659,14 +659,28 @@ The `tmp_dir` directory must already exist before running the command.
 
 ### Bundle cache
 
-The CLI uses `~/.uds-cache` by default. Set `options.uds_cache` in the file passed
-with `--config` to choose another location, or use `--uds-cache` to override it.
+The CLI uses `~/.uds-cache` by default. When the operating system cannot determine
+your home directory, the default is `.uds-cache` in the working directory.
+Set `options.uds_cache` in the file passed with `--config` to choose another
+location, or use `--uds-cache` to override it.
 
 ```hcl title="config.uds.hcl"
 options {
   uds_cache = "~/.uds-cache"
 }
 ```
+
+Next stores package and bundle layers under `<uds-cache>/bundle-oci/images`.
+These layers can contain private registry content. Next creates user-only cache
+directories and rejects existing cache directories with group or other access.
+If you encounter a permissions error, remove the Next cache with
+`CLI_FEATURES=NextMode=true uds tools clear-cache --uds-cache PATH`, replacing
+`PATH` with your configured cache root. Set the remaining
+`<uds-cache>/bundle-oci` directory permissions to `0700` before retrying.
+
+Use `CLI_FEATURES=NextMode=true uds tools clear-cache` to remove Next's cached
+content. Add `--prompt` to request confirmation. Clearing the cache can interrupt
+commands that are using it.
 
 ## `signature_verification`
 

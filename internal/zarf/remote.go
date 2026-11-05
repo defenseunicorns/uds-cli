@@ -69,10 +69,14 @@ func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zo
 	if err != nil {
 		return nil, err
 	}
+	cachePath, err := udsoci.PrepareBundleCache(s.opts.CacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("preparing package OCI cache: %w", err)
+	}
 	// Zarf appends images/ and owns the cached package bytes. An empty path
 	// disables caching at this layer rather than selecting Zarf's default cache.
 	return zoci.NewRemoteWithOptions(ctx, ref, platform, zoci.RemoteClientOptions{
-		CachePath: udsoci.BundleCachePath(s.opts.CacheDir),
+		CachePath: cachePath,
 		RemoteOptions: zarfTypes.RemoteOptions{
 			PlainHTTP:             plainHTTP,
 			InsecureSkipTLSVerify: s.opts.SkipTLSVerify,

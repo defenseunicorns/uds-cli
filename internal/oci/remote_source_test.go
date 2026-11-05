@@ -6,6 +6,7 @@ package oci
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -22,10 +23,56 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	oras "oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	orasregistry "oras.land/oras-go/v2/registry"
 )
+
+func TestIndependentRemoteSourcesConcurrentBlobCache(t *testing.T) {
+	server := httptest.NewServer(registry.New())
+	t.Cleanup(server.Close)
+	ref := strings.TrimPrefix(server.URL, "http://") + "/test/concurrent:v1"
+	opts := bundleinternal.ConfigOptions{PlainHTTP: true, CacheDir: t.TempDir()}
+	repo, err := NewRemoteRepository(t.Context(), ref, opts)
+	require.NoError(t, err)
+	payloads := [][]byte{[]byte("shared content"), []byte("independent content")}
+	descriptors := make([]ocispec.Descriptor, len(payloads))
+	for i, payload := range payloads {
+		descriptors[i], err = PushBytes(t.Context(), repo, "application/octet-stream", payload, nil)
+		require.NoError(t, err)
+	}
+	for range 2 {
+		var group errgroup.Group
+		start := make(chan struct{})
+		for i := range 16 {
+			group.Go(func() error {
+				<-start
+				source, err := NewRemoteReadSource(t.Context(), ref, opts, iostreams.IOStreams{})
+				if err != nil {
+					return err
+				}
+				i := i % len(payloads)
+				got, err := FetchBytes(t.Context(), source, descriptors[i])
+				if err != nil {
+					return err
+				}
+				if string(got) != string(payloads[i]) {
+					return fmt.Errorf("unexpected cached payload for %s", descriptors[i].Digest)
+				}
+				return nil
+			})
+		}
+		close(start)
+		require.NoError(t, group.Wait())
+		store := filepath.Join(BundleCachePath(opts.CacheDir), "images")
+		assert.NoFileExists(t, filepath.Join(store, "index.json"))
+		assert.NoFileExists(t, filepath.Join(store, "oci-layout"))
+		entries, err := os.ReadDir(filepath.Join(store, "ingest"))
+		require.NoError(t, err)
+		assert.Empty(t, entries, "completed concurrent writes must clean up temporary ingest files")
+	}
+}
 
 func TestRemoteReadSourceCacheReuse(t *testing.T) {
 	for _, enabled := range []bool{false, true} {

@@ -6,6 +6,7 @@
 package bundle_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,6 +23,8 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
+	"github.com/zarf-dev/zarf/src/pkg/packager/load"
 )
 
 func TestCacheCreatePullReuse(t *testing.T) {
@@ -105,10 +108,14 @@ func TestCacheCreatePullReuse(t *testing.T) {
 }
 
 func TestCacheMetadataOnlyReuse(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+	for _, tc := range []struct {
+		schema  string
+		enabled bool
+	}{{"alpha", false}, {"alpha", true}, {"beta", false}, {"beta", true}} {
+		t.Run(fmt.Sprintf("schema=%s/enabled=%t", tc.schema, tc.enabled), func(t *testing.T) {
+			enabled := tc.enabled
 			remote := startCacheContractRegistry(t)
-			fixture := createLibraryBundle(t)
+			fixture := cacheContractMetadataFixture(t, tc.schema)
 			layers := cacheContractPackageLayers(t, fixture.ArtifactPath)
 			config := libraryRegistryConfig(fixture.Config)
 			cacheDir := filepath.Join(t.TempDir(), "cache")
@@ -123,7 +130,11 @@ func TestCacheMetadataOnlyReuse(t *testing.T) {
 				inspected, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, SkipSignatureVerification: true})
 				require.NoError(t, err)
 				assert.Equal(t, "library-fixture", inspected.Name)
-				require.Len(t, inspected.Packages, 2)
+				expectedPackages := 2
+				if tc.schema == "beta" {
+					expectedPackages++
+				}
+				require.Len(t, inspected.Packages, expectedPackages)
 			}
 			read()
 			cold := remote.snapshot()
@@ -151,6 +162,75 @@ func TestCacheMetadataOnlyReuse(t *testing.T) {
 				}
 				assert.NoDirExists(t, cacheDir)
 			}
+		})
+	}
+}
+
+func TestCacheTamperedImmutableContent(t *testing.T) {
+	remote := startCacheContractRegistry(t)
+	fixture := createLibraryBundle(t)
+	config := libraryRegistryConfig(fixture.Config)
+	ref := remote.host + "/library/tampered-cache:v1"
+	_, err := bundle.Push(t.Context(), fixture.ArtifactPath, ref, bundle.PushOptions{Config: config})
+	require.NoError(t, err)
+	privateKey, publicKey := libraryKeyPair(t)
+	require.NoError(t, bundle.Sign(t.Context(), bundle.SignOptions{
+		Source: ref, Config: config, TmpDir: t.TempDir(),
+		Signing: bundle.SigningOptions{Mode: bundle.SigningModeKey, Key: privateKey},
+	}))
+	policy := bundle.VerificationPolicy{PublicKey: publicKey}
+	entries, err := fixtureartifact.Read(t.Context(), fixture.ArtifactPath)
+	require.NoError(t, err)
+	var digest string
+	for path, content := range entries.Small {
+		if strings.HasPrefix(path, "oci/blobs/sha256/") && bytes.Contains(content, []byte("library-fixture")) {
+			require.Empty(t, digest, "fixture must have one bundle definition blob")
+			digest = "sha256:" + filepath.Base(path)
+		}
+	}
+	require.NotEmpty(t, digest)
+	for _, operation := range []string{"inspect", "verify", "pull"} {
+		t.Run(operation, func(t *testing.T) {
+			config.Options.CacheDir = filepath.Join(t.TempDir(), "cache")
+			_, err := bundle.Pull(t.Context(), ref, t.TempDir(), bundle.PullOptions{Config: config, Verification: policy})
+			require.NoError(t, err)
+			_, err = bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, Verification: policy})
+			require.NoError(t, err)
+			require.NoError(t, bundle.Verify(t.Context(), bundle.VerifyOptions{Source: ref, Policy: policy, Config: config, TmpDir: t.TempDir()}))
+			cold := remote.snapshot()
+			path := cacheContractBlobPath(config.Options.CacheDir, digest)
+			original, err := os.ReadFile(path)
+			require.NoError(t, err)
+			// Keep valid HCL and the original size so digest verification must detect the change.
+			tampered := bytes.ReplaceAll(original, []byte("library-fixture"), []byte("library-corrupt"))
+			require.NotEqual(t, original, tampered)
+			require.Len(t, tampered, len(original))
+			info, err := os.Stat(path)
+			require.NoError(t, err)
+			require.NoError(t, os.Chmod(path, 0o600))
+			require.NoError(t, os.WriteFile(path, tampered, 0o600)) //nolint:gosec // G703: the generated fixture supplies the digest, and t.TempDir owns the cache root.
+			require.NoError(t, os.Chmod(path, info.Mode().Perm()))
+			switch operation {
+			case "inspect":
+				result, err := bundle.Inspect(t.Context(), bundle.InspectOptions{Source: ref, Config: config, Verification: policy})
+				require.ErrorIs(t, err, bundle.ErrInspectBundle)
+				assert.Nil(t, result)
+				require.ErrorContains(t, err, "digest")
+			case "verify":
+				err := bundle.Verify(t.Context(), bundle.VerifyOptions{Source: ref, Policy: policy, Config: config, TmpDir: t.TempDir()})
+				require.ErrorIs(t, err, bundle.ErrVerifyBundle)
+				require.ErrorContains(t, err, "digest")
+			case "pull":
+				output := t.TempDir()
+				result, err := bundle.Pull(t.Context(), ref, output, bundle.PullOptions{Config: config, Verification: policy})
+				require.ErrorIs(t, err, bundle.ErrPullBundle)
+				assert.Nil(t, result)
+				require.ErrorContains(t, err, "digest")
+				files, err := os.ReadDir(output)
+				require.NoError(t, err)
+				assert.Empty(t, files, "failed pull must not publish a corrupt artifact")
+			}
+			assert.Equal(t, cold, remote.snapshot(), "corrupt immutable cache content must be checked on reuse")
 		})
 	}
 }
@@ -279,6 +359,49 @@ func TestCacheLocalSourcesLeaveRemoteCacheUntouched(t *testing.T) {
 	require.ErrorIs(t, err, bundle.ErrRemoveBundle)
 	require.ErrorContains(t, err, "unknown packages")
 	assert.NoDirExists(t, fixture.Config.Options.CacheDir)
+}
+
+func cacheContractMetadataFixture(t *testing.T, schema string) libraryBundleFixture {
+	t.Helper()
+	fixture := createLibraryBundle(t)
+	if schema == "alpha" {
+		return fixture
+	}
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "payload.txt"), []byte("beta payload\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "zarf.yaml"), []byte(`apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: beta
+  version: 1.0.0
+components:
+  - name: main
+    files:
+      - source: payload.txt
+        destination: /tmp/cache-beta.txt
+`), 0o600))
+	resolved, err := load.Package(t.Context(), root, load.PackageOptions{})
+	require.NoError(t, err)
+	layout, err := assemble.AssemblePackage(t.Context(), resolved, assemble.AssembleOptions{SkipSBOM: true, CachePath: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, layout.Cleanup()) })
+	packagePath, err := layout.Archive(t.Context(), root, 0)
+	require.NoError(t, err)
+	definition, err := os.ReadFile(fixture.BundleFile)
+	require.NoError(t, err)
+	definition = append(definition, []byte(fmt.Sprintf(`
+package "beta" {
+  source = %q
+  signature_verification { verify = false }
+}
+`, packagePath))...)
+	require.NoError(t, os.WriteFile(fixture.BundleFile, definition, 0o600)) //nolint:gosec // G703: createLibraryBundle generates this path inside t.TempDir.
+	created, err := bundle.Create(t.Context(), fixture.BundleFile, bundle.CreateOptions{
+		Config: fixture.Config, Signing: bundle.SigningOptions{Mode: bundle.SigningModeUnsigned},
+	})
+	require.NoError(t, err)
+	fixture.ArtifactPath = created.OutputPath
+	return fixture
 }
 
 // Count content GETs, not elapsed time. Tag and signature discovery remain live.

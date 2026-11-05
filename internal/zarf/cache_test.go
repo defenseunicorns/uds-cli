@@ -30,6 +30,30 @@ import (
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
+func TestPackageRemoteRejectsUnsafeCache(t *testing.T) {
+	server := httptest.NewServer(registry.New())
+	t.Cleanup(server.Close)
+	ref := strings.TrimPrefix(server.URL, "http://") + "/package:v1"
+	for _, symlink := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unsafe permissions", true: "symlink root"}[symlink], func(t *testing.T) {
+			cacheDir := filepath.Join(t.TempDir(), "cache")
+			if symlink {
+				require.NoError(t, os.Symlink(t.TempDir(), cacheDir))
+			} else {
+				path := udsoci.BundleCachePath(cacheDir)
+				require.NoError(t, os.MkdirAll(path, 0o700))
+				require.NoError(t, os.Chmod(path, 0o755))
+			}
+			source := NewPackageSource("oci://"+ref, bundleinternal.ConfigOptions{
+				CacheDir: cacheDir, PlainHTTP: true,
+			}, "", iostreams.IOStreams{})
+			_, err := source.LoadPackageSpec(t.Context(), filters.Empty())
+			require.ErrorIs(t, err, ErrCreateOCIRemote)
+			require.ErrorContains(t, err, "preparing package OCI cache")
+		})
+	}
+}
+
 func TestPackageMetadataCache(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		name := "disabled"
@@ -71,6 +95,19 @@ func TestPackageMetadataCache(t *testing.T) {
 			assert.EqualValues(t, 1, downloads.Load(), "metadata reads fetch only zarf.yaml")
 			if enabled {
 				require.DirExists(t, filepath.Join(cacheDir, "bundle-oci", "images", "blobs", "sha256"))
+				require.NoError(t, filepath.WalkDir(cacheDir, func(path string, entry os.DirEntry, err error) error {
+					if err != nil {
+						return err
+					}
+					if entry.IsDir() {
+						info, err := entry.Info()
+						if err != nil {
+							return err
+						}
+						assert.Zero(t, info.Mode().Perm()&0o077, path)
+					}
+					return nil
+				}))
 				assert.NoDirExists(t, filepath.Join(cacheDir, "images"))
 				assert.NoDirExists(t, filepath.Join(cacheDir, "layers"))
 				denyBlobs.Store(true)
@@ -176,6 +213,24 @@ func TestRemovePackageUsesConfiguredCache(t *testing.T) {
 	require.DirExists(t, filepath.Join(cacheDir, "bundle-oci", "images", "blobs"))
 	denyBlobs.Store(true)
 	require.ErrorIs(t, remove(), ErrPackageNotDeployed, "fresh removal must reuse cached metadata")
+
+	// Another remote operation must accept and reuse the cache populated by removal.
+	source := NewPackageSource(pkg.Source, *opts.Config.Options, "", iostreams.IOStreams{})
+	_, err := source.LoadPackageSpec(t.Context(), filters.Empty())
+	require.NoError(t, err, "package reads must accept a cache populated by source-based removal")
+	require.NoError(t, filepath.WalkDir(udsoci.BundleCachePath(cacheDir), func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			assert.Zero(t, info.Mode().Perm()&0o077, "private cache directory %s has mode %o", path, info.Mode().Perm())
+		}
+		return nil
+	}))
 
 	// Publish the same package without checksum metadata. Cached zarf.yaml is
 	// not enough: the original upstream loader must still reject this package.

@@ -71,14 +71,28 @@ The `tmp_dir` directory must already exist before running the command.
 
 ### Bundle cache
 
-The CLI uses `~/.uds-cache` by default. Set `options.uds_cache` in the file passed
-with `--config` to choose another location, or use `--uds-cache` to override it.
+The CLI uses `~/.uds-cache` by default. When the operating system cannot determine
+your home directory, the default is `.uds-cache` in the working directory.
+Set `options.uds_cache` in the file passed with `--config` to choose another
+location, or use `--uds-cache` to override it.
 
 ```hcl title="config.uds.hcl"
 options {
   uds_cache = "~/.uds-cache"
 }
 ```
+
+Next stores package and bundle layers under `<uds-cache>/bundle-oci/images`.
+These layers can contain private registry content. Next creates user-only cache
+directories and rejects existing cache directories with group or other access.
+If you encounter a permissions error, remove the Next cache with
+`CLI_FEATURES=NextMode=true uds tools clear-cache --uds-cache PATH`, replacing
+`PATH` with your configured cache root. Set the remaining
+`<uds-cache>/bundle-oci` directory permissions to `0700` before retrying.
+
+Use `CLI_FEATURES=NextMode=true uds tools clear-cache` to remove Next's cached
+content. Add `--prompt` to request confirmation. Clearing the cache can interrupt
+commands that are using it.
 
 ## `signature_verification`
 

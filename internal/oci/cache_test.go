@@ -14,6 +14,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPrepareBundleCache(t *testing.T) {
+	t.Parallel()
+	path, err := PrepareBundleCache("")
+	require.NoError(t, err)
+	assert.Empty(t, path)
+	cacheDir := filepath.Join(t.TempDir(), "cache")
+	for range 2 {
+		path, err = PrepareBundleCache(cacheDir)
+		require.NoError(t, err)
+		assert.Equal(t, BundleCachePath(cacheDir), path)
+	}
+	require.NoError(t, filepath.WalkDir(cacheDir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, os.FileMode(0o700), info.Mode().Perm(), path)
+		return nil
+	}))
+}
+
+func TestPrepareBundleCacheRejectsUnsafeDirectories(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{".", "bundle-oci", "bundle-oci/images", "bundle-oci/images/blobs", "bundle-oci/images/blobs/sha256", "bundle-oci/images/ingest"} {
+		for _, kind := range []string{"symlink", "file", "readable", "writable"} {
+			if name == "." && (kind == "readable" || kind == "writable") {
+				continue // Caller-owned parent permissions are outside the private subtree.
+			}
+			t.Run(name+"/"+kind, func(t *testing.T) {
+				t.Parallel()
+				cacheDir := filepath.Join(t.TempDir(), "cache")
+				path := filepath.Join(cacheDir, name)
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+				outside := t.TempDir()
+				switch kind {
+				case "symlink":
+					require.NoError(t, os.Symlink(outside, path))
+				case "file":
+					require.NoError(t, os.WriteFile(path, nil, 0o600))
+				default:
+					require.NoError(t, os.Mkdir(path, 0o700))
+					mode := os.FileMode(0o755)
+					if kind == "writable" {
+						mode = 0o722
+					}
+					require.NoError(t, os.Chmod(path, mode))
+				}
+				_, err := PrepareBundleCache(cacheDir)
+				require.Error(t, err)
+				entries, err := os.ReadDir(outside)
+				require.NoError(t, err)
+				assert.Empty(t, entries)
+			})
+		}
+	}
+}
+
 func TestBundleCachePath(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, BundleCachePath(""))
@@ -84,6 +144,22 @@ func TestClearBundleCacheRejectsInvalidTarget(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestCacheRejectsSymlinkRootWithTrailingSeparator(t *testing.T) {
+	t.Parallel()
+	outside := t.TempDir()
+	keep := filepath.Join(BundleCachePath(outside), "keep")
+	require.NoError(t, os.MkdirAll(filepath.Dir(keep), 0o700))
+	require.NoError(t, os.WriteFile(keep, nil, 0o600))
+	link := filepath.Join(t.TempDir(), "cache")
+	require.NoError(t, os.Symlink(outside, link))
+	for _, path := range []string{link, link + string(os.PathSeparator)} {
+		_, err := PrepareBundleCache(path)
+		require.ErrorContains(t, err, "not a file or symlink")
+		require.ErrorContains(t, ClearBundleCache(t.Context(), path, iostreams.IOStreams{}), "not a file or symlink")
+	}
+	assert.FileExists(t, keep)
 }
 
 func TestClearBundleCacheCancelled(t *testing.T) {

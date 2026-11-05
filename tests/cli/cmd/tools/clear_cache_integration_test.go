@@ -20,17 +20,22 @@ import (
 )
 
 func TestClearCacheConfiguration(t *testing.T) {
-	for _, source := range []string{"default", "hcl", "cli", "hcl-tilde", "cli-tilde", "empty-flag-retains-hcl", "empty-flag-uses-default"} {
+	for _, source := range []string{"default", "hcl", "cli", "hcl-tilde", "cli-tilde", "empty-flag-retains-hcl", "empty-flag-uses-default", "missing-home"} {
 		t.Run(source, func(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
+			if source == "missing-home" {
+				t.Setenv("HOME", "")
+				t.Setenv("USERPROFILE", "")
+				t.Chdir(home)
+			}
 			paths := []string{filepath.Join(home, ".uds-cache"), filepath.Join(home, "hcl-cache"), filepath.Join(home, "cli-cache")}
 			for _, path := range paths {
 				seedCache(t, path)
 			}
 			args := []string{"tools", "clear-cache"}
 			selected := paths[0]
-			if source != "default" && source != "empty-flag-uses-default" {
+			if source != "default" && source != "empty-flag-uses-default" && source != "missing-home" {
 				config := filepath.Join(home, "config.uds.hcl")
 				hclPath := paths[1]
 				if source == "hcl-tilde" {

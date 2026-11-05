@@ -53,7 +53,10 @@ func NewRemoteReadSource(ctx context.Context, ref string, opts bundleinternal.Co
 		zarfoci.WithInsecureSkipVerify(opts.SkipTLSVerify),
 		zarfoci.WithLogger(log),
 	}
-	cachePath := BundleCachePath(opts.CacheDir)
+	cachePath, err := PrepareBundleCache(opts.CacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("preparing bundle OCI cache: %w", err)
+	}
 	if cachePath == "" {
 		streams.Debug("bundle OCI caching disabled", "reason", "no cache directory configured")
 	} else {

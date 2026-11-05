@@ -82,15 +82,41 @@ func TestResolveCacheWithoutHome(t *testing.T) {
 		t.Skip("platform can determine home without HOME")
 	}
 	r := NewConfigResolver()
-	assert.Equal(t, "~/.uds-cache", r.Defaults().CacheDir)
-	_, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{}, "")
-	require.ErrorContains(t, err, "expanding cache directory")
-	_, _, err = r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{CacheDirChanged: true}, "")
-	require.ErrorContains(t, err, "expanding cache directory")
+	assert.Equal(t, ".uds-cache", r.Defaults().CacheDir)
 	path := t.TempDir()
-	resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{CacheDir: path, CacheDirChanged: true}, "")
-	require.NoError(t, err)
-	assert.Equal(t, path, resolved.Options.CacheDir)
+	for _, tt := range []struct {
+		name    string
+		hcl     string
+		flag    string
+		changed bool
+		want    string
+	}{
+		{name: "default", want: ".uds-cache"},
+		{name: "empty flag retains default", changed: true, want: ".uds-cache"},
+		{name: "HCL", hcl: "configured", want: "configured"},
+		{name: "empty flag retains HCL", hcl: "configured", changed: true, want: "configured"},
+		{name: "explicit flag", hcl: "configured", flag: path, changed: true, want: path},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{}
+			registerTestFlags(cmd)
+			cmd.Flags().String("config", "", "config path")
+			if tt.hcl != "" {
+				configPath := filepath.Join(t.TempDir(), "config.uds.hcl")
+				require.NoError(t, os.WriteFile(configPath, fmt.Appendf(nil, "options { uds_cache = %q }", tt.hcl), 0o600))
+				require.NoError(t, cmd.Flags().Set("config", configPath))
+			}
+			if tt.changed {
+				require.NoError(t, cmd.Flags().Set("uds-cache", tt.flag))
+			}
+			resolved, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), "")
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, resolved.Options.CacheDir)
+			assert.Equal(t, tt.want, toInternalConfig(resolved).Options.CacheDir)
+		})
+	}
+	_, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, CLIFlags{CacheDir: "~/configured", CacheDirChanged: true}, "")
+	require.ErrorContains(t, err, "expanding cache directory")
 }
 
 func TestApplySetVariables(t *testing.T) {
