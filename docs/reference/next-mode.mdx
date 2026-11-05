@@ -262,6 +262,8 @@ Use `uds bundle push` to publish a local bundle artifact and `uds bundle pull` t
 
 The `inspect` command shows metadata from a local `.tar.zst` artifact or an OCI bundle reference. It does not replace bundle signature verification for integrity decisions. See [Inspect and verify a bundle in Next mode](/cli/how-to-guides/next/inspect-verify/) for the procedure and structured-output examples.
 
+Legacy `uds inspect` rejects Next bundle archives and directs you to `CLI_FEATURES=NextMode=true uds bundle inspect <bundle-reference>`. Replace `<bundle-reference>` with your bundle archive path.
+
 ## Structured output
 
 Bundle commands that emit result objects support structured output through `--output` or `-o`, including `create`, `inspect`, `pull`, and `reconfigure`:

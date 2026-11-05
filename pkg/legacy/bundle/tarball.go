@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -149,18 +149,22 @@ func (tp *tarballBundleProvider) loadBundleManifest() error {
 	defer tarFile.Close()
 
 	fileHandler := utils.ExtractJSON(&index, "index.json")
-	err = config.BundleArchiveFormat.Extract(context.TODO(), tarFile, fileHandler)
+	err = config.BundleArchiveFormat.Extract(context.TODO(), tarFile, func(ctx context.Context, file archives.FileInfo) error {
+		if file.NameInArchive == "oci/index.json" {
+			return errors.New("bundle requires Next mode; to inspect it, run: CLI_FEATURES=NextMode=true uds bundle inspect <bundle-reference>")
+		}
+		return fileHandler(ctx, file)
+	})
 	if err != nil {
 		return err
 	}
 
 	// local bundles only have one manifest entry in their index.json
-	bundleManifestDesc := index.Manifests[0]
-	tp.bundleRootDesc = bundleManifestDesc
-
-	if len(index.Manifests) > 1 {
+	if len(index.Manifests) != 1 {
 		return fmt.Errorf("expected only one manifest in index.json, found %d", len(index.Manifests))
 	}
+	bundleManifestDesc := index.Manifests[0]
+	tp.bundleRootDesc = bundleManifestDesc
 
 	manifestRelativePath := filepath.Join(config.BlobsDir, bundleManifestDesc.Digest.Encoded())
 	manifestPath := filepath.Join(secureTempDir, manifestRelativePath)
