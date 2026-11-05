@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -31,15 +31,14 @@ func (b *Bundle) Remove() error {
 	}
 	b.cfg.RemoveOpts.Source = source
 
-	// validate CLI config's arch against cluster
-	err = ValidateArch(config.GetArch())
+	// Reject Next bundles before connecting to the cluster.
+	provider, err := NewBundleProvider(b.cfg.RemoveOpts.Source, b.tmp)
 	if err != nil {
 		return err
 	}
 
-	// create a new provider
-	provider, err := NewBundleProvider(b.cfg.RemoveOpts.Source, b.tmp)
-	if err != nil {
+	// validate CLI config's arch against cluster
+	if err := ValidateArch(config.GetArch()); err != nil {
 		return err
 	}
 

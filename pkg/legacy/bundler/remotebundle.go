@@ -68,6 +68,10 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 		return errors.New("architecture is required for bundling")
 	}
 	dstRef := bundleRemote.Repo().Reference
+	index, err := boci.GetIndex(bundleRemote.OrasRemote, dstRef.String())
+	if err != nil {
+		return err
+	}
 	message.Debug("Bundling", bundle.Metadata.Name, "to", dstRef)
 
 	rootManifest := ocispec.Manifest{}
@@ -147,12 +151,6 @@ func (r *RemoteBundle) create(ctx context.Context, signature []byte) error {
 		return err
 	}
 	message.Debug("Pushed config:", jsonValue)
-
-	// check for existing index
-	index, err := boci.GetIndex(bundleRemote.OrasRemote, dstRef.String())
-	if err != nil {
-		return err
-	}
 
 	// push bundle root manifest
 	rootManifest.Config = configDesc

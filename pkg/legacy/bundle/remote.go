@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -228,61 +228,34 @@ func (op *ociProvider) PublishBundle(_ types.UDSBundle, _ *oci.OrasRemote) error
 // Returns the validated source path based on the provided oci source path
 func getOCIValidatedSource(source string) (string, error) {
 	ctx := context.TODO()
-	originalSource := source
-
-	platform := ocispec.Platform{
-		Architecture: config.GetArch(),
-		OS:           oci.MultiOS,
+	platform := ocispec.Platform{Architecture: config.GetArch(), OS: oci.MultiOS}
+	candidates := []string{
+		boci.EnsureOCIPrefix(source),
+		GHCRUDSBundlePath + source,
+		GHCRDeliveryBundlePath + source,
+		GHCRPackagesPath + source,
 	}
-	// Check provided repository path
-	sourceWithOCI := boci.EnsureOCIPrefix(source)
-	remote, err := fetcher.NewZarfOCIRemote(ctx, sourceWithOCI, platform)
 	var originalErr error
-	if err == nil {
-		source = sourceWithOCI
-		_, err = remote.ResolveRoot(ctx)
-		if err != nil {
-			originalErr = err
-			message.Debug(err)
-		}
-	}
-	// if root didn't resolve, expand the path
-	if err != nil {
-		// Check in ghcr uds bundle path
-		source = GHCRUDSBundlePath + originalSource
-		remote, err = fetcher.NewZarfOCIRemote(ctx, source, platform)
+	for i, candidate := range candidates {
+		remote, err := fetcher.NewBundleOCIRemote(ctx, candidate, platform)
 		if err == nil {
-			_, err = remote.ResolveRoot(ctx)
-		}
-		if err != nil {
-			message.Debug(err)
-			// Check in delivery bundle path
-			source = GHCRDeliveryBundlePath + originalSource
-			remote, err = fetcher.NewZarfOCIRemote(ctx, source, platform)
-			if err == nil {
-				_, err = remote.ResolveRoot(ctx)
-			}
-			if err != nil {
-				message.Debug()
-				// Check in packages bundle path
-				source = GHCRPackagesPath + originalSource
-				remote, err = fetcher.NewZarfOCIRemote(ctx, source, platform)
-				if err == nil {
-					_, err = remote.ResolveRoot(ctx)
-				}
-				// All checks failed, return error
-				if err != nil {
-					message.Debug(err)
-					if originalErr == nil {
-						return "", errors.New(originalSource + ": not found")
-					}
-					return "", originalErr
-				}
+			err = fetcher.CheckLegacyBundleRemote(ctx, remote)
+			if i == 0 {
+				originalErr = err
 			}
 		}
+		if errors.Is(err, utils.ErrNextBundle) {
+			return "", err
+		}
+		if err == nil {
+			return candidate, nil
+		}
+		message.Debug(err)
 	}
-	message.Debugf("%s: found", source)
-	return source, nil
+	if originalErr != nil {
+		return "", originalErr
+	}
+	return "", errors.New(source + ": not found")
 }
 
 // ValidateArch validates that the passed in arch matches the cluster arch
@@ -318,6 +291,9 @@ func CheckOCISourcePath(source string) (string, error) {
 	validTarballPath := utils.IsValidTarballPath(source)
 	var err error
 	if !validTarballPath {
+		if err := utils.CheckLegacyBundlePath(source); err != nil {
+			return "", err
+		}
 		source, err = getOCIValidatedSource(source)
 		if err != nil {
 			return "", err

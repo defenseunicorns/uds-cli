@@ -253,6 +253,9 @@ func GetIndex(remote RepositoryProvider, ref string) (*ocispec.Index, error) {
 		if err := json.Unmarshal(b, &index); err != nil {
 			return nil, err
 		}
+		if index != nil && utils.IsNextBundleIndex(*index) {
+			return nil, utils.ErrNextBundle
+		}
 	}
 	return index, nil
 }

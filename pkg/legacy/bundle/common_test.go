@@ -6,10 +6,15 @@ package bundle
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
+	"net"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -34,7 +39,143 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/content"
+	orasregistry "oras.land/oras-go/v2/registry"
 )
+
+func TestGetOCIValidatedSource(t *testing.T) {
+	const source = "origin.example/team/bundle:v1"
+	candidates := []string{"oci://" + source, GHCRUDSBundlePath + source, GHCRDeliveryBundlePath + source, GHCRPackagesPath + source}
+	auth := base64.StdEncoding.EncodeToString([]byte("test-user:test-password"))
+	dockerConfig := t.TempDir()
+	t.Setenv("DOCKER_CONFIG", dockerConfig)
+	require.NoError(t, os.WriteFile(filepath.Join(dockerConfig, "config.json"), []byte(`{"auths":{"origin.example":{"auth":"`+auth+`"}}}`), 0o600))
+	oldInsecure, oldArch := config.CommonOptions.Insecure, config.CLIArch
+	config.CommonOptions.Insecure, config.CLIArch = false, "amd64"
+	t.Cleanup(func() { config.CommonOptions.Insecure, config.CLIArch = oldInsecure, oldArch })
+	t.Run("invalid reference", func(t *testing.T) {
+		_, err := getOCIValidatedSource("invalid ref")
+		require.EqualError(t, err, "invalid ref: not found")
+	})
+
+	for _, tt := range []struct {
+		name        string
+		available   int
+		kind        string
+		status      int
+		wantError   string
+		wantNext    bool
+		requireAuth bool
+	}{
+		{name: "explicit Legacy manifest", available: 0},
+		{name: "authenticated Legacy manifest", available: 0, requireAuth: true},
+		{name: "Legacy multi-architecture index", available: 0, kind: "legacy"},
+		{name: "UDS bundle fallback", available: 1},
+		{name: "delivery fallback", available: 2},
+		{name: "packages fallback", available: 3},
+		{name: "missing reference preserves first error", available: -1, wantError: "origin.example/team/bundle:v1"},
+		{name: "authorization error preserved", available: 0, status: http.StatusForbidden, wantError: "403"},
+		{name: "malformed index error preserved", available: 0, kind: "malformed", wantError: "unexpected end of JSON input"},
+		{name: "Legacy architecture mismatch preserved", available: 0, kind: "wrong architecture", wantError: "no matching manifest"},
+		{name: "Next child stops fallback", available: 0, kind: "next child", wantNext: true},
+		{name: "Next root stops fallback", available: 0, kind: "next root", wantNext: true},
+		{name: "Next fallback stops further lookup", available: 1, kind: "next child", wantNext: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			manifest := []byte(`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{},"layers":[]}`)
+			manifestDesc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, manifest)
+			body, mediaType := manifest, ocispec.MediaTypeImageManifest
+			if tt.kind != "" {
+				index := ocispec.Index{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: ocispec.MediaTypeImageIndex}
+				manifestDesc.Platform = &ocispec.Platform{OS: oci.MultiOS, Architecture: "amd64"}
+				index.Manifests = []ocispec.Descriptor{manifestDesc}
+				switch tt.kind {
+				case "wrong architecture":
+					index.Manifests[0].Platform.Architecture = "arm64"
+				case "next child":
+					index.ArtifactType = "application/vnd.defenseunicorns.uds.bundle.v1"
+				case "next root":
+					index.Manifests[0].MediaType = ocispec.MediaTypeImageIndex
+					index.Manifests[0].ArtifactType = "application/vnd.defenseunicorns.uds.bundle.v1"
+				}
+				var err error
+				body, err = json.Marshal(index)
+				require.NoError(t, err)
+				mediaType = ocispec.MediaTypeImageIndex
+				if tt.kind == "malformed" {
+					body = []byte(`{`)
+				}
+			}
+			desc := content.NewDescriptorFromBytes(mediaType, body)
+			attempts := make(chan string, 100)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for i, candidate := range candidates {
+					ref, err := orasregistry.ParseReference(strings.TrimPrefix(candidate, "oci://"))
+					if err != nil || r.Host != ref.Registry || r.URL.Path != "/v2/"+ref.Repository+"/manifests/"+ref.Reference {
+						continue
+					}
+					attempts <- candidate
+					if i != tt.available {
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					if tt.status != 0 {
+						w.WriteHeader(tt.status)
+						return
+					}
+					if tt.requireAuth && r.Header.Get("Authorization") != "Basic "+auth {
+						w.Header().Set("WWW-Authenticate", `Basic realm="test registry"`)
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					break
+				}
+				if strings.Contains(r.URL.Path, "/manifests/") {
+					w.Header().Set("Content-Type", mediaType)
+					w.Header().Set("Docker-Content-Digest", desc.Digest.String())
+					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+					if r.Method != http.MethodHead {
+						_, _ = w.Write(body)
+					}
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+			}))
+			t.Cleanup(server.Close)
+			transport := server.Client().Transport.(*http.Transport).Clone()
+			transport.Proxy = nil
+			transport.TLSClientConfig.ServerName = server.Certificate().DNSNames[0]
+			transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+			}
+			originalTransport := http.DefaultTransport
+			http.DefaultTransport = transport
+			t.Cleanup(func() { http.DefaultTransport = originalTransport; transport.CloseIdleConnections() })
+
+			got, err := getOCIValidatedSource(source)
+			switch {
+			case tt.wantNext:
+				require.ErrorIs(t, err, utils.ErrNextBundle)
+			case tt.wantError != "":
+				require.ErrorContains(t, err, tt.wantError)
+			default:
+				require.NoError(t, err)
+				require.Equal(t, candidates[tt.available], got)
+			}
+			var visited []string
+			for len(attempts) > 0 {
+				candidate := <-attempts
+				if len(visited) == 0 || candidate != visited[len(visited)-1] {
+					visited = append(visited, candidate)
+				}
+			}
+			last := tt.available
+			if tt.wantError != "" {
+				last = len(candidates) - 1
+			}
+			require.Equal(t, candidates[:last+1], visited)
+		})
+	}
+}
 
 func Test_validateBundleVars(t *testing.T) {
 	tests := []struct {

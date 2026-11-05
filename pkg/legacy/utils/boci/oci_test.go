@@ -7,8 +7,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/opencontainers/go-digest"
@@ -20,6 +26,40 @@ import (
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 )
+
+func TestGetIndexRejectsNextBundles(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		index string
+		next  bool
+	}{
+		{"legacy", `{"schemaVersion":2,"manifests":[]}`, false},
+		{"child", `{"schemaVersion":2,"artifactType":"application/vnd.defenseunicorns.uds.bundle.v1","manifests":[]}`, true},
+		{"root", `{"schemaVersion":2,"manifests":[{"artifactType":"application/vnd.defenseunicorns.uds.bundle.v1"}]}`, true},
+		{"definition", `{"schemaVersion":2,"manifests":[{"artifactType":"application/vnd.defenseunicorns.uds.bundle.definition.v1"}]}`, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", ocispec.MediaTypeImageIndex)
+				w.Header().Set("Docker-Content-Digest", digest.FromString(tt.index).String())
+				w.Header().Set("Content-Length", strconv.Itoa(len(tt.index)))
+				if r.Method != http.MethodHead {
+					_, _ = fmt.Fprint(w, tt.index)
+				}
+			}))
+			t.Cleanup(server.Close)
+			remote, err := oci.NewOrasRemote(strings.TrimPrefix(server.URL, "http://")+"/bundle:tag", ocispec.Platform{}, oci.WithPlainHTTP(true))
+			require.NoError(t, err)
+			index, err := GetIndex(remote, "tag")
+			if tt.next {
+				require.ErrorIs(t, err, utils.ErrNextBundle)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, index)
+		})
+	}
+}
 
 func TestFilterComponentsV1beta1RequiredAndOptional(t *testing.T) {
 	pkg, err := utils.ReadPackageYAMLBytes([]byte(`
