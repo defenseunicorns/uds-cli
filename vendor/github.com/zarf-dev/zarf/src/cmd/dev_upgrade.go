@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -24,7 +25,6 @@ type devUpgradeSchemaOptions struct {
 	to string
 }
 
-// This command will be unhidden once v1beta1 is ready for use
 func newDevUpgradeSchemaCommand() *cobra.Command {
 	o := &devUpgradeSchemaOptions{}
 
@@ -32,7 +32,6 @@ func newDevUpgradeSchemaCommand() *cobra.Command {
 		Use:     "upgrade [ PATH ]",
 		Short:   "Converts and outputs the existing zarf package config to the given API version. Defaults to latest API version.",
 		Example: "zarf dev upgrade . > zarf-v1beta1.yaml",
-		Hidden:  true,
 		Args:    cobra.MaximumNArgs(1),
 		RunE:    o.run,
 	}
@@ -57,11 +56,12 @@ func (o *devUpgradeSchemaOptions) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	sourceVersion, err := pkgcfg.SelectVersion(cmd.Context(), b)
+	document, err := pkgcfg.SelectDocument(cmd.Context(), b)
 	if err != nil {
 		return err
 	}
 
+	sourceVersion := document.APIVersion()
 	if err := validateVersionUpgrade(sourceVersion, o.to); err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (o *devUpgradeSchemaOptions) run(cmd *cobra.Command, args []string) error {
 	switch {
 	case sourceVersion == v1alpha1.APIVersion && o.to == v1beta1.APIVersion:
 		var pkg v1alpha1.ZarfPackage
-		if err := goyaml.Unmarshal(b, &pkg); err != nil {
+		if err := document.Unmarshal(&pkg); err != nil {
 			return err
 		}
 		componentImportLog(cmd.Context(), pkg)
@@ -84,6 +84,14 @@ func (o *devUpgradeSchemaOptions) run(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		result := convert.PackageV1alpha1ToV1beta1(pkg)
+		result.Build = v1beta1.BuildData{}
+		for ci := range result.Components {
+			for fi := range result.Components[ci].Files {
+				file := &result.Components[ci].Files[fi]
+				// Match v1alpha1 deployment, which replaces only the first occurrence.
+				file.Destination = strings.Replace(file.Destination, "###ZARF_TEMP###", "{{ .Runtime.TempDir }}", 1)
+			}
+		}
 		out, err := goyaml.Marshal(result)
 		if err != nil {
 			return fmt.Errorf("marshaling %s package: %w", o.to, err)

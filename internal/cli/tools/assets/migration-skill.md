@@ -124,7 +124,7 @@ creation. Do not deploy a bundle, operate a cluster, or write to a registry.
 
 ## Included documentation: docs/how-to-guides/migrate-legacy-to-next.mdx
 
-<!-- Source SHA256: e054aac68cc4b444859e4d91eaaec715700dfca73ec0f6f3ea136a5f855a2e06 -->
+<!-- Source SHA256: 41f4f22b902258bc7f17e9dbbf1e3482fbd35aace86196c91f5c35e9c13aebf3 -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -163,7 +163,8 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
    | `uds pull` | `CLI_FEATURES=NextMode=true uds bundle pull` |
    | `uds remove` | `CLI_FEATURES=NextMode=true uds bundle remove` or `CLI_FEATURES=NextMode=true uds bundle dev remove` |
    | `uds zarf` | `CLI_FEATURES=NextMode=true uds tools zarf` |
-   | `uds run`, `uds monitor`, `uds completion`, `uds version` | unchanged |
+   | `uds monitor pepr` | `CLI_FEATURES=NextMode=true uds core operator monitor` |
+   | `uds run`, `uds completion`, `uds version` | unchanged |
 
    Vendored tools such as `kubectl` and `helm` still use `uds zarf tools <tool>`, not `uds tools zarf tools <tool>`.
 
@@ -590,7 +591,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: a4bd043126f178beb8b75d417c13f5f46db73df48e19ccaf485c535c8c139f6b -->
+<!-- Source SHA256: 655c312c22b8ed30c685669004140e449de6e2eafaa6233a2788529e86b9792f -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -634,11 +635,15 @@ The `options` block configures operation-wide behavior. Config values override b
 |---|---|---|---|
 | `log_level` | string | `"info"` | Accepts `debug`, `info`, `warn`, or `error`. `warning` is accepted as an alias for `warn`. |
 | `architecture` | string | The current runtime architecture | Selects the target architecture for architecture-aware bundle and package operations. |
+| `skip_architecture_check` | boolean | `false` | Skips package-to-cluster architecture compatibility checks for `bundle deploy` and `bundle dev deploy`. |
 | `plain_http` | boolean | `false` | Allows registry communication over plain HTTP. Use only with a registry that intentionally does not provide TLS. |
 | `skip_tls_verify` | boolean | `false` | Disables TLS certificate verification for registry communication. This reduces transport security. |
 | `tmp_dir` | string | The operating system temporary directory | Must name an existing directory when set. |
 | `uds_cache` | string | `~/.uds-cache` | Cache root. `~` and `~/` expand to your home directory. Explicit `--uds-cache` overrides this value with the same expansion. |
 | `concurrency` | integer | `10` | Values from `1` to `25` are accepted. `0` is treated as unset and uses the default of `10`. |
+
+> [!WARNING]
+> `skip_architecture_check` disables architecture compatibility validation. It does not modify package images or verify that they can run in the eventual target environment. Before using it, independently verify that the package architecture is appropriate for the deployment workflow.
 
 Example:
 
@@ -952,7 +957,7 @@ Replace `<ARCH>` with the target architecture, such as `amd64` or `arm64`.
 
 ## Included documentation: docs/how-to-guides/verify-keyless-package-signatures.mdx
 
-<!-- Source SHA256: 42e060ec0c51766748712cb6497c4c187c23a260cb8b054dfb2bf2d1a4a7fbc4 -->
+<!-- Source SHA256: 64831ad762d83a3c09d17b841ac71c72d5e6d9fdb48f51bdc1243dfc925db335 -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -1014,7 +1019,7 @@ packages:
    packages:
      - name: init
        repository: ghcr.io/zarf-dev/packages/init
-       ref: v0.87.0
+       ref: v0.89.0
        keylessVerification:
          certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
          certificateOIDCIssuer: https://token.actions.githubusercontent.com

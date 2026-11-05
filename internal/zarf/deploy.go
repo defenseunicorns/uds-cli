@@ -22,6 +22,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 	"github.com/zarf-dev/zarf/src/pkg/value"
 )
 
@@ -325,12 +326,19 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 			log.Warn("failed to clean up package layout", "name", pkg.Name, "error", err)
 		}
 	}()
+	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
+		return fmt.Errorf("package %q: %w", pkg.Name, err)
+	}
 
 	deployOpts := packager.DeployOptions{
-		Values:            zarfValues, // Helm chart values from values_files
-		SetVariables:      setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
-		IsInteractive:     false,
-		NamespaceOverride: pkg.Namespace, // empty string is fine - Zarf ignores it
+		SkipArchitectureCheck: opts.Config.Options.SkipArchitectureCheck,
+		Values:                zarfValues, // Helm chart values from values_files
+		SetVariables:          setVars,    // Zarf ###ZARF_PKG_VAR_*### passthrough
+		IsInteractive:         false,
+		NamespaceOverride:     pkg.Namespace, // empty string is fine - Zarf ignores it
+	}
+	if pkgLayout.Definition().IsInitConfig() {
+		deployOpts.AgentMutationPolicy = state.MutationPolicyAll
 	}
 
 	log.Info("deploying zarf package to cluster", "name", pkg.Name)
@@ -339,12 +347,21 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	if err := hooks.PreDeploy(ctx, pkg, pkgLayout, &deployOpts, &opts); err != nil {
 		return fmt.Errorf("pre-deploy package %q: %w: %w", pkg.Name, ErrPackageHook, err)
 	}
+	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
+		return fmt.Errorf("package %q after pre-deploy hook: %w", pkg.Name, err)
+	}
+	if err := opts.Validate(); err != nil {
+		return fmt.Errorf("pre-deploy package %q left options invalid: %w: %w", pkg.Name, ErrPackageHook, err)
+	}
+	deployOpts.SkipArchitectureCheck = opts.Config.Options.SkipArchitectureCheck
 
 	deploy := opts.ClusterDeployFn
 	if deploy == nil {
 		deploy = func(ctx context.Context, l *layout.PackageLayout, o *packager.DeployOptions, _ bool) error {
-			_, err := packager.Deploy(ctx, l, *o)
-			return err
+			return withTempDir(opts.Config.Options.TmpDir, func() error {
+				_, err := packager.Deploy(ctx, l, *o)
+				return err
+			})
 		}
 	}
 	if err := deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial); err != nil {

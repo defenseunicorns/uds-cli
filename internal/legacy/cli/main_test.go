@@ -127,6 +127,52 @@ func TestInvalidConfigurationFailsDuringExecution(t *testing.T) {
 	}
 }
 
+func TestDeployArchitectureOverrideConfigurationPrecedence(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "uds-config.yaml")
+	if err := os.WriteFile(configPath, []byte("options:\n  skip_architecture_check: true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("UDS_CONFIG", configPath)
+
+	for _, tt := range []struct {
+		name      string
+		cliValue  string
+		wantValue bool
+	}{
+		{name: "configuration enables override", wantValue: true},
+		{name: "explicit CLI false overrides configuration", cliValue: "false", wantValue: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			root := NewRootCommand()
+			deploy, _, err := root.Find([]string{"deploy"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.cliValue != "" {
+				if err := deploy.Flags().Set("skip-architecture-check", tt.cliValue); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := readViperConfig(); err != nil {
+				t.Fatal(err)
+			}
+			if err := applyViperFlags(deploy); err != nil {
+				t.Fatal(err)
+			}
+			overrides := captureChangedFlags(deploy)
+			if err := loadViperConfig(); err != nil {
+				t.Fatal(err)
+			}
+			if err := restoreChangedFlags(overrides); err != nil {
+				t.Fatal(err)
+			}
+			if bundleCfg.DeployOpts.SkipArchitectureCheck != tt.wantValue {
+				t.Fatalf("skip architecture check = %t, want %t", bundleCfg.DeployOpts.SkipArchitectureCheck, tt.wantValue)
+			}
+		})
+	}
+}
+
 func TestConfigurationPreservesChangedDeployFlags(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "uds-config.yaml")
 	if err := os.WriteFile(configPath, []byte("retries: 9\n"), 0o600); err != nil {

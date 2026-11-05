@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -20,7 +20,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/valuesources"
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 	"helm.sh/helm/v4/pkg/cli/values"
 )
@@ -55,8 +55,8 @@ func newTestPkg(pkgName string, componentName string, chartName string, overVar 
 func formTestPkgViews(t *testing.T, bundle *Bundle) []PkgView {
 	t.Helper()
 
-	pkgViews, err := formPkgViewsWithMetadata(bundle, func(types.Package) (v1alpha1.ZarfPackage, error) {
-		return v1alpha1.ZarfPackage{}, nil
+	pkgViews, err := formPkgViewsWithMetadata(bundle, func(types.Package) (api.Package, error) {
+		return api.Package{}, nil
 	})
 	require.NoError(t, err)
 	return pkgViews
@@ -706,22 +706,22 @@ func TestAddZarfVars(t *testing.T) {
 	tests := []struct {
 		name          string
 		variableData  map[string]overrideData
-		zarfVariables []v1alpha1.InteractiveVariable
+		zarfVariables []api.InteractiveVariable
 		expected      []interface{}
 	}{
 		{
 			name:         "masks a sensitive variable from config",
 			variableData: map[string]overrideData{"SENSITIVE_VAR": {value: "sensitive-value", source: valuesources.Config}},
-			zarfVariables: []v1alpha1.InteractiveVariable{
-				{Variable: v1alpha1.Variable{Name: "sensitive_var", Sensitive: true}},
+			zarfVariables: []api.InteractiveVariable{
+				{Variable: api.Variable{Name: "sensitive_var", Sensitive: true}},
 			},
 			expected: []interface{}{map[string]interface{}{"SENSITIVE_VAR": hiddenVar}},
 		},
 		{
 			name:         "masks a sensitive variable from the CLI",
 			variableData: map[string]overrideData{"SENSITIVE_VAR": {value: "sensitive-value", source: valuesources.CLI}},
-			zarfVariables: []v1alpha1.InteractiveVariable{
-				{Variable: v1alpha1.Variable{Name: "SENSITIVE_VAR", Sensitive: true}},
+			zarfVariables: []api.InteractiveVariable{
+				{Variable: api.Variable{Name: "SENSITIVE_VAR", Sensitive: true}},
 			},
 			expected: []interface{}{map[string]interface{}{"SENSITIVE_VAR": hiddenVar}},
 		},
@@ -771,8 +771,8 @@ func TestFormPkgViewsReturnsErrorWhenMetadataIsUnavailable(t *testing.T) {
 	bundle.bundle = types.UDSBundle{Packages: []types.Package{{Name: pkgName}}}
 
 	metadataErr := errors.New("metadata unavailable")
-	pkgViews, err := formPkgViewsWithMetadata(&bundle, func(types.Package) (v1alpha1.ZarfPackage, error) {
-		return v1alpha1.ZarfPackage{}, metadataErr
+	pkgViews, err := formPkgViewsWithMetadata(&bundle, func(types.Package) (api.Package, error) {
+		return api.Package{}, metadataErr
 	})
 
 	require.Nil(t, pkgViews)
@@ -786,6 +786,80 @@ func TestDeployPackagesRejectsMissingManifestDigest(t *testing.T) {
 		err = deployPackages(context.Background(), []types.Package{{Name: "test-package", Ref: "0.0.1"}}, &Bundle{})
 	})
 	require.ErrorContains(t, err, `package "test-package" reference is missing a manifest digest`)
+}
+
+func TestInitDeployOptions(t *testing.T) {
+	const image = "registry.example.com/injector:1.0"
+	tests := []struct {
+		name     string
+		kind     api.PackageKind
+		config   ConfigVariables
+		shared   ConfigSharedVariables
+		env      string
+		set      SetVariables
+		expected string
+	}{
+		{
+			name: "package config",
+			kind: api.ZarfInitConfig,
+			config: ConfigVariables{
+				"init": {"INIT_INJECTOR_IMAGE": image},
+			},
+			expected: image,
+		},
+		{
+			name:     "shared config",
+			kind:     api.ZarfInitConfig,
+			shared:   ConfigSharedVariables{"INIT_INJECTOR_IMAGE": image},
+			expected: image,
+		},
+		{
+			name: "environment overrides config",
+			kind: api.ZarfInitConfig,
+			config: ConfigVariables{
+				"init": {"INIT_INJECTOR_IMAGE": "registry.example.com/config:1.0"},
+			},
+			env:      image,
+			expected: image,
+		},
+		{
+			name:     "set overrides environment",
+			kind:     api.ZarfInitConfig,
+			env:      "registry.example.com/env:1.0",
+			set:      SetVariables{"INIT_INJECTOR_IMAGE": image},
+			expected: image,
+		},
+		{
+			name: "omitted uses Zarf default",
+			kind: api.ZarfInitConfig,
+		},
+		{
+			name: "regular package ignores init setting",
+			kind: api.ZarfPackageConfig,
+			env:  image,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("UDS_INIT_INJECTOR_IMAGE", tt.env)
+			if tt.env == "" {
+				require.NoError(t, os.Unsetenv("UDS_INIT_INJECTOR_IMAGE"))
+			}
+			b := newTestBundle(tt.config, tt.shared, tt.set, "uds-config.yaml", "")
+			pkg := types.Package{Name: "init"}
+			pkgVars, _ := b.loadVariables(pkg, nil)
+			opts, err := b.newDeployOptions(t.Context(), pkg, pkgVars, nil, tt.kind, state.RegistryInfo{})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, opts.InjectorImage)
+			if tt.kind == api.ZarfInitConfig {
+				require.Equal(t, state.MutationPolicyAll, opts.AgentMutationPolicy)
+			} else {
+				require.Empty(t, opts.AgentMutationPolicy)
+			}
+		})
+	}
 }
 
 func TestFilterOverrides(t *testing.T) {
@@ -819,12 +893,12 @@ func Test_newGitServerInfo(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		pkgKind  v1alpha1.ZarfPackageKind
+		pkgKind  api.PackageKind
 		expected state.GitServerInfo
 	}{
 		{
 			name:    "init config kind returns git server info",
-			pkgKind: v1alpha1.ZarfInitConfig,
+			pkgKind: api.ZarfInitConfig,
 			expected: state.GitServerInfo{
 				Address:      "fake.git",
 				PushUsername: "push-user",
@@ -835,7 +909,7 @@ func Test_newGitServerInfo(t *testing.T) {
 		},
 		{
 			name:     "package config kind returns empty git server info",
-			pkgKind:  v1alpha1.ZarfPackageConfig,
+			pkgKind:  api.ZarfPackageConfig,
 			expected: state.GitServerInfo{},
 		},
 	}
@@ -870,12 +944,12 @@ func Test_newRegistryInfo(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		pkgKind  v1alpha1.ZarfPackageKind
+		pkgKind  api.PackageKind
 		expected state.RegistryInfo
 	}{
 		{
 			name:    "init config kind returns registry info",
-			pkgKind: v1alpha1.ZarfInitConfig,
+			pkgKind: api.ZarfInitConfig,
 			expected: state.RegistryInfo{
 				Address:      "fake.io",
 				PushUsername: "push-user",
@@ -888,7 +962,7 @@ func Test_newRegistryInfo(t *testing.T) {
 		},
 		{
 			name:     "package config kind returns empty registry info",
-			pkgKind:  v1alpha1.ZarfPackageConfig,
+			pkgKind:  api.ZarfPackageConfig,
 			expected: state.RegistryInfo{},
 		},
 	}
@@ -1003,12 +1077,12 @@ func Test_newArtifactServerInfo(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		pkgKind  v1alpha1.ZarfPackageKind
+		pkgKind  api.PackageKind
 		expected state.ArtifactServerInfo
 	}{
 		{
 			name:    "init config kind returns artifact info",
-			pkgKind: v1alpha1.ZarfInitConfig,
+			pkgKind: api.ZarfInitConfig,
 			expected: state.ArtifactServerInfo{
 				Address:      "fake.artifact",
 				PushUsername: "push-user",
@@ -1017,7 +1091,7 @@ func Test_newArtifactServerInfo(t *testing.T) {
 		},
 		{
 			name:     "package config kind returns empty artifact info",
-			pkgKind:  v1alpha1.ZarfPackageConfig,
+			pkgKind:  api.ZarfPackageConfig,
 			expected: state.ArtifactServerInfo{},
 		},
 	}
@@ -1052,17 +1126,17 @@ func Test_newStorageClass(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		pkgKind  v1alpha1.ZarfPackageKind
+		pkgKind  api.PackageKind
 		expected string
 	}{
 		{
 			name:     "init config kind returns storage class",
-			pkgKind:  v1alpha1.ZarfInitConfig,
+			pkgKind:  api.ZarfInitConfig,
 			expected: "ebs",
 		},
 		{
 			name:     "package config kind returns empty storage class",
-			pkgKind:  v1alpha1.ZarfPackageConfig,
+			pkgKind:  api.ZarfPackageConfig,
 			expected: "",
 		},
 	}

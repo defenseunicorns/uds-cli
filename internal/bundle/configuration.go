@@ -59,13 +59,14 @@ type KeylessVerification struct {
 // ConfigOptions holds bundle-component CLI options from the options block.
 // All fields are optional; unset values use the operation defaults.
 type ConfigOptions struct {
-	LogLevel      string `hcl:"log_level,optional"`
-	Architecture  string `hcl:"architecture,optional"`
-	PlainHTTP     bool   `hcl:"plain_http,optional"`
-	SkipTLSVerify bool   `hcl:"skip_tls_verify,optional"`
-	CacheDir      string `hcl:"uds_cache,optional"`
-	TmpDir        string `hcl:"tmp_dir,optional"`
-	Concurrency   int    `hcl:"concurrency,optional"`
+	LogLevel              string `hcl:"log_level,optional"`
+	Architecture          string `hcl:"architecture,optional"`
+	PlainHTTP             bool   `hcl:"plain_http,optional"`
+	SkipTLSVerify         bool   `hcl:"skip_tls_verify,optional"`
+	CacheDir              string `hcl:"uds_cache,optional"`
+	TmpDir                string `hcl:"tmp_dir,optional"`
+	Concurrency           int    `hcl:"concurrency,optional"`
+	SkipArchitectureCheck bool   `hcl:"skip_architecture_check,optional"`
 }
 
 // ParseBundleConfig reads and parses a config.uds.hcl file.

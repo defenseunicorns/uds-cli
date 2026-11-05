@@ -22,9 +22,6 @@ func (p Package) Validate() error {
 	}
 
 	if version == v1beta1.APIVersion {
-		if p.Kind == ZarfInitConfig {
-			add("kind ZarfInitConfig")
-		}
 		for _, field := range []struct {
 			name  string
 			value string
@@ -62,8 +59,8 @@ func (p Package) Validate() error {
 				add(path + ".import (multiple sources)")
 			}
 			for j, image := range component.Images {
-				if image.Source != "" {
-					add(fmt.Sprintf("%s.images[%d].source", path, j))
+				if image.Source != ImageSourceRegistryDaemonFallback {
+					errs = append(errs, fmt.Errorf("%s.images[%d].source must be %q in %s", path, j, ImageSourceRegistryDaemonFallback, version))
 				}
 			}
 		case v1beta1.APIVersion:

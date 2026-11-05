@@ -93,6 +93,7 @@ func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, resume 
 	cmd.Flags().BoolVarP(force, "force", "f", false, "deploy packages even if their dependencies are not selected")
 	cmd.Flags().BoolVarP(resume, "resume", "r", false, "skip packages already deployed successfully")
 	cmd.Flags().StringArrayVarP(variables, "set", "s", nil, "set a deploy-time variable using key=value")
+	cmd.Flags().Bool("skip-architecture-check", false, "skip package-to-cluster architecture compatibility checks; intended for development and testing, not recommended for production")
 }
 
 // Complete fills artifact deploy options from command-line arguments.
@@ -185,6 +186,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 		o.Verification.Config = baseConfig
 	}
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
+
 	o.Info("preparing bundle for deployment", "source", o.BundlePath)
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {

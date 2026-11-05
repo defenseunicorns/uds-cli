@@ -39,28 +39,31 @@ func PackageFromV1alpha1(pkg v1alpha1.ZarfPackage) api.Package {
 			Vendor:                   pkg.Metadata.Vendor,
 		},
 		Build: api.BuildData{
-			Hostname:                   pkg.Build.Terminal,
-			User:                       pkg.Build.User,
-			Architecture:               pkg.Build.Architecture,
-			Timestamp:                  pkg.Build.Timestamp,
-			Version:                    pkg.Build.Version,
-			Migrations:                 pkg.Build.Migrations,
-			RegistryOverrides:          pkg.Build.RegistryOverrides,
-			Differential:               pkg.Build.Differential,
-			DifferentialPackageVersion: pkg.Build.DifferentialPackageVersion,
-			Flavor:                     pkg.Build.Flavor,
-			Signed:                     pkg.Build.Signed,
-			DifferentialMissing:        pkg.Build.DifferentialMissing,
-			ProvenanceFiles:            pkg.Build.ProvenanceFiles,
-			AggregateChecksum:          pkg.Metadata.AggregateChecksum,
+			Hostname:            pkg.Build.Terminal,
+			User:                pkg.Build.User,
+			Architecture:        pkg.Build.Architecture,
+			Timestamp:           pkg.Build.Timestamp,
+			Version:             pkg.Build.Version,
+			Migrations:          pkg.Build.Migrations,
+			RegistryOverrides:   pkg.Build.RegistryOverrides,
+			Flavor:              pkg.Build.Flavor,
+			Signed:              pkg.Build.Signed,
+			DifferentialMissing: pkg.Build.DifferentialMissing,
+			ProvenanceFiles:     pkg.Build.ProvenanceFiles,
+			AggregateChecksum:   pkg.Metadata.AggregateChecksum,
 		},
 		Values: api.Values{
 			Files:  pkg.Values.Files,
 			Schema: pkg.Values.Schema,
 		},
-		Documentation: pkg.Documentation,
-		Variables:     interactiveVarsToGeneric(pkg.Variables),
-		Constants:     constantsToGeneric(pkg.Constants),
+		Attachments: pkg.Documentation,
+		Variables:   interactiveVarsToGeneric(pkg.Variables),
+		Constants:   constantsToGeneric(pkg.Constants),
+	}
+	if pkg.Build.Differential {
+		g.Build.Differential = &api.Differential{
+			FromVersion: pkg.Build.DifferentialPackageVersion,
+		}
 	}
 
 	for _, vr := range pkg.Build.VersionRequirements {
@@ -73,7 +76,7 @@ func PackageFromV1alpha1(pkg v1alpha1.ZarfPackage) api.Package {
 	for _, c := range pkg.Components {
 		component := componentToGeneric(c)
 		if pkg.Kind == v1alpha1.ZarfInitConfig {
-			component.Service = serviceForComponentName(c.Name)
+			component.Service.Name = serviceNameForComponent(c.Name)
 		}
 		g.Components = append(g.Components, component)
 	}
@@ -81,7 +84,7 @@ func PackageFromV1alpha1(pkg v1alpha1.ZarfPackage) api.Package {
 	return g
 }
 
-func serviceForComponentName(name string) api.Service {
+func serviceNameForComponent(name string) api.ServiceName {
 	switch name {
 	case "zarf-registry":
 		return api.ServiceRegistry
@@ -136,9 +139,13 @@ func componentToGeneric(c v1alpha1.ZarfComponent) api.Component {
 	}
 
 	for _, f := range c.Files {
+		var fileChecksum api.FileChecksum
+		if f.Shasum != "" {
+			fileChecksum = api.FileChecksum{Algorithm: api.ChecksumSHA256, Digest: f.Shasum}
+		}
 		gc.Files = append(gc.Files, api.File{
 			Source:           f.Source,
-			Checksum:         f.Shasum,
+			Checksum:         fileChecksum,
 			Destination:      f.Target,
 			Executable:       f.Executable,
 			Symlinks:         f.Symlinks,
@@ -148,14 +155,15 @@ func componentToGeneric(c v1alpha1.ZarfComponent) api.Component {
 	}
 
 	for _, img := range c.Images {
-		gc.Images = append(gc.Images, api.Image{Name: img})
+		gc.Images = append(gc.Images, api.Image{Name: img, Source: api.ImageSourceRegistryDaemonFallback})
 	}
 
 	for _, ia := range c.ImageArchives {
-		gc.ImageArchives = append(gc.ImageArchives, api.ImageArchive{
-			Path:   ia.Path,
-			Images: ia.Images,
-		})
+		archive := api.ImageArchive{Path: ia.Path}
+		for _, image := range ia.Images {
+			archive.Images = append(archive.Images, api.ArchiveImage{Name: image})
+		}
+		gc.ImageArchives = append(gc.ImageArchives, archive)
 	}
 
 	return gc
@@ -405,7 +413,7 @@ func PackageToV1alpha1(g api.Package) v1alpha1.ZarfPackage {
 		Metadata:      metadataFromGeneric(g.Metadata, g.Build),
 		Build:         buildFromGeneric(g.Build),
 		Values:        v1alpha1.ZarfValues{Files: g.Values.Files, Schema: g.Values.Schema},
-		Documentation: g.Documentation,
+		Documentation: g.Attachments,
 		Variables:     interactiveVarsFromGeneric(g.Variables),
 		Constants:     constantsFromGeneric(g.Constants),
 	}
@@ -416,14 +424,6 @@ func PackageToV1alpha1(g api.Package) v1alpha1.ZarfPackage {
 
 	for _, c := range g.Components {
 		pkg.Components = append(pkg.Components, componentFromGeneric(c))
-	}
-
-	// A component providing a Zarf CLI service marks this as an init package.
-	for _, c := range g.Components {
-		if c.Service != "" {
-			pkg.Kind = v1alpha1.ZarfInitConfig
-			break
-		}
 	}
 
 	return pkg
@@ -454,19 +454,21 @@ func metadataFromGeneric(m api.PackageMetadata, b api.BuildData) v1alpha1.ZarfMe
 
 func buildFromGeneric(b api.BuildData) v1alpha1.ZarfBuildData {
 	out := v1alpha1.ZarfBuildData{
-		Terminal:                   b.Hostname,
-		User:                       b.User,
-		Architecture:               b.Architecture,
-		Timestamp:                  b.Timestamp,
-		Version:                    b.Version,
-		Migrations:                 b.Migrations,
-		RegistryOverrides:          b.RegistryOverrides,
-		Differential:               b.Differential,
-		DifferentialPackageVersion: b.DifferentialPackageVersion,
-		DifferentialMissing:        b.DifferentialMissing,
-		Flavor:                     b.Flavor,
-		Signed:                     b.Signed,
-		ProvenanceFiles:            b.ProvenanceFiles,
+		Terminal:            b.Hostname,
+		User:                b.User,
+		Architecture:        b.Architecture,
+		Timestamp:           b.Timestamp,
+		Version:             b.Version,
+		Migrations:          b.Migrations,
+		RegistryOverrides:   b.RegistryOverrides,
+		DifferentialMissing: b.DifferentialMissing,
+		Flavor:              b.Flavor,
+		Signed:              b.Signed,
+		ProvenanceFiles:     b.ProvenanceFiles,
+	}
+	if b.Differential != nil {
+		out.Differential = true
+		out.DifferentialPackageVersion = b.Differential.FromVersion
 	}
 
 	for _, vr := range b.VersionRequirements {
@@ -520,12 +522,15 @@ func componentFromGeneric(c api.Component) v1alpha1.ZarfComponent {
 	for _, f := range c.Files {
 		af := v1alpha1.ZarfFile{
 			Source:      f.Source,
-			Shasum:      f.Checksum,
 			Target:      f.Destination,
 			Executable:  f.Executable,
 			Symlinks:    f.Symlinks,
 			ExtractPath: f.ExtractPath,
 			Template:    boolPointer(f.EnableTemplating),
+		}
+		// v1alpha1 shasum stores only an unprefixed SHA-256 digest.
+		if f.Checksum.GetAlgorithm() == api.ChecksumSHA256 {
+			af.Shasum = f.Checksum.Digest
 		}
 		ac.Files = append(ac.Files, af)
 	}
@@ -535,10 +540,11 @@ func componentFromGeneric(c api.Component) v1alpha1.ZarfComponent {
 	}
 
 	for _, ia := range c.ImageArchives {
-		ac.ImageArchives = append(ac.ImageArchives, v1alpha1.ImageArchive{
-			Path:   ia.Path,
-			Images: ia.Images,
-		})
+		archive := v1alpha1.ImageArchive{Path: ia.Path}
+		for _, image := range ia.Images {
+			archive.Images = append(archive.Images, image.Name)
+		}
+		ac.ImageArchives = append(ac.ImageArchives, archive)
 	}
 
 	return ac

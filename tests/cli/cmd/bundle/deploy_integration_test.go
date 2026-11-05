@@ -38,6 +38,7 @@ func (s *DeploySuite) TestDeployCommand_PackagesFlagInHelp() {
 	s.Contains(output, "--packages", "help output should document --packages flag")
 	s.Contains(output, "--force", "help output should document --force flag")
 	s.Contains(output, "--resume", "help output should document --resume flag")
+	s.Contains(output, "--skip-architecture-check", "help output should document --skip-architecture-check flag")
 }
 
 func (s *DeploySuite) TestDevDeployCommand_HelpAndRouting() {
@@ -48,6 +49,7 @@ func (s *DeploySuite) TestDevDeployCommand_HelpAndRouting() {
 	s.Contains(output, "--force")
 	s.Contains(output, "--resume")
 	s.Contains(output, "--concurrency")
+	s.Contains(output, "--skip-architecture-check")
 	s.Contains(output, "--prompt")
 
 	bundlePath := testutil.TestDataPath("bundles/deploy/init")

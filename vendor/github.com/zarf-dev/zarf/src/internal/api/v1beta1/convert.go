@@ -19,32 +19,29 @@ func PackageFromV1beta1(pkg v1beta1.Package) api.Package {
 		Kind:       api.PackageKind(pkg.Kind),
 		Metadata:   metadataToGeneric(pkg.Metadata),
 		Build: api.BuildData{
-			Hostname:                   pkg.Build.Hostname,
-			User:                       pkg.Build.User,
-			Architecture:               pkg.Build.Architecture,
-			Timestamp:                  pkg.Build.Timestamp,
-			Version:                    pkg.Build.Version,
-			Migrations:                 pkg.Build.Migrations,
-			RegistryOverrides:          pkg.Build.RegistryOverrides,
-			Differential:               pkg.Build.Differential,
-			DifferentialPackageVersion: pkg.Build.DifferentialPackageVersion,
-			Flavor:                     pkg.Build.Flavor,
-			Signed:                     pkg.Build.Signed,
-			ProvenanceFiles:            pkg.Build.ProvenanceFiles,
-			AggregateChecksum:          pkg.Build.AggregateChecksum,
+			Hostname:            pkg.Build.Hostname,
+			User:                pkg.Build.User,
+			Architecture:        pkg.Build.Architecture,
+			Timestamp:           pkg.Build.Timestamp,
+			Version:             pkg.Build.Version,
+			Migrations:          pkg.Build.Migrations,
+			RegistryOverrides:   pkg.Build.RegistryOverrides,
+			Flavor:              pkg.Build.Flavor,
+			Signed:              pkg.Build.Signed,
+			ProvenanceFiles:     pkg.Build.ProvenanceFiles,
+			AggregateChecksum:   pkg.Build.AggregateChecksum,
+			VersionRequirements: VersionRequirementsToGeneric(pkg.Build.VersionRequirements),
 		},
 		Values: api.Values{
 			Files:  pkg.Values.Files,
 			Schema: pkg.Values.Schema,
 		},
-		Documentation: pkg.Documentation,
+		Attachments: pkg.Attachments,
 	}
-
-	for _, vr := range pkg.Build.VersionRequirements {
-		g.Build.VersionRequirements = append(g.Build.VersionRequirements, api.VersionRequirement{
-			Version: vr.Version,
-			Reason:  vr.Reason,
-		})
+	if pkg.Build.Differential != nil {
+		g.Build.Differential = &api.Differential{
+			FromVersion: pkg.Build.Differential.FromVersion,
+		}
 	}
 
 	for _, c := range pkg.Components {
@@ -52,6 +49,21 @@ func PackageFromV1beta1(pkg v1beta1.Package) api.Package {
 	}
 
 	return g
+}
+
+// VersionRequirementsToGeneric converts v1beta1 minimum-version requirements to the operational model.
+func VersionRequirementsToGeneric(requirements []v1beta1.VersionRequirement) []api.VersionRequirement {
+	if len(requirements) == 0 {
+		return nil
+	}
+	converted := make([]api.VersionRequirement, 0, len(requirements))
+	for _, requirement := range requirements {
+		converted = append(converted, api.VersionRequirement{
+			Version: requirement.Version,
+			Reason:  requirement.Reason,
+		})
+	}
+	return converted
 }
 
 func metadataToGeneric(m v1beta1.PackageMetadata) api.PackageMetadata {
@@ -71,7 +83,7 @@ func componentToGeneric(c v1beta1.Component) api.Component {
 		Name:         c.Name,
 		Description:  c.Description,
 		Optional:     c.Optional,
-		Service:      api.Service(c.Service),
+		Service:      api.Service{Name: api.ServiceName(c.Service.Name)},
 		Repositories: repositoriesToGeneric(c.Repositories),
 		StateAccess:  stateAccessToGeneric(c.StateAccess),
 		Selector: api.ComponentSelector{
@@ -96,7 +108,7 @@ func componentToGeneric(c v1beta1.Component) api.Component {
 	for _, f := range c.Files {
 		gc.Files = append(gc.Files, api.File{
 			Source:           f.Source,
-			Checksum:         f.Checksum,
+			Checksum:         api.ParseFileChecksum(f.Checksum),
 			Destination:      f.Destination,
 			Executable:       f.Executable,
 			Symlinks:         f.Symlinks,
@@ -107,16 +119,18 @@ func componentToGeneric(c v1beta1.Component) api.Component {
 
 	for _, img := range c.Images {
 		gc.Images = append(gc.Images, api.Image{
+			ID:     img.ID,
 			Name:   img.Name,
-			Source: img.Source,
+			Source: api.ImageSource(img.Source),
 		})
 	}
 
 	for _, ia := range c.ImageArchives {
-		gc.ImageArchives = append(gc.ImageArchives, api.ImageArchive{
-			Path:   ia.Path,
-			Images: ia.Images,
-		})
+		archive := api.ImageArchive{Path: ia.Path}
+		for _, image := range ia.Images {
+			archive.Images = append(archive.Images, api.ArchiveImage{Name: image.Name, ID: image.ID})
+		}
+		gc.ImageArchives = append(gc.ImageArchives, archive)
 	}
 
 	return gc
@@ -296,20 +310,15 @@ func waitToGeneric(w *v1beta1.ComponentActionWait) *api.ActionWait {
 // PackageToV1beta1 converts the internal generic representation to a v1beta1 Package.
 func PackageToV1beta1(g api.Package) v1beta1.Package {
 	pkg := v1beta1.Package{
-		APIVersion:    v1beta1.APIVersion,
-		Kind:          v1beta1.PackageKind(g.Kind),
-		Metadata:      metadataFromGeneric(g.Metadata),
-		Build:         buildFromGeneric(g.Build),
-		Values:        v1beta1.Values{Files: g.Values.Files, Schema: g.Values.Schema},
-		Documentation: g.Documentation,
+		APIVersion:  v1beta1.APIVersion,
+		Kind:        v1beta1.PackageKind(g.Kind),
+		Metadata:    metadataFromGeneric(g.Metadata),
+		Build:       buildFromGeneric(g.Build),
+		Values:      v1beta1.Values{Files: g.Values.Files, Schema: g.Values.Schema},
+		Attachments: g.Attachments,
 	}
 
 	if pkg.Kind == "" {
-		pkg.Kind = v1beta1.ZarfPackageConfig
-	}
-
-	// v1beta1 has no Kind ZarfInitConfig; collapse the v1alpha1 init kind into the normal package kind.
-	if g.Kind == api.ZarfInitConfig {
 		pkg.Kind = v1beta1.ZarfPackageConfig
 	}
 
@@ -353,18 +362,21 @@ func metadataFromGeneric(m api.PackageMetadata) v1beta1.PackageMetadata {
 
 func buildFromGeneric(b api.BuildData) v1beta1.BuildData {
 	out := v1beta1.BuildData{
-		Hostname:                   b.Hostname,
-		User:                       b.User,
-		Architecture:               b.Architecture,
-		Timestamp:                  b.Timestamp,
-		Version:                    b.Version,
-		Migrations:                 b.Migrations,
-		RegistryOverrides:          b.RegistryOverrides,
-		Differential:               b.Differential,
-		DifferentialPackageVersion: b.DifferentialPackageVersion,
-		Flavor:                     b.Flavor,
-		Signed:                     b.Signed,
-		ProvenanceFiles:            b.ProvenanceFiles,
+		Hostname:          b.Hostname,
+		User:              b.User,
+		Architecture:      b.Architecture,
+		Timestamp:         b.Timestamp,
+		Version:           b.Version,
+		Migrations:        b.Migrations,
+		RegistryOverrides: b.RegistryOverrides,
+		Flavor:            b.Flavor,
+		Signed:            b.Signed,
+		ProvenanceFiles:   b.ProvenanceFiles,
+	}
+	if b.Differential != nil {
+		out.Differential = &v1beta1.Differential{
+			FromVersion: b.Differential.FromVersion,
+		}
 	}
 
 	out.AggregateChecksum = b.AggregateChecksum
@@ -395,7 +407,7 @@ func componentFromGeneric(c api.Component) v1beta1.Component {
 				OS: c.Target.OS,
 			},
 			Import:  importFromGeneric(c.Import),
-			Service: v1beta1.Service(c.Service),
+			Service: v1beta1.Service{Name: v1beta1.ServiceName(c.Service.Name)},
 			Actions: actionsFromGeneric(c.Actions),
 		},
 	}
@@ -411,7 +423,7 @@ func componentFromGeneric(c api.Component) v1beta1.Component {
 	for _, f := range c.Files {
 		bc.Files = append(bc.Files, v1beta1.File{
 			Source:           f.Source,
-			Checksum:         f.Checksum,
+			Checksum:         f.Checksum.String(),
 			Destination:      f.Destination,
 			Executable:       f.Executable,
 			Symlinks:         f.Symlinks,
@@ -421,17 +433,24 @@ func componentFromGeneric(c api.Component) v1beta1.Component {
 	}
 
 	for _, img := range c.Images {
+		source := img.Source
+		if source == api.ImageSourceRegistryDaemonFallback {
+			// The v1beta1 schema has no fallback source; its default is registry.
+			source = api.ImageSourceRegistry
+		}
 		bc.Images = append(bc.Images, v1beta1.Image{
+			ID:     img.ID,
 			Name:   img.Name,
-			Source: img.Source,
+			Source: v1beta1.ImageSource(source),
 		})
 	}
 
 	for _, ia := range c.ImageArchives {
-		bc.ImageArchives = append(bc.ImageArchives, v1beta1.ImageArchive{
-			Path:   ia.Path,
-			Images: ia.Images,
-		})
+		archive := v1beta1.ImageArchive{Path: ia.Path}
+		for _, image := range ia.Images {
+			archive.Images = append(archive.Images, v1beta1.ArchiveImage{Name: image.Name, ID: image.ID})
+		}
+		bc.ImageArchives = append(bc.ImageArchives, archive)
 	}
 
 	// Convert v1alpha1 HealthChecks into onDeploy onSuccess wait actions.

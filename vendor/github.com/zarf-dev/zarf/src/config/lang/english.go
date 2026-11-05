@@ -132,7 +132,7 @@ $ zarf init --components=git-server
 $ zarf init oci://ghcr.io/zarf-dev/packages/init:v0.69.0
 
 # Initializing w/ an internal registry in proxy mode for built-in cross-node mTLS:
-$ zarf init --registry-mode=proxy
+$ zarf init --registry-mode=proxy --injector-image={IMAGE}
 
 # Initializing w/ an internal registry but with a different nodeport:
 $ zarf init --registry-port=30333
@@ -228,8 +228,8 @@ $ zarf init --git-push-password={PASSWORD} --git-push-username={USERNAME} --git-
 	CmdPackageFlagSkipSignatureValidation = "[Deprecated] Skip validating the signature of the Zarf package. Use --verify=never instead."
 	CmdPackageFlagRetries                 = "Maximum attempts for retryable Zarf operations, including image, Git, and transient Helm failures"
 
-	CmdPackageCreateShort = "Creates a Zarf package from a given directory or the current directory"
-	CmdPackageCreateLong  = "Builds an archive of resources and dependencies defined by the 'zarf.yaml' in the specified directory.\n" +
+	CmdPackageCreateShort = "Creates a Zarf package from a definition file or directory"
+	CmdPackageCreateLong  = "Builds an archive of resources and dependencies defined by the package definition at the given file or directory.\n" +
 		"Private registries and repositories are accessed via credentials in your local '~/.docker/config.json', " +
 		"'~/.git-credentials' and '~/.netrc'.\n"
 
@@ -321,6 +321,7 @@ $ zarf package mirror-resources zarf-package-my-app-amd64-1.0.0.tar.zst --repos 
 	CmdPackageDeployInvalidCLIVersionWarn      = "CLIVersion is set to '%s' which can cause issues with package creation and deployment. To avoid such issues, please set the value to the valid semantic version for this version of Zarf."
 	CmdPackageDeployFlagNamespace              = "[Alpha] Override the namespace for package deployment. Requires the package to have only one distinct namespace defined."
 	CmdPackageDeployFlagValuesFiles            = CmdPackageCreateFlagValuesFiles
+	CmdPackageDeployFlagSkipArchitectureCheck  = "Allow application images to deploy to nodes with a different architecture. Requires node emulation support; intended for development and testing, not recommended for production."
 	CmdPackageDeployFlagSkipValuesSchema       = "Skip validation of package values against the values schema."
 
 	CmdPackageMirrorFlagComponents = "Comma-separated list of components to mirror.  This list will be respected regardless of a component's 'required' or 'default' status.  Globbing component names with '*' and deselecting components with a leading '-' are also supported."
@@ -360,11 +361,17 @@ $ zarf package inspect images my-package
 `
 
 	CmdPackageInspectSBOMExample = `
-# Extract the SBOM from a local package tarball
+# Extract every SBOM from a local package tarball
 $ zarf package inspect sbom zarf-package-my-app-amd64-1.0.0.tar.zst --output ./sbom
 
-# Extract the SBOM from a package in an OCI registry (oci:// prefix optional)
+# Extract every SBOM from a package in an OCI registry (oci:// prefix optional)
 $ zarf package inspect sbom oci://ghcr.io/my-org/my-package:1.0.0 --output ./sbom
+
+# Extract SBOMs matching a component name
+$ zarf package inspect sbom oci://ghcr.io/my-org/my-package:1.0.0 --keys metrics --output ./sbom
+
+# Extract SBOMs matching an exact package image reference
+$ zarf package inspect sbom oci://ghcr.io/my-org/my-package:1.0.0 --keys ghcr.io/my-org/api:v1.4.2 --output ./sbom
 `
 
 	CmdPackageInspectManifestsExample = `
@@ -566,11 +573,12 @@ $ zarf package pull oci://ghcr.io/zarf-dev/packages/dos-games:1.3.0 -a skeleton`
 	CmdDevFlagSetVariables                 = "Specify package variables to set on the command line (KEY=value). Note, if using a config file, this will be set by [package.create.set]."
 	CmdDevFlagRepoChartPath                = `If git repos hold helm charts, often found with gitops tools, specify the chart path, e.g. "/" or "/chart"`
 	CmdDevFlagGitAccount                   = "User or organization name for the git account that the repos are created under."
+	CmdDevFlagEnableKustomizePlugins       = "Allow external Kustomize plugins referenced by the package definition to execute arbitrary code"
 	CmdDevFlagKubeVersion                  = "Override the default helm template KubeVersion when performing a package chart template"
 	CmdDevFlagRegistry                     = "Override the ###ZARF_REGISTRY### value"
 	CmdDevFlagFindImagesWhy                = "Prints the source manifest for the specified image"
 	CmdDevFlagFindImagesSkipCosign         = "Skip searching for cosign artifacts related to discovered images"
-	CmdDevFlagFindImagesUpdate             = "Update the images in the zarf.yaml file if needed. Formatting such as comments and newlines may change."
+	CmdDevFlagFindImagesUpdate             = "Update the images in the zarf file if needed. Formatting such as comments and newlines may change."
 	CmdDevFlagGenerateSchemaUpdate         = "Update the existing schema. Formatting such as ordering and newlines may change."
 	CmdDevFlagGenerateSchemaDeleteNotFound = "Remove existing schema keys when they are not found in the mapped values"
 

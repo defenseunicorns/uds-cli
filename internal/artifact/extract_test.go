@@ -4,6 +4,7 @@
 package artifact
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -128,23 +129,19 @@ package "mypkg" { source = "oci://example.com/pkg:v1" }
 	}
 }
 
-func TestMaterializeBundleSrcFiles_RejectsDestinationSymlinkEscape(t *testing.T) {
-	blobDir := t.TempDir()
-	data := []byte("bundle contents")
-	layerDigest := godigest.FromBytes(data)
-	require.NoError(t, os.WriteFile(filepath.Join(blobDir, layerDigest.Encoded()), data, filesystem.PrivateFileMode))
-
+func TestMaterializeBundleSrcFilesWithWriterRejectsDestinationSymlinkEscape(t *testing.T) {
 	dstDir := t.TempDir()
 	escapedDir := t.TempDir()
 	require.NoError(t, os.Symlink(escapedDir, filepath.Join(dstDir, "escape")))
 
-	_, err := materializeBundleSrcFiles(t.Context(), iostreams.IOStreams{}, ocispec.Manifest{
+	_, err := materializeBundleSrcFilesWithWriter(t.Context(), iostreams.IOStreams{}, ocispec.Manifest{
 		Layers: []ocispec.Descriptor{{
 			MediaType:   oci.MediaTypeBundleHCL,
-			Digest:      layerDigest,
 			Annotations: map[string]string{ocispec.AnnotationTitle: "escape/bundle.uds.hcl"},
 		}},
-	}, blobDir, dstDir)
+	}, dstDir, func(_ context.Context, _ ocispec.Descriptor, root *os.Root, path string) error {
+		return root.WriteFile(path, []byte("bundle contents"), filesystem.PrivateFileMode)
+	})
 	require.Error(t, err)
 	assert.NoFileExists(t, filepath.Join(escapedDir, "bundle.uds.hcl"))
 }

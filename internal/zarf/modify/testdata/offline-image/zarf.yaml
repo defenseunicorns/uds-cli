@@ -1,0 +1,17 @@
+# Copyright 2026 Defense Unicorns
+# SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
+apiVersion: zarf.dev/v1beta1
+
+kind: ZarfPackageConfig
+metadata:
+  name: offline-image
+  version: 1.0.0
+  architecture: amd64
+components:
+  - name: app
+    imageArchives:
+      - path: images.tar
+        images:
+          - name: registry.invalid/offline/app:v1
+            id: offline-image

@@ -18,6 +18,7 @@ func TestRunDeployWith_PropagatesConfigAndClosesSource(t *testing.T) {
 	streams, _, _, _ := iostreams.NewTestIOStreams()
 	bundlePath := filepath.Join("..", "..", "..", "tests", "test_data", "bundles", "deploy", "init", bundleFileName)
 	baseConfig := testDeployBaseConfig(7)
+	baseConfig.Options.SkipArchitectureCheck = true
 	closeCalls := 0
 	prepared := &preparedDeploySource{source: &bundlepkg.DeploySource{BundlePath: bundlePath}, close: func() error {
 		closeCalls++
@@ -44,6 +45,7 @@ func TestRunDeployWith_PropagatesConfigAndClosesSource(t *testing.T) {
 			assert.Equal(t, []string{"init"}, opts.Packages)
 			assert.True(t, opts.Force)
 			assert.True(t, opts.Resume)
+			assert.True(t, opts.Config.Options.SkipArchitectureCheck)
 			assert.Equal(t, 7, opts.Config.Options.Concurrency)
 			assert.Equal(t, "config", opts.Config.Variables["from_config"])
 			return &bundlepkg.DeployResult{BundleName: "k3d-core-init", Packages: []bundlepkg.DeployPackageResult{{Name: "init"}}}, nil

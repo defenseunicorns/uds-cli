@@ -18,6 +18,8 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/helpers"
 
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
+	internalv1beta1 "github.com/zarf-dev/zarf/src/internal/api/v1beta1"
+	"github.com/zarf-dev/zarf/src/internal/packager/requirements"
 	"github.com/zarf-dev/zarf/src/pkg/lint"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -56,12 +58,13 @@ type ComponentConfigImportResolution struct {
 }
 
 // remoteReferenceCache pins each remote reference to the first component manifest
-// resolved during a package or component-config resolution.
-type remoteReferenceCache map[string]loadedComponentConfig
+// resolved during a package or component-config resolution. Component definitions
+// are decoded separately for each import so rebasing cannot affect other imports.
+type remoteReferenceCache map[string]ocispec.Descriptor
 
 // resolveImportsV1Beta1 resolves component config imports into a v1beta1 package definition.
 // Each package component may import one or more ZarfComponentConfig files; filtering compatible components also happens here.
-func resolveImportsV1Beta1(ctx context.Context, pkg v1beta1.Package, pkgPath layout.PackagePath, arch, flavor string, remoteOptions types.RemoteOptions, cachePath string) (v1beta1ImportResolution, error) {
+func resolveImportsV1Beta1(ctx context.Context, pkg v1beta1.Package, pkgPath layout.PackagePath, arch, flavor string, skipVersionCheck bool, remoteOptions types.RemoteOptions, cachePath string) (v1beta1ImportResolution, error) {
 	l := logger.From(ctx)
 	start := time.Now()
 	l.Debug("start resolveImportsV1Beta1", "pkg", pkg.Metadata.Name, "arch", arch, "flavor", flavor)
@@ -76,7 +79,7 @@ func resolveImportsV1Beta1(ctx context.Context, pkg v1beta1.Package, pkgPath lay
 		if !compatibleComponentV1Beta1(component.Selector, arch, flavor) {
 			continue
 		}
-		mergedSpec, compVals, compResources, err := resolveComponentConfigSpecImports(ctx, component.ComponentSpec, baseDir, arch, flavor, []string{filepath.Clean(pkgPath.ManifestFile)}, remoteOptions, cachePath, refCache)
+		mergedSpec, compVals, compResources, err := resolveComponentConfigSpecImports(ctx, component.ComponentSpec, baseDir, arch, flavor, []string{filepath.Clean(pkgPath.ManifestFile)}, skipVersionCheck, remoteOptions, cachePath, refCache)
 		if err != nil {
 			return v1beta1ImportResolution{}, fmt.Errorf("component %q: %w", component.Name, err)
 		}
@@ -101,14 +104,21 @@ func resolveImportsV1Beta1(ctx context.Context, pkg v1beta1.Package, pkgPath lay
 }
 
 // ResolveComponentConfigImports resolves imports in a v1beta1 component config using
-// the supplied registry options for remote component imports.
-func ResolveComponentConfigImports(ctx context.Context, component v1beta1.ComponentConfig, componentPath string, remoteOptions types.RemoteOptions) (ComponentConfigImportResolution, error) {
+// the supplied registry options and cache path for remote component imports, then
+// validates the resolved component.
+func ResolveComponentConfigImports(ctx context.Context, component v1beta1.ComponentConfig, componentPath string, remoteOptions types.RemoteOptions, cachePath string) (ComponentConfigImportResolution, error) {
 	componentPath = filepath.Clean(componentPath)
-	resolvedSpec, importedVals, remoteResources, err := resolveComponentConfigSpecImports(ctx, component.Component, filepath.Dir(componentPath), component.Variant.Architecture, component.Variant.Flavor, []string{componentPath}, remoteOptions, "", remoteReferenceCache{})
+	resolvedSpec, importedVals, remoteResources, err := resolveComponentConfigSpecImports(ctx, component.Component, filepath.Dir(componentPath), component.Variant.Architecture, component.Variant.Flavor, []string{componentPath}, false, remoteOptions, cachePath, remoteReferenceCache{})
 	if err != nil {
 		return ComponentConfigImportResolution{}, err
 	}
 	component.Component = resolvedSpec
+	if validationErrs := internalv1beta1.ValidateComponent(v1beta1.Component{
+		Name:          component.Metadata.Name,
+		ComponentSpec: component.Component,
+	}); len(validationErrs) > 0 {
+		return ComponentConfigImportResolution{}, fmt.Errorf("component validation failed:\n%w", validationErrs)
+	}
 	component.Values.Files = dedupePaths(append(importedVals.files, component.Values.Files...))
 	return ComponentConfigImportResolution{
 		Component:       component,
@@ -125,7 +135,10 @@ func (r ComponentConfigImportResolution) MaterializeResources(ctx context.Contex
 
 // resolveComponentConfigSpecImports merges component-config imports. Its target always
 // comes from the root component config metadata, never a package-create override.
-func resolveComponentConfigSpecImports(ctx context.Context, spec v1beta1.ComponentSpec, specDir, arch, flavor string, importStack []string, remoteOptions types.RemoteOptions, cachePath string, refCache remoteReferenceCache) (v1beta1.ComponentSpec, importedValues, []remoteResource, error) {
+func resolveComponentConfigSpecImports(ctx context.Context, spec v1beta1.ComponentSpec, specDir, arch, flavor string, importStack []string, skipVersionCheck bool, remoteOptions types.RemoteOptions, cachePath string, refCache remoteReferenceCache) (v1beta1.ComponentSpec, importedValues, []remoteResource, error) {
+	if errs := internalv1beta1.ValidateImageIDs(spec); len(errs) > 0 {
+		return v1beta1.ComponentSpec{}, importedValues{}, nil, fmt.Errorf("component definition %q: %w", importStack[len(importStack)-1], errs)
+	}
 	if err := validateComponentImportV1Beta1(spec.Import); err != nil {
 		return v1beta1.ComponentSpec{}, importedValues{}, nil, err
 	}
@@ -138,7 +151,12 @@ func resolveComponentConfigSpecImports(ctx context.Context, spec v1beta1.Compone
 	if err != nil {
 		return v1beta1.ComponentSpec{}, importedValues{}, nil, err
 	}
-	resolvedImportSpec, inheritedValues, inheritedResources, err := resolveComponentConfigSpecImports(ctx, directImport.config.Component, directImport.dir, arch, flavor, append(importStack, directImport.path), remoteOptions, cachePath, refCache)
+	if directImport.remote && !skipVersionCheck {
+		if err := requirements.ValidateVersionRequirements(internalv1beta1.VersionRequirementsToGeneric(directImport.config.PublishData.VersionRequirements)); err != nil {
+			return v1beta1.ComponentSpec{}, importedValues{}, nil, fmt.Errorf("remote component %q has unmet version requirements: %w", directImport.path, err)
+		}
+	}
+	resolvedImportSpec, inheritedValues, inheritedResources, err := resolveComponentConfigSpecImports(ctx, directImport.config.Component, directImport.dir, arch, flavor, append(importStack, directImport.path), skipVersionCheck, remoteOptions, cachePath, refCache)
 	if err != nil {
 		return v1beta1.ComponentSpec{}, importedValues{}, nil, err
 	}
@@ -150,7 +168,10 @@ func resolveComponentConfigSpecImports(ctx context.Context, spec v1beta1.Compone
 		inheritedResources[i].importRoot = makePathRelativeTo(inheritedResources[i].importRoot, relDir)
 	}
 	resources := append(directImport.resources, inheritedResources...)
-	merged := mergeComponentConfigSpec(resolvedImportSpec, spec)
+	merged, err := mergeComponentConfigSpec(resolvedImportSpec, spec)
+	if err != nil {
+		return v1beta1.ComponentSpec{}, importedValues{}, nil, err
+	}
 	merged.Import = v1beta1.ComponentImport{}
 	return merged, vals, resources, nil
 }
@@ -176,6 +197,7 @@ func mergeImportedValues(directValues v1beta1.Values, inherited importedValues, 
 // loadedComponentConfig pairs a parsed component config with where it was read from.
 type loadedComponentConfig struct {
 	config           v1beta1.ComponentConfig
+	remote           bool
 	dir              string
 	relativeToParent string
 	path             string
@@ -198,14 +220,9 @@ func selectImportVariant(ctx context.Context, imp v1beta1.ComponentImport, specD
 		loaded = append(loaded, loadedComponentConfig{config: config, dir: filepath.Dir(path), relativeToParent: filepath.Dir(entry.Path), path: path})
 	}
 	for _, entry := range imp.Remote {
-		loadedComponent, exists := refCache[entry.URL]
-		if !exists {
-			var err error
-			loadedComponent, err = remoteComponentConfig(ctx, entry.URL, arch, remoteOptions, cachePath)
-			if err != nil {
-				return loadedComponentConfig{}, err
-			}
-			refCache[entry.URL] = loadedComponent
+		loadedComponent, err := refCache.load(ctx, entry.URL, arch, remoteOptions, cachePath)
+		if err != nil {
+			return loadedComponentConfig{}, err
 		}
 		if slices.Contains(importStack, loadedComponent.path) {
 			return loadedComponentConfig{}, fmt.Errorf("component config %s imported in cycle", loadedComponent.path)
@@ -229,7 +246,7 @@ func selectImportVariant(ctx context.Context, imp v1beta1.ComponentImport, specD
 	}
 }
 
-func remoteComponentConfig(ctx context.Context, importURL, arch string, remoteOptions types.RemoteOptions, cachePath string) (loadedComponentConfig, error) {
+func (c remoteReferenceCache) load(ctx context.Context, importURL, arch string, remoteOptions types.RemoteOptions, cachePath string) (loadedComponentConfig, error) {
 	remote, err := zoci.NewRemoteWithOptions(ctx, importURL, ocispec.Platform{Architecture: arch}, zoci.RemoteClientOptions{
 		CachePath:     cachePath,
 		RemoteOptions: remoteOptions,
@@ -237,9 +254,13 @@ func remoteComponentConfig(ctx context.Context, importURL, arch string, remoteOp
 	if err != nil {
 		return loadedComponentConfig{}, err
 	}
-	root, err := remote.ResolveRoot(ctx)
-	if err != nil {
-		return loadedComponentConfig{}, err
+	root, exists := c[importURL]
+	if !exists {
+		root, err = remote.ResolveRoot(ctx)
+		if err != nil {
+			return loadedComponentConfig{}, err
+		}
+		c[importURL] = root
 	}
 	manifest, err := remote.FetchManifest(ctx, root)
 	if err != nil {
@@ -290,7 +311,14 @@ func remoteComponentConfig(ctx context.Context, importURL, arch string, remoteOp
 	if err := validateRemoteComponentResources(config, seenMountPaths); err != nil {
 		return loadedComponentConfig{}, fmt.Errorf("remote component %q: %w", importURL, err)
 	}
-	return loadedComponentConfig{config: config, dir: importRoot, relativeToParent: importRoot, path: importURL + "@" + root.Digest.String(), resources: resources}, nil
+	return loadedComponentConfig{
+		config:           config,
+		remote:           true,
+		dir:              importRoot,
+		relativeToParent: importRoot,
+		path:             importURL + "@" + root.Digest.String(),
+		resources:        resources,
+	}, nil
 }
 
 // ValidateRemoteKustomizeRestrictions rejects unrestricted Kustomize builds for remote components.
@@ -400,6 +428,9 @@ func componentConfigFromBytes(path string, b []byte) (v1beta1.ComponentConfig, e
 	}
 	if err := validateComponentConfigSchemaV1Beta1(path, b); err != nil {
 		return v1beta1.ComponentConfig{}, err
+	}
+	if errs := internalv1beta1.ValidateAnnotations(config.Metadata.Annotations); len(errs) > 0 {
+		return v1beta1.ComponentConfig{}, fmt.Errorf("component config %q validation failed:\n%w", path, errs)
 	}
 	return config, nil
 }

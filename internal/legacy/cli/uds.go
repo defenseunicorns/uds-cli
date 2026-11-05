@@ -275,6 +275,7 @@ func addBundleCommands(rootCmd *cobra.Command) {
 	deployCmd.Flags().BoolVarP(&bundleCfg.DeployOpts.Resume, "resume", "r", false, lang.CmdBundleDeployFlagResume)
 	deployCmd.Flags().IntVar(&bundleCfg.DeployOpts.Retries, "retries", 3, lang.CmdBundleDeployFlagRetries)
 	deployCmd.Flags().BoolVar(&bundleCfg.DeployOpts.ForceConflicts, "force-conflicts", false, lang.CmdBundleDeployFlagForceConflicts)
+	deployCmd.Flags().BoolVar(&bundleCfg.DeployOpts.SkipArchitectureCheck, "skip-architecture-check", false, lang.CmdBundleDeployFlagSkipArchitectureCheck)
 
 	// inspect cmd flags
 	rootCmd.AddCommand(inspectCmd)

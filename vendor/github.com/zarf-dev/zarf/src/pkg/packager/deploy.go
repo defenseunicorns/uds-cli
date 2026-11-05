@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/zarf-dev/zarf/src/api"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/config/lang"
+	"github.com/zarf-dev/zarf/src/internal/checksum"
 	"github.com/zarf-dev/zarf/src/internal/healthchecks"
 	"github.com/zarf-dev/zarf/src/internal/packager/helm"
 	"github.com/zarf-dev/zarf/src/internal/packager/requirements"
@@ -76,7 +78,8 @@ type DeployOptions struct {
 	ArtifactServer state.ArtifactServerInfo
 	StorageClass   string
 	InjectorPort   int
-	InjectorImage  string
+	// InjectorImage is the injector container image. Proxy mode defaults to the image saved in cluster state and requires an image on first init.
+	InjectorImage string
 	// AgentTLS allows providing user-managed TLS certificates for the agent. When nil, certs are auto-generated.
 	AgentTLS *pki.GeneratedPKI
 	// AgentMutationPolicy controls whether the agent mutates by default (default-mutate) or only on explicit label (default-ignore).
@@ -88,6 +91,9 @@ type DeployOptions struct {
 	IsInteractive bool
 	// SkipValuesSchemaValidation skips validation of the merged package values against the package schema.
 	SkipValuesSchemaValidation bool
+	// SkipArchitectureCheck allows application images to deploy to nodes with a different architecture.
+	// The operator must configure emulation on the target nodes.
+	SkipArchitectureCheck bool
 	// SkipVersionCheck skips version requirement validation
 	SkipVersionCheck bool
 }
@@ -99,6 +105,9 @@ type deployer struct {
 	c    *cluster.Cluster
 	vc   *variables.VariableConfig
 	vals value.Values
+
+	// runtimeDir holds runtime files across components. v1alpha1 uses the package layout.
+	runtimeDir string
 }
 
 // DeployResult is the result of a successful deploy
@@ -116,9 +125,13 @@ func Deploy(ctx context.Context, pkgLayout *layout.PackageLayout, opts DeployOpt
 		return DeployResult{}, fmt.Errorf("--connected is not supported for init packages")
 	}
 
+	if opts.SkipArchitectureCheck && pkg.IsInitConfig() {
+		return DeployResult{}, fmt.Errorf("skipping architecture checks is not supported for init packages")
+	}
+
 	// Validate operational requirements before proceeding
 	if !opts.SkipVersionCheck {
-		if err := requirements.ValidateVersionRequirements(pkg); err != nil {
+		if err := requirements.ValidateVersionRequirements(pkg.Build.VersionRequirements); err != nil {
 			return DeployResult{}, fmt.Errorf("%w If you cannot upgrade Zarf you may skip this check with --skip-version-check. Unexpected behavior or errors may occur", err)
 		}
 	}
@@ -232,13 +245,24 @@ func (d *deployer) isConnectedToCluster() bool {
 	return d.c != nil
 }
 
-func (d *deployer) deployComponents(ctx context.Context, pkgLayout *layout.PackageLayout, opts DeployOptions) ([]state.DeployedComponent, error) {
+func (d *deployer) deployComponents(ctx context.Context, pkgLayout *layout.PackageLayout, opts DeployOptions) (deployedComponents []state.DeployedComponent, err error) {
 	l := logger.From(ctx)
 	pkg := pkgLayout.Definition()
-	deployedComponents := []state.DeployedComponent{}
+	deployedComponents = []state.DeployedComponent{}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	d.runtimeDir = pkgLayout.DirPath()
+	if pkg.GetAPIVersion() != v1alpha1.APIVersion {
+		d.runtimeDir, err = utils.MakeTempDir(config.CommonOptions.TempDirectory)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			err = errors.Join(err, os.RemoveAll(d.runtimeDir))
+		}()
 	}
 
 	for _, component := range pkg.Components {
@@ -257,7 +281,7 @@ func (d *deployer) deployComponents(ctx context.Context, pkgLayout *layout.Packa
 				if err != nil {
 					return nil, fmt.Errorf("unable to connect to the Kubernetes cluster: %w", err)
 				}
-				if err := d.verifyPackageIsDeployable(ctx, pkgLayout); err != nil {
+				if err := d.verifyPackageIsDeployable(ctx, pkgLayout, opts.SkipArchitectureCheck); err != nil {
 					return nil, fmt.Errorf("package is not deployable to this system: %w", err)
 				}
 			}
@@ -285,20 +309,40 @@ func (d *deployer) deployComponents(ctx context.Context, pkgLayout *layout.Packa
 
 		deployedComponents = append(deployedComponents, deployedComponent)
 		idx := len(deployedComponents) - 1
-		if d.isConnectedToCluster() {
-			if _, err := d.c.RecordPackageDeployment(ctx, pkgLayout.Definition(), pkgLayout.Digest(), deployedComponents, packageGeneration, state.WithPackageConnectivity(opts.Connected), state.WithPackageNamespaceOverride(opts.NamespaceOverride)); err != nil {
-				l.Debug("unable to record package deployment", "component", component.Name, "error", err.Error())
-			}
-		}
 		var charts []state.InstalledChart
 		var deployErr error
-		if pkg.IsInitConfig() {
-			charts, deployErr = d.deployInitComponent(ctx, pkgLayout, component, opts)
-		} else {
-			charts, deployErr = d.deployComponent(ctx, pkgLayout, component, false, false, opts)
+		// Initialize at the first cluster component so deployment status has a namespace to be saved in.
+		if pkg.IsInitConfig() && component.RequiresCluster() && d.s == nil {
+			deployErr = d.initState(ctx, pkg, opts)
+		}
+		if d.isConnectedToCluster() {
+			if _, err := d.c.RecordPackageDeployment(ctx, pkgLayout.Definition(), pkgLayout.Digest(), deployedComponents, packageGeneration, state.WithPackageConnectivity(opts.Connected), state.WithPackageNamespaceOverride(opts.NamespaceOverride)); err != nil {
+				l.Error("unable to record package deployment", "component", component.Name, "error", err.Error())
+			}
+		}
+		if deployErr == nil {
+			if pkg.IsInitConfig() {
+				charts, deployErr = d.deployInitComponent(ctx, pkgLayout, component, opts)
+			} else {
+				charts, deployErr = d.deployComponent(ctx, pkgLayout, component, false, false, opts)
+			}
 		}
 
 		onDeploy := component.Actions.OnDeploy
+		onSuccess := func() error {
+			if err := actions.Run(ctx, cwd, onDeploy.OnSuccess, actions.RunOptions{
+				DefaultConfig:  onDeploy.Defaults,
+				VariableConfig: d.vc,
+				Values:         d.vals,
+				StateAccess:    template.StateAccess{State: d.s, AccessKeys: component.StateAccess},
+			}); err != nil {
+				return fmt.Errorf("unable to run component success action: %w", err)
+			}
+			return nil
+		}
+		if deployErr == nil && pkg.GetAPIVersion() != v1alpha1.APIVersion {
+			deployErr = onSuccess()
+		}
 
 		onFailure := func() {
 			if err := actions.Run(ctx, cwd, onDeploy.OnFailure, actions.RunOptions{
@@ -319,7 +363,7 @@ func (d *deployer) deployComponents(ctx context.Context, pkgLayout *layout.Packa
 				deployedComponents[idx].InstalledCharts = state.MergeInstalledChartsForComponent(deployedComponents[idx].InstalledCharts, charts, true)
 				if d.isConnectedToCluster() {
 					if _, err := d.c.RecordPackageDeployment(ctx, pkgLayout.Definition(), pkgLayout.Digest(), deployedComponents, packageGeneration, state.WithPackageConnectivity(opts.Connected), state.WithPackageNamespaceOverride(opts.NamespaceOverride)); err != nil {
-						l.Debug("unable to record package deployment", "component", component.Name, "error", err.Error())
+						l.Error("unable to record package deployment", "component", component.Name, "error", err.Error())
 					}
 				}
 			}
@@ -339,18 +383,16 @@ func (d *deployer) deployComponents(ctx context.Context, pkgLayout *layout.Packa
 		deployedComponents[idx].Status = state.ComponentStatusSucceeded
 		if d.isConnectedToCluster() {
 			if _, err := d.c.RecordPackageDeployment(ctx, pkgLayout.Definition(), pkgLayout.Digest(), deployedComponents, packageGeneration, state.WithPackageConnectivity(opts.Connected), state.WithPackageNamespaceOverride(opts.NamespaceOverride)); err != nil {
-				l.Debug("unable to record package deployment", "component", component.Name, "error", err.Error())
+				l.Error("unable to record package deployment", "component", component.Name, "error", err.Error())
 			}
 		}
 
-		if err := actions.Run(ctx, cwd, onDeploy.OnSuccess, actions.RunOptions{
-			DefaultConfig:  onDeploy.Defaults,
-			VariableConfig: d.vc,
-			Values:         d.vals,
-			StateAccess:    template.StateAccess{State: d.s, AccessKeys: component.StateAccess},
-		}); err != nil {
-			onFailure()
-			return nil, fmt.Errorf("unable to run component success action: %w", err)
+		// Alpha success hooks observe the saved successful deployment
+		if pkg.GetAPIVersion() == v1alpha1.APIVersion {
+			if err := onSuccess(); err != nil {
+				onFailure()
+				return nil, err
+			}
 		}
 	}
 
@@ -362,55 +404,55 @@ func internalServicesFor(components []api.Component, opts DeployOptions) state.S
 	services := state.NewServiceSet()
 	registryExternal := opts.RegistryInfo.Address != ""
 	for _, c := range components {
-		switch c.Name {
-		case "git-server":
+		switch c.Service.Name {
+		case api.ServiceGitServer:
 			services.Add(state.GitKey)
 			if feature.IsEnabled(feature.ArtifactServer) {
 				services.Add(state.ArtifactKey)
 			}
-		case "zarf-registry", "zarf-seed-registry", "zarf-injector":
+		case api.ServiceRegistry, api.ServiceSeedRegistry, api.ServiceInjector:
 			if !registryExternal {
 				services.Add(state.RegistryKey)
 			}
-		case "zarf-agent":
+		case api.ServiceAgent:
 			services.Add(state.AgentKey)
 		}
 	}
 	return services
 }
 
+func (d *deployer) initState(ctx context.Context, pkg api.Package, opts DeployOptions) error {
+	applianceMode := false
+	for _, component := range pkg.Components {
+		if component.Name == "k3s" {
+			applianceMode = true
+		}
+	}
+	var err error
+	d.s, err = d.c.InitState(ctx, cluster.InitStateOptions{
+		GitServer:           opts.GitServer,
+		RegistryInfo:        opts.RegistryInfo,
+		ArtifactServer:      opts.ArtifactServer,
+		ApplianceMode:       applianceMode,
+		StorageClass:        opts.StorageClass,
+		InjectorPort:        opts.InjectorPort,
+		AgentTLS:            opts.AgentTLS,
+		AgentMutationPolicy: opts.AgentMutationPolicy,
+		InternalServices:    internalServicesFor(pkg.Components, opts),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to initialize Zarf state: %w", err)
+	}
+	return nil
+}
+
 func (d *deployer) deployInitComponent(ctx context.Context, pkgLayout *layout.PackageLayout, component api.Component, opts DeployOptions) ([]state.InstalledChart, error) {
 	l := logger.From(ctx)
 	pkg := pkgLayout.Definition()
-	isSeedRegistry := component.Name == "zarf-seed-registry"
-	isRegistry := component.Name == "zarf-registry"
-	isInjector := component.Name == "zarf-injector"
-	isAgent := component.Name == "zarf-agent"
-
-	// Always init the state before the first component that requires the cluster (on most deployments, the zarf-seed-registry)
-	if component.RequiresCluster() && d.s == nil {
-		applianceMode := false
-		for _, component := range pkg.Components {
-			if component.Name == "k3s" {
-				applianceMode = true
-			}
-		}
-		var err error
-		d.s, err = d.c.InitState(ctx, cluster.InitStateOptions{
-			GitServer:           opts.GitServer,
-			RegistryInfo:        opts.RegistryInfo,
-			ArtifactServer:      opts.ArtifactServer,
-			ApplianceMode:       applianceMode,
-			StorageClass:        opts.StorageClass,
-			InjectorPort:        opts.InjectorPort,
-			AgentTLS:            opts.AgentTLS,
-			AgentMutationPolicy: opts.AgentMutationPolicy,
-			InternalServices:    internalServicesFor(pkg.Components, opts),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("unable to initialize Zarf state: %w", err)
-		}
-	}
+	isSeedRegistry := component.Service.Name == api.ServiceSeedRegistry
+	isRegistry := component.Service.Name == api.ServiceRegistry
+	isInjector := component.Service.Name == api.ServiceInjector
+	isAgent := component.Service.Name == api.ServiceAgent
 
 	if d.s != nil {
 		if !d.s.RegistryInfo.IsInternal() && (isSeedRegistry || isInjector || isRegistry) {
@@ -423,20 +465,21 @@ func (d *deployer) deployInitComponent(ctx context.Context, pkgLayout *layout.Pa
 	if isSeedRegistry {
 		switch d.s.RegistryInfo.RegistryMode {
 		case state.RegistryModeProxy:
-			injectorImage, err := injectorDaemonsetImage(ctx, d.c, opts.InjectorImage)
-			if err != nil {
-				return nil, err
+			if opts.InjectorImage != "" {
+				d.s.InjectorInfo.Image = opts.InjectorImage
 			}
-			d.s.InjectorInfo.Image = injectorImage
+			if d.s.InjectorInfo.Image == "" {
+				return nil, fmt.Errorf("injector image is required for proxy registry mode when no previous proxy injector image is saved in cluster state; provide --injector-image")
+			}
 
-			payloadCMs, shasum, err := d.c.CreateInjectorConfigMaps(ctx, pkgLayout.DirPath(), pkgLayout.GetImageDirPath(), component.GetImages(), pkg.Metadata.Name)
+			payloadCMs, shasum, err := d.c.CreateInjectorConfigMaps(ctx, d.runtimeDir, pkgLayout.GetImageDirPath(), component.GetImages(), pkg.Metadata.Name)
 			if err != nil {
 				return nil, err
 			}
 			d.s.InjectorInfo.PayLoadConfigMapAmount = len(payloadCMs)
 			d.s.InjectorInfo.PayLoadShaSum = shasum
 		case state.RegistryModeNodePort:
-			seedImage, seedPort, err := d.c.StartInjection(ctx, pkgLayout.DirPath(), pkgLayout.GetImageDirPath(), component.GetImages(), pkg.Metadata.Name, pkg.Metadata.Architecture, cluster.ZarfInjectorOptions{
+			seedImage, seedPort, err := d.c.StartInjection(ctx, d.runtimeDir, pkgLayout.GetImageDirPath(), component.GetImages(), pkg.Metadata.Name, pkg.Metadata.Architecture, cluster.ZarfInjectorOptions{
 				InjectorNodePort: uint16(d.s.InjectorInfo.Port),
 				RegistryNodePort: uint16(d.s.RegistryInfo.Port),
 				IPFamily:         d.s.IPFamily,
@@ -481,13 +524,6 @@ func (d *deployer) deployInitComponent(ctx context.Context, pkgLayout *layout.Pa
 	return charts, nil
 }
 
-func injectorDaemonsetImage(ctx context.Context, c *cluster.Cluster, requestedImage string) (string, error) {
-	if requestedImage != "" {
-		return requestedImage, nil
-	}
-	return c.GetInjectorDaemonsetImage(ctx)
-}
-
 func (d *deployer) deployComponent(ctx context.Context, pkgLayout *layout.PackageLayout, component api.Component, noImgChecksum bool, noImgPush bool, opts DeployOptions) (_ []state.InstalledChart, err error) {
 	l := logger.From(ctx)
 	start := time.Now()
@@ -517,7 +553,7 @@ func (d *deployer) deployComponent(ctx context.Context, pkgLayout *layout.Packag
 		}
 	}
 
-	applicationTemplates, err := ptmpl.GetZarfTemplates(ctx, component.Name, d.s)
+	applicationTemplates, err := ptmpl.GetZarfTemplates(ctx, pkgLayout.Definition().GetAPIVersion(), component.Service.Name, d.s)
 	if err != nil {
 		return nil, err
 	}
@@ -534,7 +570,7 @@ func (d *deployer) deployComponent(ctx context.Context, pkgLayout *layout.Packag
 	}
 
 	if hasFiles {
-		if err := processComponentFiles(ctx, pkgLayout, component, d.vc, d.vals, template.StateAccess{State: d.s, AccessKeys: component.StateAccess}); err != nil {
+		if err := d.processComponentFiles(ctx, pkgLayout, component); err != nil {
 			return nil, fmt.Errorf("unable to process the component files: %w", err)
 		}
 	}
@@ -730,8 +766,10 @@ func (d *deployer) installManifests(ctx context.Context, pkgLayout *layout.Packa
 				return installedCharts, fmt.Errorf("unable to find manifest file %s", manifest.Files[idx])
 			}
 			// Apply ###ZARF_VAR_*### substitution before Helm sees the file.
-			if err := d.vc.ReplaceTextTemplate(path); err != nil {
-				return installedCharts, fmt.Errorf("error templating manifest %s: %w", path, err)
+			if pkg.GetAPIVersion() == v1alpha1.APIVersion {
+				if err := d.vc.ReplaceTextTemplate(path); err != nil {
+					return installedCharts, fmt.Errorf("error templating manifest %s: %w", path, err)
+				}
 			}
 			if manifest.EnableTemplating {
 				l.Debug("start manifest template", "manifest", manifest.Name, "path", path)
@@ -752,9 +790,11 @@ func (d *deployer) installManifests(ctx context.Context, pkgLayout *layout.Packa
 		for idx := range manifest.Kustomize.Files {
 			kustomization := layout.KustomizationFileName(manifest.Name, idx)
 			manifest.Files = append(manifest.Files, kustomization)
-			path := filepath.Join(manifestDir, kustomization)
-			if err := d.vc.ReplaceTextTemplate(path); err != nil {
-				return installedCharts, fmt.Errorf("error templating kustomization %s: %w", path, err)
+			if pkg.GetAPIVersion() == v1alpha1.APIVersion {
+				path := filepath.Join(manifestDir, kustomization)
+				if err := d.vc.ReplaceTextTemplate(path); err != nil {
+					return installedCharts, fmt.Errorf("error templating kustomization %s: %w", path, err)
+				}
 			}
 		}
 
@@ -794,8 +834,8 @@ func (d *deployer) installManifests(ctx context.Context, pkgLayout *layout.Packa
 	return installedCharts, nil
 }
 
-func (d *deployer) verifyPackageIsDeployable(ctx context.Context, pkgLayout *layout.PackageLayout) error {
-	if err := verifyClusterCompatibility(ctx, d.c, pkgLayout); err != nil {
+func (d *deployer) verifyPackageIsDeployable(ctx context.Context, pkgLayout *layout.PackageLayout, skipArchitectureCheck bool) error {
+	if err := verifyClusterCompatibility(ctx, d.c, pkgLayout, skipArchitectureCheck); err != nil {
 		if errors.Is(err, lang.ErrUnableToCheckArch) {
 			logger.From(ctx).Warn("unable to validate package architecture", "error", err)
 		} else {
@@ -840,7 +880,7 @@ func setupState(ctx context.Context, c *cluster.Cluster, connected bool) (*state
 	return s, nil
 }
 
-func verifyClusterCompatibility(ctx context.Context, c *cluster.Cluster, pkgLayout *layout.PackageLayout) error {
+func verifyClusterCompatibility(ctx context.Context, c *cluster.Cluster, pkgLayout *layout.PackageLayout, skipArchitectureCheck bool) error {
 	pkg := pkgLayout.Definition()
 	// Ignore this check if the package contains no images
 	if !pkg.HasImages() {
@@ -874,13 +914,17 @@ func verifyClusterCompatibility(ctx context.Context, c *cluster.Cluster, pkgLayo
 
 	// Check if the package architecture and the cluster architecture are the same.
 	if !slices.Contains(architectures, pkg.Metadata.Architecture) {
-		return fmt.Errorf(lang.CmdPackageDeployValidateArchitectureErr, pkg.Metadata.Architecture, strings.Join(architectures, ", "))
+		if !skipArchitectureCheck {
+			return fmt.Errorf(lang.CmdPackageDeployValidateArchitectureErr, pkg.Metadata.Architecture, strings.Join(architectures, ", "))
+		}
+		logger.From(ctx).Warn("Architecture mismatch allowed. The target nodes must support emulation. Intended for development and testing; not recommended for production.",
+			"packageArchitecture", pkg.Metadata.Architecture, "nodeArchitectures", architectures)
 	}
 
 	return nil
 }
 
-func processComponentFiles(ctx context.Context, pkgLayout *layout.PackageLayout, component api.Component, variableConfig *variables.VariableConfig, values value.Values, stateAccess template.StateAccess) (err error) {
+func (d *deployer) processComponentFiles(ctx context.Context, pkgLayout *layout.PackageLayout, component api.Component) (err error) {
 	l := logger.From(ctx)
 	pkg := pkgLayout.Definition()
 	start := time.Now()
@@ -905,59 +949,73 @@ func processComponentFiles(ctx context.Context, pkgLayout *layout.PackageLayout,
 		fileLocation := filepath.Join(filesDir, layout.ComponentFileRelPath(fileIdx, file.Destination))
 
 		// If a shasum is specified check it again on deployment as well
-		if file.Checksum != "" {
+		if file.Checksum.IsSet() {
 			l.Debug("Validating SHASUM", "file", file.Destination)
-			if err := helpers.SHAsMatch(fileLocation, file.Checksum); err != nil {
+			if err := checksum.VerifyFile(fileLocation, file.Checksum.GetAlgorithm(), file.Checksum.Digest); err != nil {
 				return err
 			}
 		}
 
-		// Replace temp target directory and home directory
-		target, err := config.GetAbsHomePath(strings.Replace(file.Destination, "###ZARF_TEMP###", pkgLayout.DirPath(), 1))
+		destination := file.Destination
+		if pkg.GetAPIVersion() == v1alpha1.APIVersion {
+			destination = strings.Replace(destination, "###ZARF_TEMP###", d.runtimeDir, 1)
+		} else if strings.Contains(destination, "{{") {
+			// Resolve the injector destination without enabling templating on its binary contents.
+			objs := template.Objects{"Runtime": map[string]string{"TempDir": d.runtimeDir}}
+			destination, err = template.Apply(ctx, destination, objs)
+			if err != nil {
+				return fmt.Errorf("unable to template file destination %q: %w", file.Destination, err)
+			}
+		}
+		target, err := config.GetAbsHomePath(destination)
 		if err != nil {
 			return err
 		}
 		file.Destination = target
 
-		fileList := []string{}
-		if helpers.IsDir(fileLocation) {
-			files, err := helpers.RecursiveFileList(fileLocation, nil, false)
-			if err != nil {
-				return err
-			}
-			fileList = append(fileList, files...)
-		} else {
-			fileList = append(fileList, fileLocation)
-		}
-
-		for _, subFile := range fileList {
-			// Check if the file looks like a text file
-			isText, err := helpers.IsTextFile(subFile)
-			if err != nil {
-				return err
-			}
-
-			// If the file is a text file, template it
-			if isText {
-				l.Debug("template file", "name", file.Destination)
-				if err := variableConfig.ReplaceTextTemplate(subFile); err != nil {
-					return fmt.Errorf("unable to template file %s: %w", subFile, err)
-				}
-			}
-			// If the file has go-templating enabled, apply templates.
-			if file.EnableTemplating {
-				l.Debug("templates enabled, processing file", "name", file.Destination)
-				objs, err := template.NewObjects(values).
-					WithPackage(pkg).
-					WithVariables(variableConfig.GetSetVariableMap()).
-					WithConstants(variableConfig.GetConstants()).
-					WithState(stateAccess)
+		if pkg.GetAPIVersion() == v1alpha1.APIVersion || file.EnableTemplating {
+			fileList := []string{}
+			if helpers.IsDir(fileLocation) {
+				files, err := helpers.RecursiveFileList(fileLocation, nil, false)
 				if err != nil {
 					return err
 				}
-				err = template.ApplyToFile(ctx, subFile, subFile, objs)
-				if err != nil {
-					return err
+				fileList = append(fileList, files...)
+			} else {
+				fileList = append(fileList, fileLocation)
+			}
+
+			for _, subFile := range fileList {
+				if pkg.GetAPIVersion() == v1alpha1.APIVersion {
+					// Check if the file looks like a text file
+					isText, err := helpers.IsTextFile(subFile)
+					if err != nil {
+						return err
+					}
+
+					// If the file is a text file, template it
+					if isText {
+						l.Debug("template file", "name", file.Destination)
+						if err := d.vc.ReplaceTextTemplate(subFile); err != nil {
+							return fmt.Errorf("unable to template file %s: %w", subFile, err)
+						}
+					}
+				}
+				// If the file has go-templating enabled, apply templates.
+				if file.EnableTemplating {
+					l.Debug("templates enabled, processing file", "name", file.Destination)
+					objs, err := template.NewObjects(d.vals).
+						WithPackage(pkg).
+						WithVariables(d.vc.GetSetVariableMap()).
+						WithConstants(d.vc.GetConstants()).
+						WithState(template.StateAccess{State: d.s, AccessKeys: component.StateAccess})
+					if err != nil {
+						return err
+					}
+					err = template.ApplyToFile(ctx, subFile, subFile, objs)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}

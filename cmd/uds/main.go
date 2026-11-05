@@ -41,7 +41,7 @@ func run(args []string) error {
 	if version.Version != "unset" {
 		legacyconfig.CLIVersion = version.Version
 	}
-	root, err := newRootCommand(selected)
+	root, err := newRootCommand(selected, features)
 	if err != nil {
 		return err
 	}
@@ -50,13 +50,13 @@ func run(args []string) error {
 	return root.Execute()
 }
 
-func newRootCommand(selected mode.Mode) (*cobra.Command, error) {
+func newRootCommand(selected mode.Mode, features mode.FeatureSet) (*cobra.Command, error) {
 	switch selected {
 	case mode.Legacy:
 		return legacycli.NewRootCommand(), nil
 	case mode.Next:
 		streams := iostreams.New(os.Stdin, os.Stdout, os.Stderr)
-		root := cli.NewRootCommand(streams)
+		root := cli.NewRootCommand(streams, features)
 		root.AddCommand(legacycli.NewRunCommand())
 		return root, nil
 	default:

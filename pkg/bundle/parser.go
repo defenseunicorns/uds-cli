@@ -33,13 +33,14 @@ func toInternalConfig(cfg *UDSBundleConfig) *bundleinternal.UDSBundleConfig {
 	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
 		options = &bundleinternal.ConfigOptions{
-			LogLevel:      cfg.Options.LogLevel,
-			Architecture:  cfg.Options.Architecture,
-			PlainHTTP:     cfg.Options.PlainHTTP,
-			SkipTLSVerify: cfg.Options.SkipTLSVerify,
-			CacheDir:      cfg.Options.CacheDir,
-			TmpDir:        cfg.Options.TmpDir,
-			Concurrency:   cfg.Options.Concurrency,
+			LogLevel:              cfg.Options.LogLevel,
+			Architecture:          cfg.Options.Architecture,
+			PlainHTTP:             cfg.Options.PlainHTTP,
+			SkipTLSVerify:         cfg.Options.SkipTLSVerify,
+			CacheDir:              cfg.Options.CacheDir,
+			TmpDir:                cfg.Options.TmpDir,
+			Concurrency:           cfg.Options.Concurrency,
+			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
 		}
 	}
 	return &bundleinternal.UDSBundleConfig{
@@ -71,6 +72,7 @@ func toInternalConfigOptions(opts ConfigOptions) bundleinternal.ConfigOptions {
 		PlainHTTP: opts.PlainHTTP, SkipTLSVerify: opts.SkipTLSVerify,
 		CacheDir: opts.CacheDir,
 		TmpDir:   opts.TmpDir, Concurrency: opts.Concurrency,
+		SkipArchitectureCheck: opts.SkipArchitectureCheck,
 	}
 }
 

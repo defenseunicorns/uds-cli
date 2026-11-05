@@ -962,3 +962,92 @@ func TestBundleList(t *testing.T) {
 	// Clean up
 	runCmd(t, fmt.Sprintf("remove %s --confirm --insecure", bundlePath))
 }
+
+func TestMixedSchemaCreateAndDeployWithoutCluster(t *testing.T) {
+	root := t.TempDir()
+	alphaDir := filepath.Join(root, "alpha")
+	betaDir := filepath.Join(root, "beta")
+	require.NoError(t, os.Mkdir(alphaDir, 0o755))
+	require.NoError(t, os.Mkdir(betaDir, 0o755))
+	alphaOutput := filepath.Join(root, "alpha.txt")
+	betaOutput := filepath.Join(root, "beta.txt")
+	selected := filepath.Join(root, "selected.txt")
+	excluded := filepath.Join(root, "excluded.txt")
+	require.NoError(t, os.WriteFile(filepath.Join(alphaDir, "payload.txt"), []byte("###ZARF_VAR_MESSAGE###"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(alphaDir, "zarf.yaml"), []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1alpha1
+kind: ZarfPackageConfig
+metadata:
+  name: alpha
+  version: 1.0.0
+variables:
+  - name: MESSAGE
+    default: alpha-default
+components:
+  - name: required
+    required: true
+    files:
+      - source: payload.txt
+        target: %q
+`, alphaOutput)), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(betaDir, "payload.txt"), []byte("{{ .Values.message }}"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(betaDir, "values.yaml"), []byte("message: beta-default\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(betaDir, "zarf.yaml"), []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: beta
+  version: 1.0.0
+values:
+  files: [values.yaml]
+components:
+  - name: required
+    files:
+      - source: payload.txt
+        destination: %q
+        enableTemplating: true
+  - name: selected
+    optional: true
+    files:
+      - source: payload.txt
+        destination: %q
+        enableTemplating: true
+  - name: excluded
+    optional: true
+    files:
+      - source: payload.txt
+        destination: %q
+        enableTemplating: true
+`, betaOutput, selected, excluded)), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "uds-bundle.yaml"), []byte(`kind: UDSBundle
+metadata:
+  name: beta
+  version: 1.0.0
+packages:
+  - name: alpha
+    path: ./alpha
+    ref: 1.0.0
+  - name: beta
+    path: ./beta
+    ref: 1.0.0
+    optionalComponents: [selected]
+`), 0o600))
+	_, _, err := e2e.UDS("zarf", "package", "create", alphaDir, "-o", alphaDir, "--confirm")
+	require.NoError(t, err)
+	_, _, err = e2e.UDS("zarf", "package", "create", betaDir, "-o", betaDir, "--confirm", "--features=v1beta1=true")
+	require.NoError(t, err)
+	cachePath := filepath.Join(root, ".uds-cache")
+	runCmd(t, fmt.Sprintf("create %s --confirm --insecure -a %s --uds-cache %s", root, e2e.Arch, cachePath))
+	artifactPath := filepath.Join(root, fmt.Sprintf("uds-bundle-beta-%s-1.0.0.tar.zst", e2e.Arch))
+	t.Cleanup(func() {
+		runCmd(t, fmt.Sprintf("remove %s --confirm --insecure --uds-cache %s", artifactPath, cachePath))
+	})
+	runCmd(t, fmt.Sprintf("deploy %s --confirm --set alpha.MESSAGE=alpha-override --uds-cache %s", artifactPath, cachePath))
+	data, err := os.ReadFile(alphaOutput)
+	require.NoError(t, err)
+	require.Equal(t, "alpha-override\n", string(data))
+	for _, path := range []string{betaOutput, selected} {
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "beta-default", string(data))
+	}
+	require.NoFileExists(t, excluded)
+}

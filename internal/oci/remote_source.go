@@ -63,7 +63,7 @@ func NewRemoteReadSource(ctx context.Context, ref string, opts bundleinternal.Co
 		streams.Debug("initializing bundle OCI cache", "path", storePath)
 		// Let upstream construct the store as well as manage its bytes. Package
 		// and bundle reads then inherit upstream cache fixes together.
-		modifier, err := zoci.GetOCICacheModifier(ctx, cachePath)
+		modifier, err := zoci.GetOCICacheModifier(cachePath)
 		if err != nil {
 			return nil, fmt.Errorf("opening bundle OCI cache %q: %w", storePath, err)
 		}

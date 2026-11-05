@@ -63,6 +63,36 @@ components:
 	assert.Contains(t, titles, "components/optional.tar")
 }
 
+func TestSelectZarfLayersDoesNotSelectAllWhenNoComponentsMatch(t *testing.T) {
+	store := memory.New()
+	push := func(title string, data []byte) ocispec.Descriptor {
+		t.Helper()
+		desc := content.NewDescriptorFromBytes("application/vnd.zarf.layer.v1.blob", data)
+		desc.Annotations = map[string]string{ocispec.AnnotationTitle: title}
+		require.NoError(t, udsoci.PushDescriptorBytes(t.Context(), store, desc, data))
+		return desc
+	}
+	zarfYAML := []byte(`kind: ZarfPackageConfig
+metadata:
+  name: selection
+  version: 1.0.0
+components:
+  - name: optional
+`)
+	root := &packageoci.Manifest{Manifest: ocispec.Manifest{Layers: []ocispec.Descriptor{
+		push("zarf.yaml", zarfYAML),
+		push("checksums.txt", nil),
+		push("components/optional.tar", []byte("optional")),
+	}}}
+
+	layers, partial, err := selectZarfLayers(t.Context(), root, store, BuildComponentFilter(nil))
+	require.NoError(t, err)
+	assert.True(t, partial)
+	for _, layer := range layers {
+		assert.NotEqual(t, "components/optional.tar", layer.Annotations[ocispec.AnnotationTitle])
+	}
+}
+
 func TestNewPackageSource_Remote(t *testing.T) {
 	opts := bundleinternal.ConfigOptions{
 		Architecture:  "amd64",

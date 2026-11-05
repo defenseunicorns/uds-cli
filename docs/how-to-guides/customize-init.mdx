@@ -9,7 +9,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## What you'll accomplish
 
-Configure the container registry, Git server, artifact server, or storage class that Zarf uses when initializing a cluster through a UDS bundle. Supply the `INIT_*` values at deployment time through `UDS_INIT_*` environment variables or `uds-config.yaml`.
+Configure the container registry, injector image, Git server, artifact server, or storage class that Zarf uses when initializing a cluster through a UDS bundle. Supply the `INIT_*` values at deployment time through `UDS_INIT_*` environment variables or `uds-config.yaml`.
 
 These instructions apply only to Legacy mode. UDS CLI Next does not currently support this init customization.
 
@@ -36,6 +36,7 @@ The following keys configure init. In an environment variable, prepend `UDS_` to
 | `INIT_REGISTRY_PULL_PASSWORD` | Password for the registry pull user. |
 | `INIT_REGISTRY_SECRET` | Secret value used by the internal registry, rather than a Kubernetes Secret name. |
 | `INIT_REGISTRY_NODEPORT` | Internal registry port, supplied as an integer. In `nodeport` mode, this is a Kubernetes NodePort. |
+| `INIT_INJECTOR_IMAGE` | Image used to bootstrap the internal registry. The image must be pre-existing on every node. |
 | `INIT_GIT_URL` | Git server URL, such as `https://git.example.com`. |
 | `INIT_GIT_PUSH_USERNAME` | Username with permission to push Git repositories. |
 | `INIT_GIT_PUSH_PASSWORD` | Password or access token for the Git push user. |

@@ -60,8 +60,8 @@ type layerIdentity struct {
 }
 
 // NewPackageSource returns a PackageSource for the given source string.
-// OCI references (detected by IsOCIReference) use zoci.NewRemote;
-// everything else is treated as a local path resolved against bundleDir.
+// OCI references use zoci.NewRemote; everything else is treated as a local
+// path resolved against bundleDir.
 // streams carries the leveled logger used for ingest/pull diagnostics.
 func NewPackageSource(source string, opts bundleinternal.ConfigOptions, bundleDir string, streams iostreams.IOStreams) PackageSource {
 	if udsoci.IsOCIReference(source) {
@@ -96,7 +96,9 @@ func selectZarfLayers(ctx context.Context, root *oci.Manifest, fetcher content.F
 	}
 	pkg := filteredPackage
 	components := pkg.Components
-	layers, err := zoci.AssembleLayers(ctx, root, fetcher, components)
+	selection := zoci.AllLayerSelection()
+	selection.RequestedComponents = append([]api.Component{}, components...)
+	layers, err := zoci.AssembleLayers(ctx, root, fetcher, selection)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w for package %q: %w", ErrAssemblePackageLayers, pkg.Metadata.Name, err)
 	}

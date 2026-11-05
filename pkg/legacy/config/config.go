@@ -71,6 +71,7 @@ const (
 	RegistrySecretName   = "INIT_REGISTRY_SECRET"
 	RegistryNodeport     = "INIT_REGISTRY_NODEPORT"
 	RegistryMode         = "INIT_REGISTRY_MODE"
+	InjectorImage        = "INIT_INJECTOR_IMAGE"
 	GitURL               = "INIT_GIT_URL"
 	GitPushUsername      = "INIT_GIT_PUSH_USERNAME" // #nosec G101
 	GitPushPassword      = "INIT_GIT_PUSH_PASSWORD" // #nosec G101

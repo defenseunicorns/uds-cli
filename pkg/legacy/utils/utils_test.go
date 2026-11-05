@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 package utils
@@ -15,7 +15,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
-func TestReadPackageYAMLConvertsV1beta1OptionalComponents(t *testing.T) {
+func TestReadPackageYAMLV1beta1OptionalComponents(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zarf.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 apiVersion: zarf.dev/v1beta1
@@ -33,8 +33,8 @@ components:
 
 	require.NoError(t, err)
 	require.Len(t, pkg.Components, 2)
-	assert.True(t, pkg.Components[0].IsRequired())
-	assert.False(t, pkg.Components[1].IsRequired())
+	assert.False(t, pkg.Components[0].Optional)
+	assert.True(t, pkg.Components[1].Optional)
 }
 
 func TestRequireSignatureWhenVerificationConfigured(t *testing.T) {
@@ -497,5 +497,62 @@ func TestResolveVerifyBlobOptions(t *testing.T) {
 			result := resolveVerifyBlobOptions(tt.opts)
 			require.Equal(t, tt.want, result)
 		})
+	}
+}
+
+func TestReadPackageYAMLBytesSelectsBetaDocument(t *testing.T) {
+	const beta = `apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: beta
+build:
+  aggregateChecksum: checksum
+components:
+  - name: required
+    target:
+      os: linux
+    actions:
+      onDeploy:
+        before:
+          - cmd: echo '{{ .Values.message }}'
+            enableTemplating: true
+            setValues:
+              - key: result
+                type: string
+    files:
+      - source: input
+        destination: output
+        checksum: sha512:abc
+        enableTemplating: true
+values:
+  files:
+    - values.yaml
+`
+	pkg, err := ReadPackageYAMLBytes([]byte("kind: ZarfPackageConfig\nmetadata:\n  name: alpha-compatibility-view\n---\n" + beta))
+	require.NoError(t, err)
+	assert.Equal(t, "zarf.dev/v1beta1", pkg.APIVersion)
+	assert.Equal(t, "beta", pkg.Metadata.Name)
+	assert.Equal(t, "checksum", pkg.Build.AggregateChecksum)
+	require.Len(t, pkg.Components, 1)
+	component := pkg.Components[0]
+	assert.Equal(t, "linux", component.Target.OS)
+	require.Len(t, component.Actions.OnDeploy.Before, 1)
+	assert.True(t, component.Actions.OnDeploy.Before[0].EnableTemplating)
+	require.Len(t, component.Actions.OnDeploy.Before[0].SetValues, 1)
+	assert.Equal(t, "result", component.Actions.OnDeploy.Before[0].SetValues[0].Key)
+	require.Len(t, component.Files, 1)
+	assert.Equal(t, "sha512:abc", component.Files[0].Checksum.String())
+	assert.True(t, component.Files[0].EnableTemplating)
+	assert.Equal(t, []string{"values.yaml"}, pkg.Values.Files)
+}
+
+func TestReadPackageYAMLBytesRejectsUnsupportedOrDuplicateVersions(t *testing.T) {
+	for _, data := range []string{
+		"apiVersion: zarf.dev/unknown\nkind: ZarfPackageConfig\n",
+		"apiVersion: zarf.dev/v1beta1\n---\napiVersion: zarf.dev/v1beta1\n",
+		"components: [",
+	} {
+		_, err := ReadPackageYAMLBytes([]byte(data))
+		require.Error(t, err)
 	}
 }

@@ -53,6 +53,7 @@ var (
 	ErrExtractLocalPackage          = errors.New("extracting local package archive")
 	ErrStatLocalPackage             = errors.New("stating local package source")
 	ErrInvalidManifestDigest        = errors.New("invalid package manifest digest")
+	ErrInvalidPackageFileChecksum   = errors.New("invalid package file checksum")
 	ErrPackageNotFoundInArtifact    = errors.New("package not found in bundle artifact")
 	ErrMissingLayerTitle            = errors.New("package layer is missing its title annotation")
 	ErrCreateLayerDirectory         = errors.New("creating package layer directory")

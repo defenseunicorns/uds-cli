@@ -65,6 +65,7 @@ func NewRootCommand() *cobra.Command {
 	v.SetDefault(V_BNDL_PUBLISH_FORCE_UPLOAD, false)
 	v.SetDefault(V_TMP_DIR, "")
 	v.SetDefault(V_BNDL_OCI_CONCURRENCY, 3)
+	v.SetDefault(V_BNDL_DEPLOY_SKIP_ARCH_CHECK, false)
 
 	homeDir, _ := os.UserHomeDir()
 	v.SetDefault(V_UDS_CACHE, filepath.Join(homeDir, config.UDSCache))
@@ -151,6 +152,7 @@ func applyViperFlags(cmd *cobra.Command) error {
 			"signing-key":          V_BNDL_CREATE_SIGNING_KEY,
 			"signing-key-password": V_BNDL_CREATE_SIGNING_KEY_PASSWORD,
 		},
+		"deploy":  {"skip-architecture-check": V_BNDL_DEPLOY_SKIP_ARCH_CHECK},
 		"inspect": {"key": V_BNDL_INSPECT_KEY},
 		"publish": {"force-upload": V_BNDL_PUBLISH_FORCE_UPLOAD},
 		"pull": {

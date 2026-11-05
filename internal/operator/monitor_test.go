@@ -423,8 +423,7 @@ func TestMonitorCancelsSiblingStreamsOnFatalError(t *testing.T) {
 	case err = <-done:
 	case <-time.After(time.Second):
 		cancel()
-		<-done
-		t.Fatal("monitor did not return after a fatal stream error")
+		t.Fatalf("monitor did not return after a fatal stream error: %v", <-done)
 	}
 	cancel()
 	require.ErrorIs(t, err, ErrProcessPodLogs)

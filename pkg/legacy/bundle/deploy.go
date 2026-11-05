@@ -23,7 +23,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/valuesources"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	goyaml "github.com/goccy/go-yaml"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -132,7 +132,14 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		if err != nil {
 			return err
 		}
-		zarfPkg := pkgLayout.AsV1alpha1()
+		for _, component := range pkgLayout.Definition().Components {
+			for _, file := range component.Files {
+				if file.Checksum.Algorithm != "" && file.Checksum.Digest == "" {
+					return fmt.Errorf("package %q: invalid package file checksum: component %q file %q has an empty digest", pkg.Name, component.Name, file.Source)
+				}
+			}
+		}
+		zarfPkg := pkgLayout.Definition()
 
 		isConnectedDeploy := config.Dev
 		registryInfo := newRegistryInfo(pkgVars, zarfPkg.Kind)
@@ -202,7 +209,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 	return nil
 }
 
-func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind v1alpha1.ZarfPackageKind, registryInfo state.RegistryInfo) (packager.DeployOptions, error) {
+func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVars zarfVarData, valuesOverrides packager.ValuesOverrides, pkgKind api.PackageKind, registryInfo state.RegistryInfo) (packager.DeployOptions, error) {
 	plainHTTP, err := shouldUsePlainHTTPForDeployRegistry(ctx, registryInfo, config.CommonOptions.Insecure)
 	if err != nil {
 		return packager.DeployOptions{}, err
@@ -217,23 +224,29 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 		return packager.DeployOptions{}, err
 	}
 
-	return packager.DeployOptions{
-		ForceConflicts:     b.cfg.DeployOpts.ForceConflicts,
-		Timeout:            timeout,
-		SetVariables:       pkgVars,
-		ValuesOverridesMap: valuesOverrides,
-		Retries:            b.cfg.DeployOpts.Retries,
-		NamespaceOverride:  pkg.Namespace,
-		RemoteOptions:      remoteOpts,
-		TakeOwnership:      false,
-		Connected:          config.Dev,
-		OCIConcurrency:     config.CommonOptions.OCIConcurrency,
-		GitServer:          newGitServerInfo(pkgVars, pkgKind),
-		RegistryInfo:       registryInfo,
-		ArtifactServer:     newArtifactServerInfo(pkgVars, pkgKind),
-		StorageClass:       newStorageClass(pkgVars, pkgKind),
-		IsInteractive:      !config.CommonOptions.Confirm,
-	}, nil
+	opts := packager.DeployOptions{
+		ForceConflicts:        b.cfg.DeployOpts.ForceConflicts,
+		Timeout:               timeout,
+		SetVariables:          pkgVars,
+		ValuesOverridesMap:    valuesOverrides,
+		Retries:               b.cfg.DeployOpts.Retries,
+		NamespaceOverride:     pkg.Namespace,
+		RemoteOptions:         remoteOpts,
+		TakeOwnership:         false,
+		Connected:             config.Dev,
+		OCIConcurrency:        config.CommonOptions.OCIConcurrency,
+		GitServer:             newGitServerInfo(pkgVars, pkgKind),
+		RegistryInfo:          registryInfo,
+		ArtifactServer:        newArtifactServerInfo(pkgVars, pkgKind),
+		StorageClass:          newStorageClass(pkgVars, pkgKind),
+		IsInteractive:         !config.CommonOptions.Confirm,
+		SkipArchitectureCheck: b.cfg.DeployOpts.SkipArchitectureCheck,
+	}
+	if pkgKind == api.ZarfInitConfig {
+		opts.InjectorImage = pkgVars[config.InjectorImage]
+		opts.AgentMutationPolicy = state.MutationPolicyAll
+	}
+	return opts, nil
 }
 
 func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state.RegistryInfo, insecure bool) (bool, error) {
@@ -247,8 +260,8 @@ func shouldUsePlainHTTPForDeployRegistry(ctx context.Context, registryInfo state
 }
 
 // newGitServerInfo creates a new GitServerInfo for a package if using custom Zarf init options
-func newGitServerInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.GitServerInfo {
-	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+func newGitServerInfo(pkgVars zarfVarData, zarfPkgKind api.PackageKind) state.GitServerInfo {
+	if zarfPkgKind != api.ZarfInitConfig {
 		return state.GitServerInfo{}
 	}
 
@@ -276,8 +289,8 @@ func newGitServerInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind)
 }
 
 // newRegistryInfo creates a new RegistryInfo for a package if using custom Zarf init options
-func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.RegistryInfo {
-	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind api.PackageKind) state.RegistryInfo {
+	if zarfPkgKind != api.ZarfInitConfig {
 		return state.RegistryInfo{}
 	}
 
@@ -317,8 +330,8 @@ func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) 
 }
 
 // newArtifactServerInfo creates a new ArtifactServerInfo for a package if using custom Zarf init options
-func newArtifactServerInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) state.ArtifactServerInfo {
-	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+func newArtifactServerInfo(pkgVars zarfVarData, zarfPkgKind api.PackageKind) state.ArtifactServerInfo {
+	if zarfPkgKind != api.ZarfInitConfig {
 		return state.ArtifactServerInfo{}
 	}
 
@@ -340,8 +353,8 @@ func newArtifactServerInfo(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackage
 }
 
 // newStorageClass creates a new storage class for a package if using custom Zarf init options
-func newStorageClass(pkgVars zarfVarData, zarfPkgKind v1alpha1.ZarfPackageKind) string {
-	if zarfPkgKind != v1alpha1.ZarfInitConfig {
+func newStorageClass(pkgVars zarfVarData, zarfPkgKind api.PackageKind) string {
+	if zarfPkgKind != api.ZarfInitConfig {
 		return ""
 	}
 
@@ -405,10 +418,11 @@ func (b *Bundle) PreDeployValidation() (string, string, string, error) {
 		return "", "", "", err
 	}
 
-	// validate bundle's arch against cluster
-	err = ValidateArch(config.GetArch(b.bundle.Build.Architecture))
-	if err != nil {
-		return "", "", "", err
+	// validate bundle's arch against cluster unless the compatibility check was explicitly skipped
+	if !b.cfg.DeployOpts.SkipArchitectureCheck {
+		if err := ValidateArch(config.GetArch(b.bundle.Build.Architecture)); err != nil {
+			return "", "", "", fmt.Errorf("%w; if this architecture mismatch is expected, retry with --skip-architecture-check to bypass architecture validation", err)
+		}
 	}
 
 	b.prefetchPackageMetadata(provider)
@@ -482,7 +496,7 @@ func formPkgViews(b *Bundle) ([]PkgView, error) {
 	return formPkgViewsWithMetadata(b, b.getMetadata)
 }
 
-func formPkgViewsWithMetadata(b *Bundle, getMetadata func(types.Package) (v1alpha1.ZarfPackage, error)) ([]PkgView, error) {
+func formPkgViewsWithMetadata(b *Bundle, getMetadata func(types.Package) (api.Package, error)) ([]PkgView, error) {
 	var pkgViews []PkgView
 	for _, pkg := range b.bundle.Packages {
 		variables := make([]interface{}, 0)
@@ -539,7 +553,7 @@ func formPkgMeta(pkg types.Package) map[string]string {
 	return pkgMeta
 }
 
-func sensitiveZarfVariableNames(variables []v1alpha1.InteractiveVariable) map[string]bool {
+func sensitiveZarfVariableNames(variables []api.InteractiveVariable) map[string]bool {
 	sensitiveVars := make(map[string]bool)
 	for _, variable := range variables {
 		if variable.Sensitive {

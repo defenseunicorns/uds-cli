@@ -9,8 +9,7 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	"github.com/opencontainers/go-digest"
-	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
@@ -38,16 +37,16 @@ type PackageSource interface {
 	LoadPackage(ctx context.Context, filter filters.ComponentFilterStrategy) (pkgLayout *layout.PackageLayout, warnings []string, err error)
 
 	// LoadPackageMetadata loads a package's metadata from a source.
-	LoadPackageMetadata(ctx context.Context, wantSBOM bool, skipValidation bool) (pkg v1alpha1.ZarfPackage, warnings []string, err error)
+	LoadPackageMetadata(ctx context.Context, wantSBOM bool, skipValidation bool) (pkg api.Package, warnings []string, err error)
 }
 
 // handleFilter filters components and checks if a package is a partial package by checking its number of components
-func handleFilter(pkg v1alpha1.ZarfPackage, filter filters.ComponentFilterStrategy) ([]v1alpha1.ZarfComponent, bool, error) {
+func handleFilter(pkg api.Package, filter filters.ComponentFilterStrategy) ([]api.Component, bool, error) {
 	numComponents := len(pkg.Components)
-	filteredDefinition, err := filters.Apply(convert.PackageFromV1alpha1(pkg), filter)
+	filteredDefinition, err := filters.Apply(pkg, filter)
 	if err != nil {
 		return nil, false, err
 	}
-	filteredComps := convert.PackageToV1alpha1(filteredDefinition).Components
+	filteredComps := filteredDefinition.Components
 	return filteredComps, numComponents > len(filteredComps), nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	oras "oras.land/oras-go/v2"
 )
 
 // DeployPackageOptions contains package deployment context passed to hooks.
@@ -107,6 +108,7 @@ type DeploySource struct {
 
 	packageZarfNames map[string]string
 	resumePrepared   bool
+	requiresLoader   bool
 	close            func() error
 }
 
@@ -155,6 +157,9 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 	}
 	if source.BundlePath == "" && source.Bundle == nil {
 		return nil, fmt.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)
+	}
+	if source.requiresLoader && source.Loader == nil {
+		return nil, ErrPackageLayoutLoaderRequired
 	}
 	if source.DefaultsPath != "" {
 		config, err := applyEmbeddedDefaults(ctx, opts.Config, source.DefaultsPath, source.Loader != nil)
@@ -273,6 +278,7 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
 			CacheDir: cfg.Options.CacheDir,
 			TmpDir:   cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
+			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
 		}
 	}
 	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
@@ -289,6 +295,7 @@ func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
 			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
 			CacheDir: cfg.Options.CacheDir,
 			TmpDir:   cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
+			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
 		}
 	}
 	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables)}
@@ -466,12 +473,6 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		_ = cleanup()
 		return nil, fmt.Errorf("%w: extracting bundle artifact: %w", ErrPrepareDeploySource, err)
 	}
-	valuesOverride, err := extracted.ValuesFilesByPackage()
-	if err != nil {
-		_ = cleanup()
-		return nil, fmt.Errorf("%w: collecting values files from artifact: %w", ErrPrepareDeploySource, err)
-	}
-
 	bundleBytes, err := os.ReadFile(extracted.BundleDefPath)
 	if err != nil {
 		_ = cleanup()
@@ -482,9 +483,10 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		_ = cleanup()
 		return nil, fmt.Errorf("%w: parsing extracted bundle definition: %w", ErrPrepareDeploySource, err)
 	}
-	if err := applyArtifactValuesFiles(preparedBundle, valuesOverride, extracted.Dir); err != nil {
+	defaultsPath, err := prepareMaterializedBundle(preparedBundle, extracted, path, "artifact")
+	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("%w from %q: %w", ErrPrepareDeploySource, path, err)
+		return nil, err
 	}
 
 	artifactLoader := &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{
@@ -492,18 +494,88 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 	}}
 	source := &DeploySource{
 		BundlePath:       extracted.BundleDefPath,
+		DefaultsPath:     defaultsPath,
 		Bundle:           preparedBundle,
 		Loader:           artifactLoader,
 		packageZarfNames: extracted.PackageZarfNames,
 		resumePrepared:   true,
 		close:            cleanup,
 	}
-	source.DefaultsPath, err = bundleinternal.AdjacentDefaultsPath(filepath.Dir(extracted.BundleDefPath))
+	return source, nil
+}
+
+// TargetDeploySourceOptions configures preparation from a read-only ORAS target.
+type TargetDeploySourceOptions struct {
+	Target oras.ReadOnlyTarget
+	// Reference is a tag or digest understood by Target, not a full OCI URL.
+	Reference string
+	// Loader stages and verifies package layouts; it must be non-nil.
+	Loader ZarfPackageLayoutLoader
+	// TmpDir is the parent for a private workspace; empty uses os.TempDir.
+	TmpDir string
+	// Architecture selects the bundle child index; empty uses runtime.GOARCH.
+	Architecture string
+}
+
+// PrepareDeploySourceFromTarget prepares a bundle from a read-only ORAS target.
+// Close the returned source after use. Resume is not supported.
+func PrepareDeploySourceFromTarget(ctx context.Context, streams iostreams.IOStreams, opts TargetDeploySourceOptions) (*DeploySource, error) {
+	if opts.Target == nil {
+		return nil, fmt.Errorf("target is required: %w", ErrSourceRequired)
+	}
+	if opts.Reference == "" {
+		return nil, fmt.Errorf("reference is required: %w", ErrSourceRequired)
+	}
+	if opts.Loader == nil {
+		return nil, ErrPackageLayoutLoaderRequired
+	}
+
+	tmpDir := opts.TmpDir
+	if tmpDir == "" {
+		tmpDir = os.TempDir()
+	}
+	tmpDir, err := filepath.Abs(tmpDir)
+	if err != nil {
+		return nil, fmt.Errorf("%w: resolving temporary directory: %w", ErrPrepareDeploySource, err)
+	}
+	workspaceDir, err := os.MkdirTemp(tmpDir, "uds-bundle-deploy-*")
+	if err != nil {
+		return nil, fmt.Errorf("%w: creating workspace for bundle target: %w", ErrPrepareDeploySource, err)
+	}
+	cleanup := func() error { return os.RemoveAll(workspaceDir) }
+	extracted, preparedBundle, err := artifact.MaterializeTargetDefinition(ctx, streams, opts.Target, opts.Reference, opts.Architecture, workspaceDir)
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
+		return nil, fmt.Errorf("%w: reading bundle target %q: %w", ErrPrepareDeploySource, opts.Reference, err)
 	}
-	return source, nil
+	defaultsPath, err := prepareMaterializedBundle(preparedBundle, extracted, opts.Reference, "target")
+	if err != nil {
+		_ = cleanup()
+		return nil, err
+	}
+	return &DeploySource{
+		BundlePath:     extracted.BundleDefPath,
+		DefaultsPath:   defaultsPath,
+		Bundle:         preparedBundle,
+		Loader:         opts.Loader,
+		requiresLoader: true,
+		close:          cleanup,
+	}, nil
+}
+
+func prepareMaterializedBundle(preparedBundle *spec.UDSBundle, extracted *artifact.ExtractedBundle, source, kind string) (string, error) {
+	valuesOverride, err := extracted.ValuesFilesByPackage()
+	if err != nil {
+		return "", fmt.Errorf("%w: collecting values files from %s: %w", ErrPrepareDeploySource, kind, err)
+	}
+	if err := applyArtifactValuesFiles(preparedBundle, valuesOverride, extracted.Dir); err != nil {
+		return "", fmt.Errorf("%w from %q: %w", ErrPrepareDeploySource, source, err)
+	}
+	defaultsPath, err := bundleinternal.AdjacentDefaultsPath(filepath.Dir(extracted.BundleDefPath))
+	if err != nil {
+		return "", fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
+	}
+	return defaultsPath, nil
 }
 
 func applyArtifactValuesFiles(b *spec.UDSBundle, valuesByPackage map[string][]string, bundleDir string) error {

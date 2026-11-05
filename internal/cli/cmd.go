@@ -7,20 +7,23 @@ package cli
 import (
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/cli/core"
+	packagecli "github.com/defenseunicorns/uds-cli/internal/cli/package"
 	"github.com/defenseunicorns/uds-cli/internal/cli/tools"
 	cmdversion "github.com/defenseunicorns/uds-cli/internal/cli/version"
 	cmdzarf "github.com/defenseunicorns/uds-cli/internal/cli/zarf"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/internal/mode"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
 	"github.com/zarf-dev/zarf/src/pkg/ocischeme"
 )
 
-// NewRootCommand creates the root command for uds.
-func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
+// NewRootCommand creates the root command for uds with the selected features.
+func NewRootCommand(streams iostreams.IOStreams, features mode.FeatureSet) *cobra.Command {
 	var logLevel string
 
 	rootCmd := &cobra.Command{
@@ -30,6 +33,15 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 		Short:         "UDS CLI - The entrypoint to the Defense Unicorns ecosystem",
 		Long:          `UDS CLI is a command-line tool for managing UDS Bundles and interacting with the Defense Unicorns ecosystem.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if !features.Enabled(mode.FeaturePackageMod) && strings.HasPrefix(cmd.CommandPath(), "uds package mod ") {
+				return errors.New(`package modification requires the PackageMod feature flag
+
+This is an advanced, last-resort recovery workflow. Modifying a package breaks its original integrity and the original signature no longer applies. Prefer signed packages and immutable bundles built from the original source.
+
+Port all changes back to the upstream source as quickly as possible and rebuild through the normal signed release workflow. The generated worktree is temporary, not a replacement for upstream source; a later package update can erase local fixes.
+
+To explicitly opt in, rerun with --features=NextMode=true,PackageMod=true or set CLI_FEATURES=NextMode=true,PackageMod=true`)
+			}
 			if err := validateArchitectureFlag(cmd); err != nil {
 				return err
 			}
@@ -57,7 +69,10 @@ func NewRootCommand(streams iostreams.IOStreams) *cobra.Command {
 	rootCmd.AddCommand(cmdversion.NewVersionCommand(streams))
 	rootCmd.AddCommand(bundle.NewBundleCommand(streams))
 	rootCmd.AddCommand(core.NewCoreCommand(streams))
+
 	rootCmd.AddCommand(tools.NewToolsCommand(streams))
+	rootCmd.AddCommand(packagecli.NewPackageCommand(streams))
+
 	// Hidden root-level zarf command for internal Zarf callbacks.
 	// Zarf's ActionsCommandZarfPrefix is set to "zarf" (single word) at build time,
 	// so callbacks run as "uds zarf tools kubectl ..." which routes here.

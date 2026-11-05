@@ -4,16 +4,18 @@
 // Package api defines Zarf's version-neutral package model.
 package api
 
+import "strings"
+
 // Package is the version-neutral representation used by package operations and converters.
 type Package struct {
 	// APIVersion identifies the source package schema. An empty value is the legacy v1alpha1 form.
-	APIVersion    string
-	Kind          PackageKind
-	Metadata      PackageMetadata
-	Build         BuildData
-	Components    []Component
-	Values        Values
-	Documentation map[string]string
+	APIVersion  string
+	Kind        PackageKind
+	Metadata    PackageMetadata
+	Build       BuildData
+	Components  []Component
+	Values      Values
+	Attachments map[string]string
 
 	// v1alpha1-only fields
 	Variables []InteractiveVariable
@@ -43,23 +45,28 @@ type PackageMetadata struct {
 // BuildData contains build metadata shared across package API versions.
 type BuildData struct {
 	// Hostname is the v1beta1 name (v1alpha1: Terminal).
-	Hostname                   string
-	User                       string
-	Architecture               string
-	Timestamp                  string
-	Version                    string
-	Migrations                 []string
-	RegistryOverrides          map[string]string
-	Differential               bool
-	DifferentialPackageVersion string
-	Flavor                     string
-	Signed                     *bool
-	VersionRequirements        []VersionRequirement
-	ProvenanceFiles            []string
-	AggregateChecksum          string
+	Hostname            string
+	User                string
+	Architecture        string
+	Timestamp           string
+	Version             string
+	Migrations          []string
+	RegistryOverrides   map[string]string
+	Differential        *Differential
+	Flavor              string
+	Signed              *bool
+	VersionRequirements []VersionRequirement
+	ProvenanceFiles     []string
+	AggregateChecksum   string
 
 	// v1alpha1-only build fields.
 	DifferentialMissing []string
+}
+
+// Differential identifies the base package used to create a differential package.
+// A nil Differential indicates a full package.
+type Differential struct {
+	FromVersion string
 }
 
 // VersionRequirement specifies a minimum Zarf version needed.
@@ -100,15 +107,20 @@ type Component struct {
 }
 
 // Service identifies a Zarf-managed cluster service provided by a component.
-type Service string
+type Service struct {
+	Name ServiceName
+}
+
+// ServiceName identifies a Zarf-managed cluster service.
+type ServiceName string
 
 // Service identifiers used by components that provide Zarf-managed cluster services.
 const (
-	ServiceRegistry     Service = "registry"
-	ServiceSeedRegistry Service = "seed-registry"
-	ServiceInjector     Service = "injector"
-	ServiceAgent        Service = "agent"
-	ServiceGitServer    Service = "git-server"
+	ServiceRegistry     ServiceName = "registry"
+	ServiceSeedRegistry ServiceName = "seed-registry"
+	ServiceInjector     ServiceName = "injector"
+	ServiceAgent        ServiceName = "agent"
+	ServiceGitServer    ServiceName = "git-server"
 )
 
 // ComponentSelector filters a component during package creation.
@@ -270,10 +282,64 @@ type Repository struct {
 	LegacyURL string
 }
 
+// ChecksumAlgorithm identifies the hash used for a file checksum.
+type ChecksumAlgorithm string
+
+// Supported file checksum algorithms.
+const (
+	ChecksumSHA256 ChecksumAlgorithm = "sha256"
+	ChecksumSHA512 ChecksumAlgorithm = "sha512"
+)
+
+// FileChecksum is a file checksum with its algorithm and digest.
+type FileChecksum struct {
+	Algorithm ChecksumAlgorithm
+	Digest    string
+}
+
+// ParseFileChecksum converts a wire-format checksum, defaulting to SHA-256.
+func ParseFileChecksum(value string) FileChecksum {
+	if value == "" {
+		return FileChecksum{}
+	}
+	if prefix, rest, ok := strings.Cut(value, ":"); ok {
+		if prefix == "" {
+			// Keep the separator so an invalid empty prefix cannot become a valid digest.
+			return FileChecksum{Digest: value}
+		}
+		return FileChecksum{Algorithm: ChecksumAlgorithm(prefix), Digest: rest}
+	}
+	return FileChecksum{Digest: value}
+}
+
+// GetAlgorithm returns SHA-256 when no algorithm is specified.
+func (c FileChecksum) GetAlgorithm() ChecksumAlgorithm {
+	if c.Algorithm == "" {
+		return ChecksumSHA256
+	}
+	return c.Algorithm
+}
+
+// IsSet reports whether a file checksum was provided.
+func (c FileChecksum) IsSet() bool {
+	return c.Algorithm != "" || c.Digest != ""
+}
+
+// String returns the checksum in the package definition's wire format.
+func (c FileChecksum) String() string {
+	if !c.IsSet() {
+		return ""
+	}
+	if c.Algorithm != "" {
+		return string(c.Algorithm) + ":" + c.Digest
+	}
+	return c.Digest
+}
+
 // File is the version-neutral representation of a package file.
 type File struct {
 	Source           string
-	Checksum         string
+	Checksum         FileChecksum
 	Destination      string
 	Executable       bool
 	Symlinks         []string
@@ -281,16 +347,43 @@ type File struct {
 	EnableTemplating bool
 }
 
+// ImageSource identifies where an image is read during package creation.
+type ImageSource string
+
+const (
+	// ImageSourceRegistry reads an image from a registry.
+	ImageSourceRegistry ImageSource = "registry"
+	// ImageSourceDaemon reads an image from the local container daemon.
+	ImageSourceDaemon ImageSource = "daemon"
+	// ImageSourceRegistryDaemonFallback reads from a registry, then tries the local container daemon.
+	ImageSourceRegistryDaemonFallback ImageSource = "registry-daemon-fallback"
+)
+
+// GetSource returns the registry source when no source is specified.
+func (s ImageSource) GetSource() ImageSource {
+	if s == "" {
+		return ImageSourceRegistry
+	}
+	return s
+}
+
 // Image represents an OCI image in the package.
 type Image struct {
+	ID     string
 	Name   string
-	Source string
+	Source ImageSource
 }
 
 // ImageArchive defines a tar archive of images to include in the package.
 type ImageArchive struct {
 	Path   string
-	Images []string
+	Images []ArchiveImage
+}
+
+// ArchiveImage identifies an image selected from an archive.
+type ArchiveImage struct {
+	Name string
+	ID   string
 }
 
 // ComponentActions are the actions associated with each package lifecycle operation.

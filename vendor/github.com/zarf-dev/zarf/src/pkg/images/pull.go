@@ -27,7 +27,9 @@ import (
 	"github.com/mholt/archives"
 	"github.com/moby/moby/client"
 	"github.com/moby/moby/client/pkg/versions"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/config"
+	"github.com/zarf-dev/zarf/src/internal/checksum"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
 	"golang.org/x/sync/errgroup"
 	"oras.land/oras-go/v2"
@@ -60,7 +62,14 @@ type PullOptions struct {
 	PlainHTTP bool
 }
 
+// ImageRequest pairs an image with its source. An empty Source means registry.
+type ImageRequest struct {
+	Image  transform.Image
+	Source api.ImageSource
+}
+
 type imagePullInfo struct {
+	request             ImageRequest
 	registryOverrideRef string
 	ref                 string
 	manifestDesc        ocispec.Descriptor
@@ -75,18 +84,31 @@ type imagePullInfo struct {
 
 type imageWithOverride struct {
 	overridden transform.Image
-	original   transform.Image
+	request    ImageRequest
 }
 
 // Pull pulls all images to the destination directory.
-func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory string, opts PullOptions) ([]PulledImage, error) {
+func Pull(ctx context.Context, imageList []ImageRequest, destinationDirectory string, opts PullOptions) ([]PulledImage, error) {
 	if len(imageList) == 0 {
 		return nil, fmt.Errorf("image list is required")
 	}
 	if destinationDirectory == "" {
 		return nil, fmt.Errorf("destination directory is required")
 	}
-	imageList = helpers.Unique(imageList)
+	uniqueImages := make([]ImageRequest, 0, len(imageList))
+	seenSources := make(map[string]api.ImageSource, len(imageList))
+	for _, request := range imageList {
+		request.Source = request.Source.GetSource()
+		if previous, exists := seenSources[request.Image.Reference]; exists {
+			if previous != request.Source {
+				return nil, fmt.Errorf("image %q has conflicting sources %q and %q", request.Image.Reference, previous, request.Source)
+			}
+			continue
+		}
+		seenSources[request.Image.Reference] = request.Source
+		uniqueImages = append(uniqueImages, request)
+	}
+	imageList = uniqueImages
 	l := logger.From(ctx)
 	pullStart := time.Now()
 
@@ -105,20 +127,22 @@ func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory
 
 	imagesWithOverride := []imageWithOverride{}
 	// Iterate over all images, marking each one as overridden.
-	for _, img := range imageList {
-		overriddenImage := img
-		for _, v := range opts.RegistryOverrides {
-			if strings.HasPrefix(img.Reference, v.Source) {
-				// If we have an override, the first override wins.
-				// Doing so allows earlier, longer prefixes (such as docker.io/library)
-				// to supersede shorter prefixes (such as docker.io).
-				overriddenImage.Reference = strings.Replace(img.Reference, v.Source, v.Override, 1)
-				break
+	for _, request := range imageList {
+		overriddenImage := request.Image
+		if request.Source != api.ImageSourceDaemon {
+			for _, v := range opts.RegistryOverrides {
+				if strings.HasPrefix(request.Image.Reference, v.Source) {
+					// If we have an override, the first override wins.
+					// Doing so allows earlier, longer prefixes (such as docker.io/library)
+					// to supersede shorter prefixes (such as docker.io).
+					overriddenImage.Reference = strings.Replace(request.Image.Reference, v.Source, v.Override, 1)
+					break
+				}
 			}
 		}
 		imagesWithOverride = append(imagesWithOverride, imageWithOverride{
-			original:   img,
 			overridden: overriddenImage,
+			request:    request,
 		})
 	}
 
@@ -127,7 +151,13 @@ func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory
 
 	uniqueHosts := map[string]struct{}{}
 	for _, v := range imagesWithOverride {
-		uniqueHosts[v.overridden.Host] = struct{}{}
+		if v.request.Source != api.ImageSourceDaemon {
+			ref, err := registry.ParseReference(v.overridden.Reference)
+			if err != nil {
+				return nil, fmt.Errorf("invalid image reference %q: %w", v.overridden.Reference, err)
+			}
+			uniqueHosts[ref.Host()] = struct{}{}
+		}
 	}
 	client, err := NewAuthClientFromDocker(ctx, opts.InsecureSkipTLSVerify, opts.ResponseHeaderTimeout, uniqueHosts)
 	if err != nil {
@@ -150,6 +180,12 @@ func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory
 	eg, ectx := errgroup.WithContext(ctx)
 	eg.SetLimit(10)
 	for _, image := range imagesWithOverride {
+		if image.request.Source == api.ImageSourceDaemon {
+			imageListLock.Lock()
+			dockerFallBackImages = append(dockerFallBackImages, image)
+			imageListLock.Unlock()
+			continue
+		}
 		eg.Go(func() error {
 			repo := &orasRemote.Repository{}
 
@@ -167,6 +203,9 @@ func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory
 			if opts.PlainHTTP || dns.IsLocalOrPrivate(repo.Reference.Host()) {
 				plainHTTP, err = ocischeme.From(ctx).UsePlainHTTP(ctx, repo.Reference.Host(), ocischeme.ProbeOptions{InsecureSkipTLSVerify: opts.InsecureSkipTLSVerify})
 				if err != nil {
+					if image.request.Source == api.ImageSourceRegistry {
+						return fmt.Errorf("unable to reach registry for image %q: %w", image.overridden.Reference, err)
+					}
 					// It could be an image on the daemon instead of a registry.
 					l.Warn("unable to reach registry, attempting pull from docker daemon as fallback", "image", image.overridden.Reference, "err", err)
 					imageListLock.Lock()
@@ -180,6 +219,9 @@ func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory
 			fetchOpts := oras.DefaultFetchBytesOptions
 			desc, b, err := oras.FetchBytes(ectx, repo, image.overridden.Reference, fetchOpts)
 			if err != nil {
+				if image.request.Source == api.ImageSourceRegistry {
+					return fmt.Errorf("unable to fetch registry image %q: %w", image.overridden.Reference, err)
+				}
 				// TODO we could use the k8s library for backoffs here - https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apimachinery/pkg/util/wait/backoff.go
 				if strings.Contains(err.Error(), "toomanyrequests") {
 					return fmt.Errorf("rate limited by registry: %w", err)
@@ -191,7 +233,7 @@ func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory
 				return nil
 			}
 
-			isIndexSha := image.original.Digest != "" && IsIndex(desc.MediaType)
+			isIndexSha := image.request.Image.Digest != "" && IsIndex(desc.MediaType)
 			// If a manifest was returned from FetchBytes, either it's a tag with only one image or it's a non container image
 			// If it's not a manifest then we received an index and need to pull the manifest by platform
 			if !IsManifest(desc.MediaType) && !isIndexSha {
@@ -221,14 +263,14 @@ func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory
 			imageListLock.Lock()
 			defer imageListLock.Unlock()
 			imagesInfo = append(imagesInfo, imagePullInfo{
+				request:             image.request,
 				registryOverrideRef: image.overridden.Reference,
-				ref:                 image.original.Reference,
+				ref:                 image.request.Image.Reference,
 				byteSize:            size,
 				manifestDesc:        desc,
 				platforms:           platforms,
 				plainHTTP:           plainHTTP,
 			})
-			pulledImages = append(pulledImages, PulledImage{Image: image.original})
 			l.Debug("pulled image", "name", image.overridden.Reference)
 			return nil
 		})
@@ -261,6 +303,7 @@ func Pull(ctx context.Context, imageList []transform.Image, destinationDirectory
 		if err != nil {
 			return nil, fmt.Errorf("failed to save images: %w", err)
 		}
+		pulledImages = append(pulledImages, PulledImage{Image: imageInfo.request.Image})
 	}
 
 	l.Info("done pulling images", "count", imageCount, "duration", time.Since(pullStart).Round(time.Millisecond*100))
@@ -321,7 +364,7 @@ func pullFromDockerDaemon(ctx context.Context, daemonImages []imageWithOverride,
 		if pullErr != nil {
 			return nil, pullErr
 		}
-		pulledImages = append(pulledImages, PulledImage{Image: daemonImage.original})
+		pulledImages = append(pulledImages, PulledImage{Image: daemonImage.request.Image})
 	}
 
 	return pulledImages, nil
@@ -391,7 +434,7 @@ func saveImageFromDockerDaemon(ctx context.Context, cli *client.Client, dst *oci
 		return fmt.Errorf("failed to create OCI store: %w", err)
 	}
 	l.Info("pulling image from docker daemon", "name", daemonImage.overridden.Reference, "count", fmt.Sprintf("%d/%d", index, count))
-	_, err = copyImageFromOCILayout(ctx, dockerImageSrc, dst, manifests[0].Digest.String(), daemonImage.original, arch, concurrency)
+	_, err = copyImageFromOCILayout(ctx, dockerImageSrc, dst, manifests[0].Digest.String(), daemonImage.request.Image, arch, concurrency)
 	return err
 }
 
@@ -425,8 +468,8 @@ func craneSaveImageFromDockerDaemon(ctx context.Context, cli *client.Client, dst
 		return fmt.Errorf("failed to write docker image: %w", err)
 	}
 	annotations := map[string]string{
-		ocispec.AnnotationBaseImageName: daemonImage.original.Reference,
-		ocispec.AnnotationRefName:       daemonImage.original.Reference,
+		ocispec.AnnotationBaseImageName: daemonImage.request.Image.Reference,
+		ocispec.AnnotationRefName:       daemonImage.request.Image.Reference,
 	}
 	platform := &ocispec.Platform{
 		Architecture: arch,
@@ -453,7 +496,7 @@ func craneSaveImageFromDockerDaemon(ctx context.Context, cli *client.Client, dst
 		if fi.IsDir() {
 			return nil
 		}
-		hash, err := helpers.GetSHA256OfFile(path)
+		hash, err := checksum.GetSHA256OfFile(path)
 		if err != nil {
 			return err
 		}
@@ -470,7 +513,7 @@ func craneSaveImageFromDockerDaemon(ctx context.Context, cli *client.Client, dst
 	}
 	fetchBytesOpts := oras.DefaultFetchBytesOptions
 	fetchBytesOpts.TargetPlatform = platform
-	desc, b, err := oras.FetchBytes(ctx, dockerImageSrc, daemonImage.original.Reference, fetchBytesOpts)
+	desc, b, err := oras.FetchBytes(ctx, dockerImageSrc, daemonImage.request.Image.Reference, fetchBytesOpts)
 	if err != nil {
 		return fmt.Errorf("failed to get manifest from docker image source: %w", err)
 	}
@@ -485,7 +528,7 @@ func craneSaveImageFromDockerDaemon(ctx context.Context, cli *client.Client, dst
 	copyOpts := oras.DefaultCopyOptions
 	copyOpts.WithTargetPlatform(platform)
 	copyOpts.Concurrency = concurrency
-	_, err = oras.Copy(ctx, dockerImageSrc, daemonImage.original.Reference, dst, "", copyOpts)
+	_, err = oras.Copy(ctx, dockerImageSrc, daemonImage.request.Image.Reference, dst, "", copyOpts)
 	if err != nil {
 		return fmt.Errorf("failed to copy: %w", err)
 	}
@@ -515,9 +558,9 @@ func orasSave(ctx context.Context, imageInfo imagePullInfo, index, count int, op
 	}
 	logArgs = append(logArgs, "count", fmt.Sprintf("%d/%d", index, count))
 	l.Info("saving image", logArgs...)
-	localCache, err := oci.NewWithContext(ctx, opts.CacheDirectory)
+	localCache, err := oci.NewStorage(opts.CacheDirectory)
 	if err != nil {
-		return fmt.Errorf("failed to create oci formatted directory: %w", err)
+		return fmt.Errorf("failed to create oci cache storage: %w", err)
 	}
 	pullSrc = orasCache.New(repo, localCache)
 	var desc ocispec.Descriptor
