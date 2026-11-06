@@ -6,11 +6,12 @@ package packagecli
 import (
 	"fmt"
 	"io"
-	"slices"
+	"os"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/zarf/modify"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	gitdiff "github.com/go-git/go-git/v5/plumbing/format/diff"
 	"github.com/spf13/cobra"
 )
 
@@ -28,47 +29,111 @@ func NewDiffCommand(streams iostreams.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return printDiffReport(streams.Out(), result)
+			color := streams.IsOutTerminal() && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
+			return printDiffReport(streams.Out(), result, color)
 		},
 	}
 }
 
-func printDiffReport(out io.Writer, result modify.DiffResult) error {
+func printDiffReport(out io.Writer, result modify.DiffResult, color bool) error {
+	var colors gitdiff.ColorConfig
+	if color {
+		colors = gitdiff.NewColorConfig()
+		colors[gitdiff.Func] = colors[gitdiff.Frag]
+	}
 	var report strings.Builder
-	fmt.Fprintf(&report, "Package digest: %s\nSource hint: %q\nWorking inventory digest: %s\n",
-		result.PackageDigest, result.SourceHint, result.WorkingTreeDigest)
+	fmt.Fprintf(&report, "Package source: %q\nPackage digest: %s\n",
+		result.SourceHint, result.PackageDigest)
 	if len(result.Changes) == 0 {
 		report.WriteString("\nNo changes.\n")
 	}
-	changes := slices.Clone(result.Changes)
-	slices.SortFunc(changes, func(a, b modify.FileChange) int { return strings.Compare(a.Path, b.Path) })
-	for _, change := range changes {
-		fmt.Fprintf(&report, "\n%s %q\n", change.Status, change.Path)
-		for _, side := range []struct {
-			label  string
-			record *modify.FileRecord
-		}{
-			{label: "Before", record: change.Before},
-			{label: "After", record: change.After},
-		} {
-			if side.record == nil {
-				fmt.Fprintf(&report, "  %s: absent\n", side.label)
-				continue
-			}
-			record := side.record
-			fmt.Fprintf(&report, "  %s: %s mode %04o, %d bytes, %s", side.label, record.Kind, record.Mode, record.Size, record.Digest)
-			if record.Kind == "symlink" {
-				fmt.Fprintf(&report, ", target %q", record.Target)
-			}
-			report.WriteByte('\n')
+	for _, change := range result.Changes {
+		report.WriteByte('\n')
+		status := change.Status()
+		title := fmt.Sprintf("%s %q", status, change.Path())
+		if status == "renamed" {
+			title = fmt.Sprintf("renamed %q -> %q", change.Before.Path, change.After.Path)
 		}
-		if change.Diff != "" {
-			report.WriteString(change.Diff)
-			if !strings.HasSuffix(change.Diff, "\n") {
-				report.WriteByte('\n')
+		writeDiffLine(&report, colors, gitdiff.Meta, title)
+		writeDiffMetadata(&report, colors, change)
+		if change.Patch != nil {
+			for header := range strings.SplitSeq(strings.TrimSuffix(change.Patch.Message(), "\n"), "\n") {
+				writeDiffLine(&report, colors, gitdiff.Meta, header)
+			}
+			if err := gitdiff.NewUnifiedEncoder(&report, gitdiff.DefaultContextLines).SetColor(colors).Encode(patchBody{change.Patch}); err != nil {
+				return fmt.Errorf("encoding text diff for %q: %w", change.Path(), err)
 			}
 		}
 	}
-	_, err := io.WriteString(out, report.String())
+	// Keep Go-Git's missing-newline annotation uncolored.
+	text := strings.ReplaceAll(report.String(), "\n\\ No newline at end of file", colors.Reset(gitdiff.New)+"\n\\ No newline at end of file")
+	_, err := io.WriteString(out, text)
 	return err
+}
+
+func writeDiffMetadata(report *strings.Builder, colors gitdiff.ColorConfig, change modify.FileChange) {
+	before, after := change.Before, change.After
+	paired := before != nil && after != nil
+	typeChanged := paired && before.Kind != after.Kind
+	switch {
+	case before == nil && after != nil:
+		writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("new file mode %06o", diffFileMode(after)))
+	case after == nil && before != nil:
+		writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("deleted file mode %06o", diffFileMode(before)))
+	case paired && diffFileMode(before) != diffFileMode(after):
+		writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("old mode %06o", diffFileMode(before)))
+		writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("new mode %06o", diffFileMode(after)))
+	}
+	if paired && (before.Kind == "text" && after.Kind == "binary" || before.Kind == "binary" && after.Kind == "text") {
+		writeDiffLine(report, colors, gitdiff.Meta, "old content "+before.Kind)
+		writeDiffLine(report, colors, gitdiff.Meta, "new content "+after.Kind)
+	}
+	for _, side := range []struct {
+		prefix string
+		record *modify.FileRecord
+	}{
+		{prefix: "old ", record: before},
+		{prefix: "new ", record: after},
+	} {
+		record := side.record
+		if record == nil {
+			continue
+		}
+		prefix := side.prefix
+		if !paired {
+			prefix = ""
+		}
+		if record.Kind == "binary" {
+			if !paired || typeChanged || before.Size != after.Size {
+				writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("%ssize %d bytes", prefix, record.Size))
+			}
+			if !paired || typeChanged || before.Digest != after.Digest {
+				writeDiffLine(report, colors, gitdiff.Meta, prefix+record.Digest)
+			}
+		}
+		if record.Kind == "symlink" && (!paired || typeChanged || before.Target != after.Target) {
+			writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("%starget %q", prefix, record.Target))
+		}
+	}
+	if change.Status() == "renamed" && paired && before.Kind == "binary" && after.Kind == "binary" && before.Digest == after.Digest {
+		writeDiffLine(report, colors, gitdiff.Meta, before.Digest)
+	}
+}
+
+func diffFileMode(record *modify.FileRecord) uint32 {
+	if record.Kind == "symlink" {
+		return 0o120000 | record.Mode
+	}
+	return 0o100000 | record.Mode
+}
+
+type patchBody struct{ gitdiff.Patch }
+
+func (patchBody) Message() string { return "" }
+
+func writeDiffLine(report *strings.Builder, colors gitdiff.ColorConfig, key gitdiff.ColorKey, line string) {
+	report.WriteString(colors[key])
+	report.WriteString(line)
+	report.WriteString(colors.Reset(key))
+	report.WriteByte('\n')
 }

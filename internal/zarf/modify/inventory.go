@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -15,6 +15,10 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/opencontainers/go-digest"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/transform"
 )
 
 // FileRecord identifies one source file or symbolic link. Mode contains Unix
@@ -71,7 +75,7 @@ func inventory(ctx context.Context, root *os.Root) ([]FileRecord, error) {
 				err = fmt.Errorf("symbolic link target is not valid UTF-8; use a UTF-8 target so its identity can be recorded")
 			}
 			record.Size = int64(len(record.Target))
-			record.Digest = contentDigest([]byte(record.Target))
+			record.Digest = digest.FromString(record.Target).String()
 		case info.Mode().IsRegular():
 			record.Kind, record.Digest, record.Size, err = inventoryFile(ctx, root, name)
 		default:
@@ -101,7 +105,7 @@ func excludedPath(name string) bool {
 	return false
 }
 
-func inventoryFile(ctx context.Context, root *os.Root, name string) (kind, digest string, size int64, err error) {
+func inventoryFile(ctx context.Context, root *os.Root, name string) (kind, checksum string, size int64, err error) {
 	file, err := root.Open(name)
 	if err != nil {
 		return "", "", 0, err
@@ -131,7 +135,7 @@ func inventoryFile(ctx context.Context, root *os.Root, name string) (kind, diges
 	if classifier.binary || len(classifier.tail) > 0 {
 		kind = "binary"
 	}
-	return kind, fmt.Sprintf("sha256:%x", hash.Sum(nil)), size, nil
+	return kind, digest.NewDigest(digest.SHA256, hash).String(), size, nil
 }
 
 // Text is valid UTF-8 without NUL bytes, over the entire file. A partial rune
@@ -149,29 +153,12 @@ func (c *textClassifier) add(p []byte) {
 	if len(c.tail) > 0 {
 		data = append(c.tail, p...)
 	}
-	end := len(data)
-	for end > 0 && len(data)-end < utf8.UTFMax && !utf8.RuneStart(data[end-1]) {
-		end--
+	_, end, err := encoding.UTF8Validator.Transform(data, data, false)
+	c.binary = bytes.IndexByte(data, 0) >= 0 || err != nil && !errors.Is(err, transform.ErrShortSrc)
+	if c.binary {
+		return
 	}
-	if end > 0 && !utf8.FullRune(data[end-1:]) {
-		end--
-	} else {
-		end = len(data)
-	}
-	c.binary = bytes.IndexByte(data, 0) >= 0 || !utf8.Valid(data[:end])
 	c.tail = bytes.Clone(data[end:])
-}
-
-func contentDigest(contents []byte) string {
-	return fmt.Sprintf("sha256:%x", sha256.Sum256(contents))
-}
-
-func inventoryDigest(records []FileRecord) (string, error) {
-	contents, err := json.Marshal(records)
-	if err != nil {
-		return "", fmt.Errorf("encoding working inventory: %w", err)
-	}
-	return contentDigest(contents), nil
 }
 
 func validInventoryPath(name string) bool {

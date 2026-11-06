@@ -6,6 +6,7 @@ package modify
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -15,6 +16,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	gitdiff "github.com/go-git/go-git/v5/plumbing/format/diff"
+	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +41,7 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	require.NoError(t, os.WriteFile(external, []byte("must not be inventoried"), 0o600))
 	require.NoError(t, os.Symlink(external, filepath.Join(dir, "link")))
 	require.NoError(t, os.Symlink(filepath.Dir(external), filepath.Join(dir, "directory-link")))
-	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", contentDigest([]byte("package")), "package.tar.zst"))
+	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
 
 	root, err := os.OpenRoot(dir)
 	require.NoError(t, err)
@@ -96,7 +99,6 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	changed, err := Diff(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Equal(t, before, snapshotTree(t, dir), "diff must not change source or baseline")
-	assert.NotEqual(t, clean.WorkingTreeDigest, changed.WorkingTreeDigest)
 	repeated, err := Diff(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Equal(t, changed, repeated)
@@ -104,57 +106,57 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	wantPaths := []string{"a.txt", "binary-add", "binary-delete", "binary-modify", "delete.txt", "link", "mode.sh", "new-empty", "new.txt", "newline.txt", "to-binary", "to-text"}
 	require.Len(t, changed.Changes, len(wantPaths))
 	for i, change := range changed.Changes {
-		assert.Equal(t, wantPaths[i], change.Path)
-		switch change.Path {
+		assert.Equal(t, wantPaths[i], change.Path())
+		switch change.Path() {
 		case "a.txt":
-			assert.Equal(t, "modified", change.Status)
-			assert.Contains(t, change.Diff, "-original\n+edited\n")
+			assert.Equal(t, "modified", change.Status())
+			assert.Contains(t, renderPatch(t, change.Patch), "-original\n+edited\n")
 		case "binary-add":
-			assert.Equal(t, "added", change.Status)
+			assert.Equal(t, "added", change.Status())
 			assert.Nil(t, change.Before)
-			assert.Equal(t, contentDigest([]byte{0, 6}), change.After.Digest)
+			assert.Equal(t, digest.FromBytes([]byte{0, 6}).String(), change.After.Digest)
 			assert.EqualValues(t, 2, change.After.Size)
-			assert.Empty(t, change.Diff)
+			assert.Nil(t, change.Patch)
 		case "binary-delete":
-			assert.Equal(t, "deleted", change.Status)
+			assert.Equal(t, "deleted", change.Status())
 			assert.Nil(t, change.After)
-			assert.Equal(t, contentDigest([]byte{0, 1}), change.Before.Digest)
-			assert.Empty(t, change.Diff)
+			assert.Equal(t, digest.FromBytes([]byte{0, 1}).String(), change.Before.Digest)
+			assert.Nil(t, change.Patch)
 		case "binary-modify":
-			assert.Equal(t, contentDigest([]byte{0, 2}), change.Before.Digest)
-			assert.Equal(t, contentDigest([]byte{0, 4, 5}), change.After.Digest)
+			assert.Equal(t, digest.FromBytes([]byte{0, 2}).String(), change.Before.Digest)
+			assert.Equal(t, digest.FromBytes([]byte{0, 4, 5}).String(), change.After.Digest)
 			assert.EqualValues(t, 3, change.After.Size)
-			assert.Empty(t, change.Diff)
+			assert.Nil(t, change.Patch)
 		case "delete.txt":
-			assert.Equal(t, "deleted", change.Status)
-			assert.Contains(t, change.Diff, "+++ /dev/null\n")
-			assert.Contains(t, change.Diff, "-deleted text\n\\ No newline at end of file\n")
+			assert.Equal(t, "deleted", change.Status())
+			assert.Contains(t, renderPatch(t, change.Patch), "+++ /dev/null\n")
+			assert.Contains(t, renderPatch(t, change.Patch), "-deleted text\n\\ No newline at end of file\n")
 		case "link":
 			assert.Equal(t, external, change.Before.Target)
 			assert.Equal(t, "missing-target", change.After.Target)
-			assert.Empty(t, change.Diff)
+			assert.Nil(t, change.Patch)
 		case "mode.sh":
 			assert.EqualValues(t, 0o600, change.Before.Mode)
 			assert.EqualValues(t, 0o4700, change.After.Mode)
 			assert.Equal(t, change.Before.Digest, change.After.Digest)
-			assert.Empty(t, change.Diff)
+			assert.Nil(t, change.Patch)
 		case "new-empty":
-			assert.Equal(t, "added", change.Status)
+			assert.Equal(t, "added", change.Status())
 			assert.EqualValues(t, 0, change.After.Size)
 		case "new.txt":
-			assert.Equal(t, "added", change.Status)
-			assert.Contains(t, change.Diff, "--- /dev/null\n")
-			assert.Contains(t, change.Diff, "+new text\n")
+			assert.Equal(t, "added", change.Status())
+			assert.Contains(t, renderPatch(t, change.Patch), "--- /dev/null\n")
+			assert.Contains(t, renderPatch(t, change.Patch), "+new text\n")
 		case "newline.txt":
-			assert.Contains(t, change.Diff, "-same\n\\ No newline at end of file\n+same\n")
+			assert.Contains(t, renderPatch(t, change.Patch), "-same\n\\ No newline at end of file\n+same\n")
 		case "to-binary":
 			assert.Equal(t, "text", change.Before.Kind)
 			assert.Equal(t, "binary", change.After.Kind)
-			assert.Contains(t, change.Diff, "-previous text\n")
+			assert.Contains(t, renderPatch(t, change.Patch), "-previous text\n")
 		case "to-text":
 			assert.Equal(t, "binary", change.Before.Kind)
 			assert.Equal(t, "text", change.After.Kind)
-			assert.Contains(t, change.Diff, "+now text\n")
+			assert.Contains(t, renderPatch(t, change.Patch), "+now text\n")
 		}
 	}
 	// A readonly source and baseline remain usable: the command needs no lock,
@@ -173,6 +175,14 @@ func TestDiffRejectsInvalidBaselineWithoutPartialResults(t *testing.T) {
 		want string
 	}{
 		{name: "missing text", edit: func(t *testing.T, dir string, _ *disassemblyMetadata) {
+			require.NoError(t, os.Remove(filepath.Join(dir, ".uds/baseline/source.txt")))
+		}, want: "invalid text baseline"},
+		{name: "modified text with missing baseline", edit: func(t *testing.T, dir string, _ *disassemblyMetadata) {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "source.txt"), []byte("edited\n"), 0o600))
+			require.NoError(t, os.Remove(filepath.Join(dir, ".uds/baseline/source.txt")))
+		}, want: "invalid text baseline"},
+		{name: "deleted text with missing baseline", edit: func(t *testing.T, dir string, _ *disassemblyMetadata) {
+			require.NoError(t, os.Remove(filepath.Join(dir, "source.txt")))
 			require.NoError(t, os.Remove(filepath.Join(dir, ".uds/baseline/source.txt")))
 		}, want: "invalid text baseline"},
 		{name: "corrupt text same size", edit: func(t *testing.T, dir string, _ *disassemblyMetadata) {
@@ -198,8 +208,11 @@ func TestDiffRejectsInvalidBaselineWithoutPartialResults(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("before\n"), 0o600))
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "source.txt"), []byte("source\n"), 0o600))
-			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", contentDigest([]byte("package")), "package.tar.zst"))
+			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+			// An earlier change must not escape when a later baseline file is invalid.
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("after\n"), 0o600))
 			root, err := os.OpenRoot(dir)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, root.Close()) })
@@ -243,7 +256,7 @@ func TestDiffTextPatches(t *testing.T) {
 			if !tc.added {
 				require.NoError(t, os.WriteFile(name, []byte(tc.before), 0o600))
 			}
-			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", contentDigest([]byte("package")), "package.tar.zst"))
+			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
 			if tc.deleted {
 				require.NoError(t, os.Remove(name))
 			} else {
@@ -252,7 +265,7 @@ func TestDiffTextPatches(t *testing.T) {
 			result, err := Diff(t.Context(), dir)
 			require.NoError(t, err)
 			require.Len(t, result.Changes, 1)
-			assert.Equal(t, tc.want, result.Changes[0].Diff)
+			assert.Equal(t, tc.want, renderPatch(t, result.Changes[0].Patch))
 		})
 	}
 
@@ -260,13 +273,134 @@ func TestDiffTextPatches(t *testing.T) {
 		dir := t.TempDir()
 		name := "sp ace\t\"é\n.txt"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("before\n"), 0o600))
-		require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", contentDigest([]byte("package")), "package.tar.zst"))
+		require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("after\n"), 0o600))
 		result, err := Diff(t.Context(), dir)
 		require.NoError(t, err)
 		require.Len(t, result.Changes, 1)
-		assert.Equal(t, "--- \"a/sp ace\\t\\\"é\\n.txt\"\n+++ \"b/sp ace\\t\\\"é\\n.txt\"\n@@ -1 +1 @@\n-before\n+after\n", result.Changes[0].Diff)
+		assert.Equal(t, "--- \"a/sp ace\\t\\\"é\\n.txt\"\n+++ \"b/sp ace\\t\\\"é\\n.txt\"\n@@ -1 +1 @@\n-before\n+after\n", renderPatch(t, result.Changes[0].Patch))
 	})
+}
+
+func TestDiffRenames(t *testing.T) {
+	const text = "alpha\nbravo\ncharlie\ndelta\necho\nfoxtrot\n"
+	const edited = "alpha\nbravo\ncharlie\ndelta\necho\nupdated\n"
+	for _, tc := range []struct {
+		name, before, after string
+		mode                fs.FileMode
+		wantRename          bool
+	}{
+		{name: "identical binary", before: "\x00before", after: "\x00before", mode: 0o600, wantRename: true},
+		{name: "different binary", before: "\x00before", after: "\x00after", mode: 0o600},
+		{name: "identical text", before: text, after: text, mode: 0o600, wantRename: true},
+		{name: "edited text", before: text, after: edited, mode: 0o600, wantRename: true},
+		{name: "edited executable text", before: text, after: edited, mode: 0o700, wantRename: true},
+		{name: "different text", before: text, after: "entirely unrelated material\n", mode: 0o600},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			oldPath, newPath := "z-old.txt", "a-new\t\"é.txt"
+			require.NoError(t, os.WriteFile(filepath.Join(dir, oldPath), []byte(tc.before), tc.mode))
+			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+			require.NoError(t, os.Rename(filepath.Join(dir, oldPath), filepath.Join(dir, newPath)))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, newPath), []byte(tc.after), 0o600))
+			require.NoError(t, os.Chmod(filepath.Join(dir, newPath), 0o640))
+			before := snapshotTree(t, dir)
+			result, err := Diff(t.Context(), dir)
+			require.NoError(t, err)
+			assert.Equal(t, before, snapshotTree(t, dir), "rename detection must not change bytes or permissions")
+			repeated, err := Diff(t.Context(), dir)
+			require.NoError(t, err)
+			assert.Equal(t, result, repeated)
+			if !tc.wantRename {
+				require.Len(t, result.Changes, 2)
+				assert.Equal(t, "added", result.Changes[0].Status())
+				assert.Equal(t, newPath, result.Changes[0].Path())
+				assert.Equal(t, "deleted", result.Changes[1].Status())
+				assert.Equal(t, oldPath, result.Changes[1].Path())
+				assert.Equal(t, digest.FromString(tc.after).String(), result.Changes[0].After.Digest)
+				assert.Equal(t, digest.FromString(tc.before).String(), result.Changes[1].Before.Digest)
+				return
+			}
+			require.Len(t, result.Changes, 1)
+			change := result.Changes[0]
+			assert.Equal(t, "renamed", change.Status())
+			assert.Equal(t, oldPath, change.Path())
+			assert.Equal(t, oldPath, change.Before.Path)
+			assert.Equal(t, newPath, change.After.Path)
+			assert.EqualValues(t, tc.mode, change.Before.Mode)
+			assert.EqualValues(t, 0o640, change.After.Mode)
+			if tc.before == tc.after {
+				assert.Nil(t, change.Patch)
+			} else {
+				assert.Contains(t, renderPatch(t, change.Patch), "--- \"a/z-old.txt\"\n+++ \"b/a-new\\t\\\"é.txt\"\n")
+				assert.Contains(t, renderPatch(t, change.Patch), "-foxtrot\n+updated\n")
+			}
+		})
+	}
+}
+
+func TestDiffRenamesSymlink(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.Symlink("target", filepath.Join(dir, "old")))
+	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+	require.NoError(t, os.Rename(filepath.Join(dir, "old"), filepath.Join(dir, "new")))
+	before := snapshotTree(t, dir)
+	result, err := Diff(t.Context(), dir)
+	require.NoError(t, err)
+	assert.Equal(t, before, snapshotTree(t, dir))
+	require.Len(t, result.Changes, 1)
+	assert.Equal(t, "renamed", result.Changes[0].Status())
+	assert.Equal(t, "old", result.Changes[0].Before.Path)
+	assert.Equal(t, "new", result.Changes[0].After.Path)
+	assert.Equal(t, "target", result.Changes[0].After.Target)
+	assert.Nil(t, result.Changes[0].Patch)
+}
+
+func TestDiffKeepsAmbiguousBinaryRenamesSeparate(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"old-a", "old-b"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte{0, 1}, 0o600))
+	}
+	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+	require.NoError(t, os.Rename(filepath.Join(dir, "old-a"), filepath.Join(dir, "new")))
+	require.NoError(t, os.Remove(filepath.Join(dir, "old-b")))
+	result, err := Diff(t.Context(), dir)
+	require.NoError(t, err)
+	require.Len(t, result.Changes, 3)
+	assert.Equal(t, "added", result.Changes[0].Status())
+	assert.Equal(t, "deleted", result.Changes[1].Status())
+	assert.Equal(t, "deleted", result.Changes[2].Status())
+}
+
+func TestDiffBoundsApproximateTextRenames(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "old"), 0o700))
+	for i := range 102 {
+		text := fmt.Sprintf("file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\noriginal\n", i, i, i, i, i, i)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "old", fmt.Sprintf("%03d.txt", i)), []byte(text), 0o600))
+	}
+	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+	require.NoError(t, os.Rename(filepath.Join(dir, "old"), filepath.Join(dir, "new")))
+	for i := range 101 {
+		text := fmt.Sprintf("file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\nedited\n", i, i, i, i, i, i)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "new", fmt.Sprintf("%03d.txt", i)), []byte(text), 0o600))
+	}
+	result, err := Diff(t.Context(), dir)
+	require.NoError(t, err)
+	require.Len(t, result.Changes, 203)
+	var renamed int
+	previous := ""
+	for _, change := range result.Changes {
+		assert.Greater(t, change.Path(), previous)
+		previous = change.Path()
+		if change.Status() == "renamed" {
+			renamed++
+			assert.Equal(t, "old/101.txt", change.Before.Path)
+			assert.Equal(t, "new/101.txt", change.After.Path)
+		}
+	}
+	assert.Equal(t, 1, renamed, "exact matches survive the approximate-comparison limit")
 }
 
 func TestDiffRejectsMetadataEscapesAndMalformedJSON(t *testing.T) {
@@ -289,7 +423,7 @@ func TestDiffRejectsMetadataEscapesAndMalformedJSON(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	dir = t.TempDir()
-	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", contentDigest([]byte("package")), "package.tar.zst"))
+	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
 	_, err = Diff(ctx, dir)
 	require.ErrorIs(t, err, context.Canceled)
 }
@@ -298,9 +432,11 @@ func TestTextClassificationAcrossChunks(t *testing.T) {
 	for _, text := range []string{"", "ascii\n", "café—🦅🇺🇸", "a\x00b", "a\xff", "a\xe2\x82", strings.Repeat("a", 32767) + "🦅", strings.Repeat("a", 40000) + "\x00"} {
 		for _, size := range []int{1, 2, 3, 7, 32768} {
 			var classifier textClassifier
-			for chunk := range slices.Chunk([]byte(text), size) {
+			contents := []byte(text)
+			for chunk := range slices.Chunk(contents, size) {
 				classifier.add(chunk)
 			}
+			assert.Equal(t, text, string(contents), "classification must not modify its input")
 			wantBinary := !utf8.ValidString(text) || strings.ContainsRune(text, 0)
 			assert.Equal(t, wantBinary, classifier.binary || len(classifier.tail) > 0, "length %d chunk size %d", len(text), size)
 		}
@@ -310,7 +446,7 @@ func TestTextClassificationAcrossChunks(t *testing.T) {
 func TestCaptureBaselineRejectsUnrepresentableLinkTargets(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.Symlink("non-utf8-\xff", filepath.Join(dir, "link")))
-	err := captureBaseline(t.Context(), dir, "amd64", "", contentDigest([]byte("package")), "package.tar.zst")
+	err := captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst")
 	require.ErrorContains(t, err, "symbolic link target is not valid UTF-8")
 	assert.NoDirExists(t, filepath.Join(dir, ".uds"))
 }
@@ -331,6 +467,16 @@ type fileSnapshot struct {
 	Mode     fs.FileMode
 	Modified time.Time
 	Contents string
+}
+
+func renderPatch(t *testing.T, patch gitdiff.Patch) string {
+	t.Helper()
+	if patch == nil {
+		return ""
+	}
+	var out strings.Builder
+	require.NoError(t, gitdiff.NewUnifiedEncoder(&out, gitdiff.DefaultContextLines).Encode(patch))
+	return out.String()
 }
 
 func snapshotTree(t *testing.T, dir string) map[string]fileSnapshot {

@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/zarf-dev/zarf/src/api"
 )
 
@@ -39,26 +38,6 @@ func normalizeMetadata(metadata *api.PackageMetadata) {
 	} else if !strings.HasSuffix(metadata.Version, disassembleVersionSuffix) {
 		metadata.Version += "-" + disassembleVersionSuffix
 	}
-}
-
-func writeDisassemblyMetadata(sourceDir string, metadata disassemblyMetadata) error {
-	if err := validateDisassemblyMetadata(metadata); err != nil {
-		return err
-	}
-	contents, err := json.MarshalIndent(metadata, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling disassembly metadata: %w", err)
-	}
-	contents = append(contents, '\n')
-
-	dir := filepath.Join(sourceDir, disassemblyMetadataDir)
-	if err := os.MkdirAll(dir, helpers.ReadWriteExecuteUser); err != nil {
-		return fmt.Errorf("creating disassembly metadata directory: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, disassemblyMetadataFile), contents, helpers.ReadWriteUser); err != nil {
-		return fmt.Errorf("writing disassembly metadata: %w", err)
-	}
-	return nil
 }
 
 func readDisassemblyMetadata(root *os.Root) (disassemblyMetadata, error) {

@@ -8,6 +8,7 @@ package package_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -98,9 +99,9 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 		root := cli.NewRootCommand(streams, features)
 		root.SetArgs([]string{"package", "mod", "diff", worktree})
 		require.NoError(t, root.ExecuteContext(t.Context()))
+		assert.Contains(t, out.String(), "Package source:")
 		assert.Contains(t, out.String(), "Package digest: sha256:")
-		assert.Contains(t, out.String(), "Source hint:")
-		assert.Contains(t, out.String(), "Working inventory digest: sha256:")
+		assert.NotContains(t, out.String(), "Working digest:")
 		assert.Contains(t, out.String(), "No changes.")
 		assert.Empty(t, errOut.String())
 	})
@@ -136,11 +137,17 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 	assert.NotEmpty(t, build.Terminal)
 
 	t.Run("changed diff", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "")
+		t.Setenv("TERM", "xterm")
 		definitionPath := filepath.Join(worktree, "zarf.yaml")
-		definition, err := os.ReadFile(definitionPath)
+		info, err := os.Stat(definitionPath)
 		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(definitionPath, append(definition, []byte("\n# local workaround\n")...), 0o600))
-		require.NoError(t, os.WriteFile(filepath.Join(worktree, "notes.txt"), []byte("reproduce the workaround upstream\n"), 0o600))
+		beforeMode := info.Mode().Perm()
+		afterMode := beforeMode ^ 0o100
+		require.NoError(t, os.Chmod(definitionPath, afterMode))
+		require.NoError(t, os.Rename(definitionPath, filepath.Join(worktree, "zarf-workaround.yaml")))
+		require.NoError(t, os.WriteFile(filepath.Join(worktree, "notes.txt"), []byte("reproduce the workaround upstream"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(worktree, "payload.bin"), []byte{0, 1, 2}, 0o600))
 		payloads, err := filepath.Glob(filepath.Join(worktree, "components", "app", "files", "*"))
 		require.NoError(t, err)
 		require.Len(t, payloads, 1)
@@ -153,17 +160,69 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 		root.SetArgs([]string{"package", "mod", "diff", worktree})
 		require.NoError(t, root.ExecuteContext(t.Context()))
 		report := out.String()
-		assert.Contains(t, report, "modified \"zarf.yaml\"")
+		assert.Contains(t, report, "Package source:")
+		assert.Contains(t, report, "Package digest: sha256:")
+		assert.NotContains(t, report, "Working digest:")
+		assert.Contains(t, report, "renamed \"zarf.yaml\" -> \"zarf-workaround.yaml\"")
+		assert.Contains(t, report, "--- /dev/null\n+++ \"b/notes.txt\"\n")
 		assert.Contains(t, report, "added \"notes.txt\"")
 		assert.Contains(t, report, "deleted \""+filepath.ToSlash(deletedPath)+"\"")
-		assert.Contains(t, report, "+# local workaround")
 		assert.Contains(t, report, "+reproduce the workaround upstream")
 		assert.Contains(t, report, "-offline payload")
+		assert.Contains(t, report, fmt.Sprintf("old mode %06o\nnew mode %06o\n", 0o100000|beforeMode, 0o100000|afterMode))
+		assert.Contains(t, report, "added \"payload.bin\"\nnew file mode 100600\nsize 3 bytes\nsha256:")
+		assert.NotContains(t, report, "similarity")
+		assert.NotContains(t, report, "-mode")
+		assert.NotContains(t, report, "+mode")
+		assert.NotContains(t, report, "Before:")
+		assert.NotContains(t, report, "After:")
+		assert.NotContains(t, report, "old sha256:")
+		assert.NotContains(t, report, "new sha256:")
 		assert.Contains(t, report, "@@")
 		assert.NotContains(t, report, "No changes.")
+		assert.NotContains(t, report, "\x1b[", "captured reports must remain plain text")
 		assert.Empty(t, errOut.String())
 		assert.Less(t, strings.Index(report, "deleted \""), strings.Index(report, "added \"notes.txt\""))
-		assert.Less(t, strings.Index(report, "added \"notes.txt\""), strings.Index(report, "modified \"zarf.yaml\""))
+		assert.Less(t, strings.Index(report, "added \"notes.txt\""), strings.Index(report, "renamed \"zarf.yaml\""))
+
+		t.Run("terminal colors", func(t *testing.T) {
+			terminal, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+			if err != nil {
+				t.Skip("requires a controlling terminal")
+			}
+			t.Cleanup(func() { require.NoError(t, terminal.Close()) })
+			for _, tc := range []struct {
+				name, noColor, term string
+				wantColor           bool
+			}{
+				{name: "enabled", term: "xterm", wantColor: true},
+				{name: "NO_COLOR", noColor: "1", term: "xterm"},
+				{name: "dumb terminal", term: "dumb"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Setenv("NO_COLOR", tc.noColor)
+					t.Setenv("TERM", tc.term)
+					out := &terminalReportWriter{terminal: terminal}
+					var errOut bytes.Buffer
+					root := cli.NewRootCommand(iostreams.New(nil, out, &errOut), features)
+					root.SetArgs([]string{"package", "mod", "diff", worktree})
+					require.NoError(t, root.ExecuteContext(t.Context()))
+					if tc.wantColor {
+						assert.Contains(t, out.String(), "\x1b[32m+reproduce the workaround upstream\x1b[m")
+						assert.Contains(t, out.String(), "\x1b[31m-offline payload\x1b[m")
+						assert.Contains(t, out.String(), "\x1b[36m@@ ")
+						assert.Contains(t, out.String(), "\x1b[1m--- /dev/null\x1b[m\n\x1b[1m+++ \"b/notes.txt\"\x1b[m\n")
+						assert.Contains(t, out.String(), "+reproduce the workaround upstream\x1b[m\n\\ No newline at end of file\x1b[m\n")
+						assert.Contains(t, out.String(), fmt.Sprintf("\x1b[1mold mode %06o\x1b[m\n\x1b[1mnew mode %06o\x1b[m\n", 0o100000|beforeMode, 0o100000|afterMode))
+						assert.Contains(t, out.String(), "\x1b[1mnew file mode 100600\x1b[m\n\x1b[1msize 3 bytes\x1b[m\n\x1b[1msha256:")
+						assert.Contains(t, out.String(), "\x1b[1mrenamed \"zarf.yaml\" -> \"zarf-workaround.yaml\"\x1b[m\n")
+					} else {
+						assert.Equal(t, report, out.String())
+					}
+					assert.Empty(t, errOut.String())
+				})
+			}
+		})
 	})
 
 	for _, metadataState := range []string{"missing", "corrupt"} {
@@ -183,6 +242,13 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 		})
 	}
 }
+
+type terminalReportWriter struct {
+	bytes.Buffer
+	terminal *os.File
+}
+
+func (w *terminalReportWriter) Fd() uintptr { return w.terminal.Fd() }
 
 type packagePullLog struct {
 	bytes.Buffer

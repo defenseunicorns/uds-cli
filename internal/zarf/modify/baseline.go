@@ -6,6 +6,7 @@ package modify
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -39,7 +41,7 @@ func captureBaseline(ctx context.Context, sourceDir, architecture, flavor, packa
 	if err := validateDisassemblyMetadata(metadata); err != nil {
 		return err
 	}
-	if err := root.MkdirAll(path.Join(disassemblyMetadataDir, baselineDir), 0o700); err != nil {
+	if err := root.MkdirAll(path.Join(disassemblyMetadataDir, baselineDir), helpers.ReadWriteExecuteUser); err != nil {
 		return fmt.Errorf("creating private baseline: %w", err)
 	}
 	for _, record := range records {
@@ -56,14 +58,21 @@ func captureBaseline(ctx context.Context, sourceDir, architecture, flavor, packa
 			return fmt.Errorf("capturing baseline: %w", err)
 		}
 		name := path.Join(disassemblyMetadataDir, baselineDir, record.Path)
-		if err := root.MkdirAll(path.Dir(name), 0o700); err != nil {
+		if err := root.MkdirAll(path.Dir(name), helpers.ReadWriteExecuteUser); err != nil {
 			return fmt.Errorf("creating baseline parent for %q: %w", record.Path, err)
 		}
-		if err := root.WriteFile(name, contents, 0o600); err != nil {
+		if err := root.WriteFile(name, contents, helpers.ReadWriteUser); err != nil {
 			return fmt.Errorf("writing baseline for %q: %w", record.Path, err)
 		}
 	}
-	return writeDisassemblyMetadata(sourceDir, metadata)
+	contents, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling disassembly metadata: %w", err)
+	}
+	if err := root.WriteFile(path.Join(disassemblyMetadataDir, disassemblyMetadataFile), append(contents, '\n'), helpers.ReadWriteUser); err != nil {
+		return fmt.Errorf("writing disassembly metadata: %w", err)
+	}
+	return nil
 }
 
 func sanitizedSourceHint(source string) string {
@@ -110,7 +119,7 @@ func validateDisassemblyMetadata(metadata disassemblyMetadata) error {
 				return fmt.Errorf("unexpected link target for inventory path %q", record.Path)
 			}
 		case "symlink":
-			if record.Target == "" || !utf8.ValidString(record.Target) || strings.ContainsRune(record.Target, 0) || record.Size != int64(len(record.Target)) || record.Digest != contentDigest([]byte(record.Target)) {
+			if record.Target == "" || !utf8.ValidString(record.Target) || strings.ContainsRune(record.Target, 0) || record.Size != int64(len(record.Target)) || record.Digest != digest.FromString(record.Target).String() {
 				return fmt.Errorf("invalid symbolic link record for inventory path %q", record.Path)
 			}
 		default:
@@ -139,7 +148,7 @@ func readRecordedText(root *os.Root, record FileRecord) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading text file %q: %w", record.Path, err)
 	}
-	if int64(len(contents)) != record.Size || contentDigest(contents) != record.Digest || !utf8.Valid(contents) || bytes.IndexByte(contents, 0) >= 0 {
+	if int64(len(contents)) != record.Size || digest.FromBytes(contents).String() != record.Digest || !utf8.Valid(contents) || bytes.IndexByte(contents, 0) >= 0 {
 		return nil, fmt.Errorf("text file %q does not match its recorded digest, size, or classification", record.Path)
 	}
 	return contents, nil

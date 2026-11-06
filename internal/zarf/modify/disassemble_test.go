@@ -25,6 +25,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/google/go-containerregistry/pkg/registry"
+	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -174,8 +175,7 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	changed, err := Diff(t.Context(), outputDir)
 	require.NoError(t, err)
 	require.Len(t, changed.Changes, 1)
-	assert.Contains(t, changed.Changes[0].Diff, "+edited offline repository")
-	assert.NotEqual(t, clean.WorkingTreeDigest, changed.WorkingTreeDigest)
+	assert.Contains(t, renderPatch(t, changed.Changes[0].Patch), "+edited offline repository")
 	assert.NotContains(t, string(generatedYAML), ".uds")
 
 	reassembled := assembleTestPackage(t, outputDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{
@@ -491,7 +491,7 @@ func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
 			name: "version suffix",
 			prepare: func(t *testing.T) string {
 				sourceDir := copyFixture(t, "flavored")
-				require.NoError(t, captureBaseline(t.Context(), sourceDir, "amd64", "offline", contentDigest([]byte("package")), "package.tar.zst"))
+				require.NoError(t, captureBaseline(t.Context(), sourceDir, "amd64", "offline", digest.FromString("package").String(), "package.tar.zst"))
 				return sourceDir
 			},
 			wantError: `must end with "disassembled"`,
@@ -506,7 +506,7 @@ func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
 				contents = bytes.Replace(contents, []byte("version: 1.0.0"), []byte("version: 1.0.0-disassembled"), 1)
 				//nolint:gosec // G703 treats the test-owned fixture path beneath t.TempDir as attacker-controlled.
 				require.NoError(t, os.WriteFile(definitionPath, contents, helpers.ReadWriteUser))
-				require.NoError(t, captureBaseline(t.Context(), sourceDir, "arm64", "offline", contentDigest([]byte("package")), "package.tar.zst"))
+				require.NoError(t, captureBaseline(t.Context(), sourceDir, "arm64", "offline", digest.FromString("package").String(), "package.tar.zst"))
 				return sourceDir
 			},
 			wantError: `package architecture "amd64" does not match disassembly metadata architecture "arm64"`,

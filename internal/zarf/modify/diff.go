@@ -16,22 +16,44 @@ import (
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
-// DiffResult describes the baseline identity and exact inventory compared.
+// DiffResult describes the source package identity and changes from its baseline.
+// Changes are sorted by path.
 type DiffResult struct {
-	PackageDigest     string
-	SourceHint        string
-	WorkingTreeDigest string
-	Changes           []FileChange
+	PackageDigest string
+	SourceHint    string
+	Changes       []FileChange
 }
 
-// FileChange describes an added, deleted, or modified source path. Diff contains
-// a unified patch when either side is text; absent or non-text sides have no text.
+// FileChange describes an added, deleted, modified, or renamed source path.
+// At least one of Before and After must be present; they retain the original
+// and current paths and metadata.
+// Patch contains unified text changes, or nil when the text is unchanged.
 type FileChange struct {
-	Path   string
-	Status string
 	Before *FileRecord
 	After  *FileRecord
-	Diff   string
+	Patch  gitdiff.Patch
+}
+
+// Path returns the original path when present, otherwise the added path.
+func (c FileChange) Path() string {
+	if c.Before != nil {
+		return c.Before.Path
+	}
+	return c.After.Path
+}
+
+// Status reports whether the file was added, deleted, modified, or renamed.
+func (c FileChange) Status() string {
+	switch {
+	case c.Before == nil:
+		return "added"
+	case c.After == nil:
+		return "deleted"
+	case c.Before.Path != c.After.Path:
+		return "renamed"
+	default:
+		return "modified"
+	}
 }
 
 // Diff compares source against its disassembly baseline without writing to either
@@ -54,27 +76,14 @@ func Diff(ctx context.Context, sourceDir string) (DiffResult, error) {
 		return DiffResult{}, fmt.Errorf("opening text baseline: %w; restore the original .uds directory", err)
 	}
 	defer baseline.Close()
-	// Validate every stored text file, including unchanged paths, before reporting
-	// anything. A matching working file cannot hide an incomplete baseline.
-	for _, record := range metadata.Files {
-		if err := ctx.Err(); err != nil {
-			return DiffResult{}, err
-		}
-		if record.Kind == "text" {
-			if _, err := readRecordedText(baseline, record); err != nil {
-				return DiffResult{}, fmt.Errorf("invalid text baseline: %w; restore the original .uds directory", err)
-			}
-		}
-	}
 	working, err := inventory(ctx, root)
 	if err != nil {
 		return DiffResult{}, err
 	}
-	workingDigest, err := inventoryDigest(working)
-	if err != nil {
-		return DiffResult{}, err
-	}
-	result := DiffResult{PackageDigest: metadata.PackageDigest, SourceHint: metadata.SourceHint, WorkingTreeDigest: workingDigest, Changes: make([]FileChange, 0)}
+	result := DiffResult{PackageDigest: metadata.PackageDigest, SourceHint: metadata.SourceHint}
+	// Keep unmatched text for rename detection and patch encoding without
+	// rereading either tree.
+	texts := make(map[string][]byte)
 	for before, after := 0, 0; before < len(metadata.Files) || after < len(working); {
 		if err := ctx.Err(); err != nil {
 			return DiffResult{}, err
@@ -82,73 +91,88 @@ func Diff(ctx context.Context, sourceDir string) (DiffResult, error) {
 		var change FileChange
 		switch {
 		case after == len(working) || before < len(metadata.Files) && metadata.Files[before].Path < working[after].Path:
-			change = FileChange{Path: metadata.Files[before].Path, Status: "deleted", Before: &metadata.Files[before]}
+			change = FileChange{Before: &metadata.Files[before]}
 			before++
 		case before == len(metadata.Files) || working[after].Path < metadata.Files[before].Path:
-			change = FileChange{Path: working[after].Path, Status: "added", After: &working[after]}
+			change = FileChange{After: &working[after]}
 			after++
 		default:
 			old, current := &metadata.Files[before], &working[after]
 			before++
 			after++
-			if *old == *current {
-				continue
-			}
-			change = FileChange{Path: old.Path, Status: "modified", Before: old, After: current}
+			change = FileChange{Before: old, After: current}
 		}
-		change.Diff, err = textPatch(root, baseline, change)
-		if err != nil {
-			return DiffResult{}, err
+		// Validate every stored text file, including unchanged paths, before reporting
+		// anything. A matching working file cannot hide an incomplete baseline.
+		var oldText, newText []byte
+		if change.Before != nil && change.Before.Kind == "text" {
+			oldText, err = readRecordedText(baseline, *change.Before)
+			if err != nil {
+				return DiffResult{}, fmt.Errorf("invalid text baseline: %w; restore the original .uds directory", err)
+			}
+		}
+		if change.Before != nil && change.After != nil && *change.Before == *change.After {
+			continue
+		}
+		if change.After != nil && change.After.Kind == "text" {
+			newText, err = readRecordedText(root, *change.After)
+			if err != nil {
+				return DiffResult{}, fmt.Errorf("source changed during comparison: %w; retry with a stable source tree", err)
+			}
+		}
+		switch {
+		case change.Before == nil:
+			if change.After.Kind == "text" {
+				texts[change.After.Path] = newText
+			}
+		case change.After == nil:
+			if change.Before.Kind == "text" {
+				texts[change.Before.Path] = oldText
+			}
+		default:
+			change.Patch = textPatch(change, oldText, newText)
 		}
 		result.Changes = append(result.Changes, change)
+	}
+	result.Changes, err = detectRenames(ctx, result.Changes, texts)
+	if err != nil {
+		return DiffResult{}, err
 	}
 	return result, nil
 }
 
-func textPatch(working, baseline *os.Root, change FileChange) (string, error) {
-	var oldText, newText []byte
-	var err error
+func textPatch(change FileChange, oldText, newText []byte) gitdiff.Patch {
+	if bytes.Equal(oldText, newText) {
+		return nil
+	}
 	from, to := "/dev/null", "/dev/null"
 	if change.Before != nil && change.Before.Kind == "text" {
-		oldText, err = readRecordedText(baseline, *change.Before)
-		if err != nil {
-			return "", fmt.Errorf("reading baseline: %w", err)
-		}
-		from = strconv.Quote("a/" + change.Path)
+		from = strconv.Quote("a/" + change.Before.Path)
 	}
 	if change.After != nil && change.After.Kind == "text" {
-		newText, err = readRecordedText(working, *change.After)
-		if err != nil {
-			return "", fmt.Errorf("source changed during comparison: %w; retry with a stable source tree", err)
-		}
-		to = strconv.Quote("b/" + change.Path)
+		to = strconv.Quote("b/" + change.After.Path)
 	}
-	if bytes.Equal(oldText, newText) {
-		return "", nil
-	}
-	var chunks textChunks
+	patch := textChunks{header: fmt.Sprintf("--- %s\n+++ %s\n", from, to)}
 	for _, chunk := range diff.Do(string(oldText), string(newText)) {
-		chunks = append(chunks, textChunk{chunk})
+		patch.chunks = append(patch.chunks, textChunk{chunk})
 	}
-	var patch strings.Builder
-	fmt.Fprintf(&patch, "--- %s\n+++ %s\n", from, to)
-	if err := gitdiff.NewUnifiedEncoder(&patch, gitdiff.DefaultContextLines).Encode(chunks); err != nil {
-		return "", fmt.Errorf("encoding text diff for %q: %w", change.Path, err)
-	}
-	return patch.String(), nil
+	return patch
 }
 
 // textChunks supplies anonymous content to Go-Git's encoder. UDS owns the quoted
 // path headers and SHA-256 inventory metadata; the encoder owns only the diff body.
-type textChunks []gitdiff.Chunk
+type textChunks struct {
+	header string
+	chunks []gitdiff.Chunk
+}
 
 func (c textChunks) FilePatches() []gitdiff.FilePatch { return []gitdiff.FilePatch{c} }
-func (c textChunks) Message() string                  { return "" }
+func (c textChunks) Message() string                  { return c.header }
 func (c textChunks) IsBinary() bool                   { return false }
 func (c textChunks) Files() (gitdiff.File, gitdiff.File) {
 	return nil, nil
 }
-func (c textChunks) Chunks() []gitdiff.Chunk { return c }
+func (c textChunks) Chunks() []gitdiff.Chunk { return c.chunks }
 
 type textChunk struct {
 	diffmatchpatch.Diff

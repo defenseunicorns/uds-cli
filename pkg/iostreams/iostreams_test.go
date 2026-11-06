@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -35,6 +37,25 @@ func TestNewTestIOStreams(t *testing.T) {
 
 	streams.In().(*bytes.Buffer).WriteString("input")
 	assert.Equal(t, testData+"input", in.String())
+}
+
+func TestIsOutTerminal(t *testing.T) {
+	assert.False(t, IOStreams{}.IsOutTerminal())
+	assert.False(t, New(nil, nil, nil).IsOutTerminal())
+	streams, _, _, _ := NewTestIOStreams()
+	assert.False(t, streams.IsOutTerminal())
+
+	file, err := os.Create(filepath.Join(t.TempDir(), "report.txt"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, file.Close()) })
+	assert.False(t, New(nil, file, nil).IsOutTerminal())
+	assert.False(t, New(nil, New(nil, file, nil).Out(), nil).IsOutTerminal())
+
+	reader, writer, err := os.Pipe()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, reader.Close()) })
+	t.Cleanup(func() { require.NoError(t, writer.Close()) })
+	assert.False(t, New(nil, writer, nil).IsOutTerminal())
 }
 
 func TestIOStreams_WithLogger_RoutesToErrOut(t *testing.T) {
