@@ -42,25 +42,10 @@ func TestPrintDiffReportChanges(t *testing.T) {
 	}
 	var out bytes.Buffer
 	require.NoError(t, printDiffReport(&out, result, false))
-	report := out.String()
-	for _, want := range []string{
-		"modified \"a.bin\"\nold mode 100600\nnew mode 100640\nold size 4 bytes\nold sha256:original\nnew size 8 bytes\nnew sha256:changed\n",
-		"modified \"b-link\"\nold target \"old\"\nnew target \"new\"\n",
-		"modified \"d.sh\"\nold mode 100644\nnew mode 100755\n",
-	} {
-		assert.Contains(t, report, want)
-	}
-	assert.NotContains(t, report, "No changes.")
-	assert.NotContains(t, report, "\x1b[")
-	assert.NotContains(t, report, "Before:")
-	assert.NotContains(t, report, "After:")
-	assert.NotContains(t, report, "sha256:same")
-	previous := -1
-	for _, path := range []string{"a.bin", "b-link", "d.sh"} {
-		index := strings.Index(report, "modified \""+path+"\"")
-		require.Greater(t, index, previous, "report paths must be sorted")
-		previous = index
-	}
+	assert.Equal(t, "Package source: \"\"\nPackage digest: \n\n"+
+		"modified \"a.bin\"\nold mode 100600\nnew mode 100640\nold size 4 bytes\nold sha256:original\nnew size 8 bytes\nnew sha256:changed\n\n"+
+		"modified \"b-link\"\nold target \"old\"\nnew target \"new\"\n\n"+
+		"modified \"d.sh\"\nold mode 100644\nnew mode 100755\n", out.String())
 }
 
 func TestPrintDiffReportMetadata(t *testing.T) {
