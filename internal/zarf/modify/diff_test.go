@@ -282,6 +282,65 @@ func TestDiffTextPatches(t *testing.T) {
 	})
 }
 
+func TestDiffLargeTextChanges(t *testing.T) {
+	dir := t.TempDir()
+	var before, after strings.Builder
+	before.WriteString("shared first line\n")
+	after.WriteString("shared first line\n")
+	for i := range 30000 {
+		fmt.Fprintf(&before, "original line %06d\n", i)
+		fmt.Fprintf(&after, "replacement line %06d\n", i)
+	}
+	before.WriteString("shared last line")
+	after.WriteString("shared last line")
+	name := filepath.Join(dir, "source.txt")
+	require.NoError(t, os.WriteFile(name, []byte(before.String()), 0o600))
+	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+	require.NoError(t, os.WriteFile(name, []byte(after.String()), 0o600))
+
+	t.Run("complete patch", func(t *testing.T) {
+		start := time.Now()
+		result, err := Diff(t.Context(), dir)
+		require.NoError(t, err)
+		assert.Less(t, time.Since(start), time.Second, "expensive text matching must be bounded")
+		require.Len(t, result.Changes, 1)
+		require.NotNil(t, result.Changes[0].Patch)
+		var original, edited strings.Builder
+		for _, file := range result.Changes[0].Patch.FilePatches() {
+			for _, chunk := range file.Chunks() {
+				if chunk.Type() != gitdiff.Add {
+					original.WriteString(chunk.Content())
+				}
+				if chunk.Type() != gitdiff.Delete {
+					edited.WriteString(chunk.Content())
+				}
+			}
+		}
+		assert.Equal(t, before.String(), original.String(), "bounded matching must retain every original byte")
+		assert.Equal(t, after.String(), edited.String(), "bounded matching must retain every edited byte")
+	})
+	for _, deadline := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cancellation deadline=%t", deadline), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			want := context.Canceled
+			if deadline {
+				cancel()
+				ctx, cancel = context.WithTimeout(t.Context(), 50*time.Millisecond)
+				want = context.DeadlineExceeded
+			} else {
+				timer := time.AfterFunc(50*time.Millisecond, cancel)
+				t.Cleanup(func() { timer.Stop() })
+			}
+			t.Cleanup(cancel)
+			start := time.Now()
+			result, err := Diff(ctx, dir)
+			assert.Less(t, time.Since(start), time.Second, "cancellation must interrupt expensive text matching")
+			require.ErrorIs(t, err, want)
+			assert.Equal(t, DiffResult{}, result, "cancellation must not publish a partial report")
+		})
+	}
+}
+
 func TestDiffRenames(t *testing.T) {
 	const text = "alpha\nbravo\ncharlie\ndelta\necho\nfoxtrot\n"
 	const edited = "alpha\nbravo\ncharlie\ndelta\necho\nupdated\n"
@@ -373,34 +432,87 @@ func TestDiffKeepsAmbiguousBinaryRenamesSeparate(t *testing.T) {
 	assert.Equal(t, "deleted", result.Changes[2].Status())
 }
 
+func TestDiffRenamesDuplicateTextAboveLimit(t *testing.T) {
+	for _, added := range []int{101, 102, 103} {
+		t.Run(fmt.Sprintf("102 deleted %d added", added), func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.Mkdir(filepath.Join(dir, "old"), 0o700))
+			for i := range 102 {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "old", fmt.Sprintf("%03d.txt", i)), []byte("identical text\n"), 0o600))
+			}
+			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+			require.NoError(t, os.Rename(filepath.Join(dir, "old"), filepath.Join(dir, "new")))
+			if added < 102 {
+				require.NoError(t, os.Remove(filepath.Join(dir, "new", "101.txt")))
+			} else if added > 102 {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "new", "102.txt"), []byte("identical text\n"), 0o600))
+			}
+			before := snapshotTree(t, dir)
+			result, err := Diff(t.Context(), dir)
+			require.NoError(t, err)
+			assert.Equal(t, before, snapshotTree(t, dir))
+			require.Len(t, result.Changes, max(102, added))
+			var renamed, additions, deletions int
+			previous := ""
+			for _, change := range result.Changes {
+				assert.Greater(t, change.Path(), previous)
+				previous = change.Path()
+				switch change.Status() {
+				case "renamed":
+					assert.Equal(t, strings.TrimPrefix(change.Before.Path, "old/"), strings.TrimPrefix(change.After.Path, "new/"))
+					assert.Nil(t, change.Patch)
+					renamed++
+				case "added":
+					additions++
+				case "deleted":
+					deletions++
+				}
+			}
+			assert.Equal(t, min(102, added), renamed)
+			assert.Equal(t, max(0, added-102), additions)
+			assert.Equal(t, max(0, 102-added), deletions)
+			repeated, err := Diff(t.Context(), dir)
+			require.NoError(t, err)
+			assert.Equal(t, result, repeated, "duplicate text matching must be deterministic")
+		})
+	}
+}
+
 func TestDiffBoundsApproximateTextRenames(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "old"), 0o700))
-	for i := range 102 {
-		text := fmt.Sprintf("file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\noriginal\n", i, i, i, i, i, i)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "old", fmt.Sprintf("%03d.txt", i)), []byte(text), 0o600))
+	for _, unmatched := range []int{100, 101} {
+		t.Run(fmt.Sprintf("%d unmatched", unmatched), func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.Mkdir(filepath.Join(dir, "old"), 0o700))
+			for i := range unmatched + 1 {
+				text := fmt.Sprintf("file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\noriginal\n", i, i, i, i, i, i)
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "old", fmt.Sprintf("%03d.txt", i)), []byte(text), 0o600))
+			}
+			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+			require.NoError(t, os.Rename(filepath.Join(dir, "old"), filepath.Join(dir, "new")))
+			for i := range unmatched {
+				text := fmt.Sprintf("file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\nedited\n", i, i, i, i, i, i)
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "new", fmt.Sprintf("%03d.txt", i)), []byte(text), 0o600))
+			}
+			result, err := Diff(t.Context(), dir)
+			require.NoError(t, err)
+			wantChanges, wantRenamed := 203, 1
+			if unmatched == 100 {
+				wantChanges, wantRenamed = 101, 101
+			}
+			require.Len(t, result.Changes, wantChanges)
+			var renamed int
+			previous := ""
+			for _, change := range result.Changes {
+				assert.Greater(t, change.Path(), previous)
+				previous = change.Path()
+				if change.Status() == "renamed" {
+					renamed++
+					assert.Equal(t, strings.TrimPrefix(change.Before.Path, "old/"), strings.TrimPrefix(change.After.Path, "new/"))
+				}
+			}
+			assert.Equal(t, wantRenamed, renamed, "only unmatched candidates count toward the approximate limit")
+		})
 	}
-	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
-	require.NoError(t, os.Rename(filepath.Join(dir, "old"), filepath.Join(dir, "new")))
-	for i := range 101 {
-		text := fmt.Sprintf("file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\nedited\n", i, i, i, i, i, i)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "new", fmt.Sprintf("%03d.txt", i)), []byte(text), 0o600))
-	}
-	result, err := Diff(t.Context(), dir)
-	require.NoError(t, err)
-	require.Len(t, result.Changes, 203)
-	var renamed int
-	previous := ""
-	for _, change := range result.Changes {
-		assert.Greater(t, change.Path(), previous)
-		previous = change.Path()
-		if change.Status() == "renamed" {
-			renamed++
-			assert.Equal(t, "old/101.txt", change.Before.Path)
-			assert.Equal(t, "new/101.txt", change.After.Path)
-		}
-	}
-	assert.Equal(t, 1, renamed, "exact matches survive the approximate-comparison limit")
 }
 
 func TestDiffRejectsMetadataEscapesAndMalformedJSON(t *testing.T) {

@@ -10,6 +10,8 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 )
 
+const textRenameLimit = 100
+
 func detectRenames(ctx context.Context, changes []FileChange, texts map[string][]byte) ([]FileChange, error) {
 	type identity struct {
 		kind, digest string
@@ -34,7 +36,6 @@ func detectRenames(ctx context.Context, changes []FileChange, texts map[string][
 			} else {
 				textAdded++
 			}
-			continue
 		}
 		key := identity{kind: record.Kind, digest: record.Digest, size: record.Size}
 		if exact[key] == nil {
@@ -47,17 +48,32 @@ func detectRenames(ctx context.Context, changes []FileChange, texts map[string][
 		}
 	}
 	mates := make(map[int]int)
-	for _, group := range exact {
-		// Identical duplicate files do not establish which path was renamed.
-		if len(group.deleted) == 1 && len(group.added) == 1 {
-			before, after := group.deleted[0], group.added[0]
+	for key, group := range exact {
+		// Binary and link duplicates do not establish which path was renamed.
+		if key.kind != "text" && (len(group.deleted) != 1 || len(group.added) != 1) {
+			continue
+		}
+		// Inventory order pairs duplicate text deterministically without building
+		// Go-Git's quadratic exact-match name-similarity matrix.
+		for i := range min(len(group.deleted), len(group.added)) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			before, after := group.deleted[i], group.added[i]
 			mates[before], mates[after] = after, before
+			if key.kind == "text" {
+				textDeleted--
+				textAdded--
+			}
 		}
 	}
-	if textDeleted > 0 && textAdded > 0 {
+	if textDeleted > 0 && textAdded > 0 && max(textDeleted, textAdded) <= textRenameLimit {
 		store := memory.NewStorage()
 		var candidates object.Changes
-		for _, change := range changes {
+		for i, change := range changes {
+			if _, matched := mates[i]; matched {
+				continue
+			}
 			name := change.Path()
 			contents, ok := texts[name]
 			if !ok {
@@ -79,9 +95,9 @@ func detectRenames(ctx context.Context, changes []FileChange, texts map[string][
 			candidates = append(candidates, candidate)
 		}
 		options := *object.DefaultDiffTreeOptions
-		// Bound approximate comparisons; Go-Git still detects exact matches when
-		// more than 100 candidates remain on either side.
-		options.RenameLimit = 100
+		// Exact matches are already paired; only unmatched text reaches Go-Git's
+		// bounded approximate comparison.
+		options.RenameLimit = textRenameLimit
 		detected, err := object.DetectRenames(candidates, &options)
 		if err != nil {
 			return nil, fmt.Errorf("detecting text renames: %w", err)
@@ -116,7 +132,11 @@ func detectRenames(ctx context.Context, changes []FileChange, texts map[string][
 			if change.After != nil {
 				newText = texts[change.After.Path]
 			}
-			change.Patch = textPatch(change, oldText, newText)
+			var err error
+			change.Patch, err = textPatch(ctx, change, oldText, newText)
+			if err != nil {
+				return nil, fmt.Errorf("comparing text for %q: %w", change.Path(), err)
+			}
 		}
 		result = append(result, change)
 	}

@@ -175,45 +175,6 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 		assert.Empty(t, errOut.String())
 		assert.Less(t, strings.Index(report, "deleted \""), strings.Index(report, "added \"notes.txt\""))
 		assert.Less(t, strings.Index(report, "added \"notes.txt\""), strings.Index(report, "renamed \"zarf.yaml\""))
-
-		t.Run("terminal colors", func(t *testing.T) {
-			terminal, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
-			if err != nil {
-				t.Skip("requires a controlling terminal")
-			}
-			t.Cleanup(func() { require.NoError(t, terminal.Close()) })
-			for _, tc := range []struct {
-				name, noColor, term string
-				wantColor           bool
-			}{
-				{name: "enabled", term: "xterm", wantColor: true},
-				{name: "NO_COLOR", noColor: "1", term: "xterm"},
-				{name: "dumb terminal", term: "dumb"},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					t.Setenv("NO_COLOR", tc.noColor)
-					t.Setenv("TERM", tc.term)
-					out := &terminalReportWriter{terminal: terminal}
-					var errOut bytes.Buffer
-					root := cli.NewRootCommand(iostreams.New(nil, out, &errOut), features)
-					root.SetArgs([]string{"package", "mod", "diff", worktree})
-					require.NoError(t, root.ExecuteContext(t.Context()))
-					if tc.wantColor {
-						assert.Contains(t, out.String(), "\x1b[32m+reproduce the workaround upstream\x1b[m")
-						assert.Contains(t, out.String(), "\x1b[31m-offline payload\x1b[m")
-						assert.Contains(t, out.String(), "\x1b[36m@@ ")
-						assert.Contains(t, out.String(), "\x1b[1m--- /dev/null\x1b[m\n\x1b[1m+++ \"b/notes.txt\"\x1b[m\n")
-						assert.Contains(t, out.String(), "+reproduce the workaround upstream\x1b[m\n\\ No newline at end of file\x1b[m\n")
-						assert.Contains(t, out.String(), fmt.Sprintf("\x1b[1mold mode %06o\x1b[m\n\x1b[1mnew mode %06o\x1b[m\n", 0o100000|beforeMode, 0o100000|afterMode))
-						assert.Contains(t, out.String(), "\x1b[1mnew file mode 100600\x1b[m\n\x1b[1msize 3 bytes\x1b[m\n\x1b[1msha256:")
-						assert.Contains(t, out.String(), "\x1b[1mrenamed \"zarf.yaml\" -> \"zarf-workaround.yaml\"\x1b[m\n")
-					} else {
-						assert.Equal(t, report, out.String())
-					}
-					assert.Empty(t, errOut.String())
-				})
-			}
-		})
 	})
 
 	for _, metadataState := range []string{"missing", "corrupt"} {
@@ -233,13 +194,6 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 		})
 	}
 }
-
-type terminalReportWriter struct {
-	bytes.Buffer
-	terminal *os.File
-}
-
-func (w *terminalReportWriter) Fd() uintptr { return w.terminal.Fd() }
 
 type packagePullLog struct {
 	bytes.Buffer

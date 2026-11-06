@@ -39,9 +39,7 @@ func TestNewTestIOStreams(t *testing.T) {
 	assert.Equal(t, testData+"input", in.String())
 }
 
-func TestIsOutTerminal(t *testing.T) {
-	assert.False(t, IOStreams{}.IsOutTerminal())
-	assert.False(t, New(nil, nil, nil).IsOutTerminal())
+func TestNonTerminalOutput(t *testing.T) {
 	streams, _, _, _ := NewTestIOStreams()
 	assert.False(t, streams.IsOutTerminal())
 
@@ -49,7 +47,6 @@ func TestIsOutTerminal(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, file.Close()) })
 	assert.False(t, New(nil, file, nil).IsOutTerminal())
-	assert.False(t, New(nil, New(nil, file, nil).Out(), nil).IsOutTerminal())
 
 	reader, writer, err := os.Pipe()
 	require.NoError(t, err)

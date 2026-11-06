@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	gitdiff "github.com/go-git/go-git/v5/plumbing/format/diff"
 	"github.com/go-git/go-git/v5/utils/diff"
@@ -130,7 +131,10 @@ func Diff(ctx context.Context, sourceDir string) (DiffResult, error) {
 				texts[change.Before.Path] = oldText
 			}
 		default:
-			change.Patch = textPatch(change, oldText, newText)
+			change.Patch, err = textPatch(ctx, change, oldText, newText)
+			if err != nil {
+				return DiffResult{}, fmt.Errorf("comparing text for %q: %w", change.Path(), err)
+			}
 		}
 		result.Changes = append(result.Changes, change)
 	}
@@ -141,9 +145,12 @@ func Diff(ctx context.Context, sourceDir string) (DiffResult, error) {
 	return result, nil
 }
 
-func textPatch(change FileChange, oldText, newText []byte) gitdiff.Patch {
+func textPatch(ctx context.Context, change FileChange, oldText, newText []byte) (gitdiff.Patch, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if bytes.Equal(oldText, newText) {
-		return nil
+		return nil, nil
 	}
 	from, to := "/dev/null", "/dev/null"
 	if change.Before != nil && change.Before.Kind == "text" {
@@ -153,10 +160,24 @@ func textPatch(change FileChange, oldText, newText []byte) gitdiff.Patch {
 		to = strconv.Quote("b/" + change.After.Path)
 	}
 	patch := textChunks{header: fmt.Sprintf("--- %s\n+++ %s\n", from, to)}
-	for _, chunk := range diff.Do(string(oldText), string(newText)) {
+	// Bound synchronous matching so cancellation is observed without leaving a
+	// worker behind. Go-Git's timeout fallback emits complete delete/insert
+	// chunks for unmatched regions; it sacrifices minimality, not content.
+	timeout := 100 * time.Millisecond
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = min(timeout, time.Until(deadline))
+		if timeout <= 0 {
+			return nil, context.DeadlineExceeded
+		}
+	}
+	chunks := diff.DoWithTimeout(string(oldText), string(newText), timeout)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	for _, chunk := range chunks {
 		patch.chunks = append(patch.chunks, textChunk{chunk})
 	}
-	return patch
+	return patch, nil
 }
 
 // textChunks supplies anonymous content to Go-Git's encoder. UDS owns the quoted

@@ -109,8 +109,8 @@ func filterPkgPaths(pkgLayout *layout.PackageLayout, includeLayers []string, opt
 		}
 	}
 
-	// Keep package metadata and all SBOMs. Per-resource SBOM paths can overlap
-	// component paths, but SBOMs are not filtered or modified.
+	// ensure zarf.yaml, checksums and SBOMS (if exists) are always included
+	// note we may have extra SBOMs because they are not filtered or modified
 	pkgDir := pkgLayout.DirPath()
 	alwaysInclude := []string{filepath.Join(pkgDir, layout.ZarfYAML), filepath.Join(pkgDir, layout.Checksums)}
 	switch pkgLayout.Definition().GetAPIVersion() {
