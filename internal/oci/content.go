@@ -128,14 +128,6 @@ func copyGraph(ctx context.Context, src content.ReadOnlyStorage, dst content.Sto
 	return nil
 }
 
-func copyReference(ctx context.Context, src oras.ReadOnlyTarget, srcRef string, dst oras.Target, dstRef string, opts oras.CopyOptions) (ocispec.Descriptor, error) {
-	desc, err := oras.Copy(ctx, src, srcRef, dst, dstRef, opts)
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
-	return desc, nil
-}
-
 // PushReferenceBytes stores manifest bytes at reference. Remote ORAS
 // repositories need PushReference so the bytes go to the manifest endpoint;
 // generic Push writes to the blob store there. Local/test targets that do not

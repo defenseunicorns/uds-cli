@@ -273,13 +273,8 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 	}
 	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
-		options = &bundleinternal.ConfigOptions{
-			LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture,
-			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
-			CacheDir: cfg.Options.CacheDir,
-			TmpDir:   cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
-			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
-		}
+		converted := bundleinternal.ConfigOptions(*cfg.Options)
+		options = &converted
 	}
 	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
 }
@@ -290,13 +285,8 @@ func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
 	}
 	var options *ConfigOptions
 	if cfg.Options != nil {
-		options = &ConfigOptions{
-			LogLevel: cfg.Options.LogLevel, Architecture: cfg.Options.Architecture,
-			PlainHTTP: cfg.Options.PlainHTTP, SkipTLSVerify: cfg.Options.SkipTLSVerify,
-			CacheDir: cfg.Options.CacheDir,
-			TmpDir:   cfg.Options.TmpDir, Concurrency: cfg.Options.Concurrency,
-			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
-		}
+		converted := ConfigOptions(*cfg.Options)
+		options = &converted
 	}
 	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables)}
 }

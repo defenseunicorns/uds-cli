@@ -377,13 +377,8 @@ func fromInternalOptions(options *bundleinternal.ConfigOptions) *bundle.ConfigOp
 	if options == nil {
 		return nil
 	}
-	return &bundle.ConfigOptions{
-		LogLevel: options.LogLevel, Architecture: options.Architecture,
-		PlainHTTP: options.PlainHTTP, SkipTLSVerify: options.SkipTLSVerify,
-		CacheDir: options.CacheDir,
-		TmpDir:   options.TmpDir, Concurrency: options.Concurrency,
-		SkipArchitectureCheck: options.SkipArchitectureCheck,
-	}
+	converted := bundle.ConfigOptions(*options)
+	return &converted
 }
 
 func fromInternalVariableValue(value any) any {

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -60,23 +59,6 @@ func WriteIndex(path string, idx *ocispec.Index) error {
 		return err
 	}
 	return os.WriteFile(path, append(b, '\n'), filesystem.PrivateFileMode)
-}
-
-// packageRootDescriptor returns the sole root descriptor from a Zarf package layout.
-func packageRootDescriptor(ociDir string) (ocispec.Descriptor, error) {
-	indexPath := filepath.Join(ociDir, ocispec.ImageIndexFile)
-	data, err := os.ReadFile(indexPath)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("%w %q: %w", ErrReadIndex, indexPath, err)
-	}
-	var idx ocispec.Index
-	if err := json.Unmarshal(data, &idx); err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("%w %q: %w", ErrParseIndex, indexPath, err)
-	}
-	if len(idx.Manifests) != 1 {
-		return ocispec.Descriptor{}, ManifestCountError{Count: len(idx.Manifests), Want: 1}
-	}
-	return idx.Manifests[0], nil
 }
 
 // TaggedDerivativeReference returns source tag, target tag, and target reference for a suffixed derivative tag.

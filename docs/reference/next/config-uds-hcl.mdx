@@ -82,18 +82,6 @@ options {
 }
 ```
 
-Next stores package and bundle layers under `<uds-cache>/bundle-oci/images`.
-These layers can contain private registry content. Next creates user-only cache
-directories and rejects existing cache directories with group or other access.
-If you encounter a permissions error, remove the Next cache with
-`CLI_FEATURES=NextMode=true uds tools clear-cache --uds-cache PATH`, replacing
-`PATH` with your configured cache root. Set the remaining
-`<uds-cache>/bundle-oci` directory permissions to `0700` before retrying.
-
-Use `CLI_FEATURES=NextMode=true uds tools clear-cache` to remove Next's cached
-content. Add `--prompt` to request confirmation. Clearing the cache can interrupt
-commands that are using it.
-
 ## `signature_verification`
 
 This block defines the consumer's trust policy for a bundle artifact. It is separate from the package signature policy in each `package` block of `bundle.uds.hcl`, and it is separate from the signing options used by `bundle create` and `bundle sign`.
