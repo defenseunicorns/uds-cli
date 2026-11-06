@@ -21,8 +21,8 @@ func TestPublishBundleSignature_IsIdempotent(t *testing.T) {
 
 	subject := pushSignatureSubject(t, store)
 	evidence := []byte("signature evidence")
-	require.NoError(t, PublishBundleSignature(t.Context(), store, subject, evidence, false))
-	require.NoError(t, PublishBundleSignature(t.Context(), store, subject, evidence, false))
+	require.NoError(t, PublishBundleSignature(t.Context(), store, store, subject, evidence, false))
+	require.NoError(t, PublishBundleSignature(t.Context(), store, store, subject, evidence, false))
 
 	refs, err := registry.Referrers(t.Context(), store, subject, MediaTypeBundleSignature)
 	require.NoError(t, err)
@@ -34,8 +34,8 @@ func TestPublishBundleSignature_OverwriteReplacesEvidence(t *testing.T) {
 	require.NoError(t, err)
 
 	subject := pushSignatureSubject(t, store)
-	require.NoError(t, PublishBundleSignature(t.Context(), store, subject, []byte("old evidence"), false))
-	require.NoError(t, PublishBundleSignature(t.Context(), store, subject, []byte("new evidence"), true))
+	require.NoError(t, PublishBundleSignature(t.Context(), store, store, subject, []byte("old evidence"), false))
+	require.NoError(t, PublishBundleSignature(t.Context(), store, store, subject, []byte("new evidence"), true))
 
 	refs, err := registry.Referrers(t.Context(), store, subject, MediaTypeBundleSignature)
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestPublishBundleSignature_RejectsDuplicateExistingEvidence(t *testing.T) {
 	pushSignatureEvidence(t, store, subject, []byte("first evidence"))
 	pushSignatureEvidence(t, store, subject, []byte("second evidence"))
 
-	err = PublishBundleSignature(t.Context(), store, subject, []byte("first evidence"), false)
+	err = PublishBundleSignature(t.Context(), store, store, subject, []byte("first evidence"), false)
 	require.ErrorContains(t, err, "bundle signature evidence already exists")
 }
 

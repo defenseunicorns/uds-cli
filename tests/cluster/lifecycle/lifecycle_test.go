@@ -70,6 +70,7 @@ func TestCLILifecycle(t *testing.T) {
 
 func runCLI(t *testing.T, ctx context.Context, args ...string) {
 	t.Helper()
+	args = append(append([]string(nil), args...), "--uds-cache", t.TempDir())
 	var stdout, stderr strings.Builder
 	err := testutil.ExecuteCLI(ctx, iostreams.New(nil, &stdout, &stderr), args...)
 	require.NoError(t, err, "UDS CLI command %q failed:\n%s", strings.Join(args, " "), stdout.String()+stderr.String())

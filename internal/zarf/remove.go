@@ -13,6 +13,7 @@ import (
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/zarf-dev/zarf/src/api"
@@ -266,7 +267,15 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 		return err
 	}
 
+	cachePath := udsoci.BundleCachePath(opts.Config.Options.CacheDir)
+	if deployedName == "" && udsoci.IsOCIReference(packageSource) {
+		cachePath, err = udsoci.PrepareBundleCache(opts.Config.Options.CacheDir)
+		if err != nil {
+			return fmt.Errorf("preparing removal cache for package %q: %w: %w", pkg.Name, ErrLoadPackage, err)
+		}
+	}
 	loadOpts := packager.LoadOptions{
+		CachePath:      cachePath,
 		Architecture:   opts.Config.Options.Architecture,
 		Filter:         filters.Combine(filters.ByLocalOS(runtime.GOOS)),
 		OCIConcurrency: opts.Config.Options.Concurrency,
