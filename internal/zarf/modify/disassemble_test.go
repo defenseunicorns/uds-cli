@@ -248,15 +248,10 @@ func TestDisassembleRejectsNonUTF8FilenamesWithoutPublishingOutput(t *testing.T)
 	// JSON replaces invalid UTF-8 with U+FFFD, so a rewritten baseline path
 	// could not identify the generated file. Reject it before publishing output.
 	sourceDir := copyFixture(t, "flavored")
-	assetDir := filepath.Join(sourceDir, "payload")
+	assetDir := filepath.Join(sourceDir, "payload.txt")
+	require.NoError(t, os.Remove(assetDir))
 	require.NoError(t, os.Mkdir(assetDir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(assetDir, "non-utf8-\xff"), []byte("text\n"), 0o600))
-	definitionPath := filepath.Join(sourceDir, layout.ZarfYAML)
-	definition, err := os.ReadFile(definitionPath)
-	require.NoError(t, err)
-	definition = bytes.ReplaceAll(definition, []byte("source: payload.txt"), []byte("source: payload"))
-	//nolint:gosec // G703 treats the test-owned fixture path as attacker-controlled.
-	require.NoError(t, os.WriteFile(definitionPath, definition, 0o600))
 	pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{Flavor: "offline", SkipVersionCheck: true}, assemble.AssembleOptions{Flavor: "offline", SkipSBOM: true})
 	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
 	archivePath, err := pkgLayout.Archive(t.Context(), t.TempDir(), 0)

@@ -4,6 +4,7 @@
 package modify
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,8 +28,7 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	files := map[string][]byte{
 		"a.txt": []byte("original\n"), "a/z.txt": []byte("nested\n"),
 		"binary-delete": {0, 1}, "binary-modify": {0, 2},
-		"delete.txt": []byte("deleted text"), "empty.txt": {},
-		"mode.sh": []byte("echo unchanged\n"), "newline.txt": []byte("same"),
+		"empty.txt": {}, "mode.sh": []byte("echo unchanged\n"),
 		"to-binary": []byte("previous text\n"), "to-text": {0, 3},
 		"repo/.git/config": []byte("excluded\n"), "repo/.gitignore": []byte("tracked\n"),
 		"repo/.uds/notes": []byte("excluded\n"), "hidden/.config": []byte("included\n"),
@@ -83,14 +83,10 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	assert.Equal(t, clean, ignored)
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("edited\n"), 0o600))
-	require.NoError(t, os.Remove(filepath.Join(dir, "delete.txt")))
 	require.NoError(t, os.Remove(filepath.Join(dir, "binary-delete")))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "binary-modify"), []byte{0, 4, 5}, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "binary-add"), []byte{0, 6}, 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "new.txt"), []byte("new text\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "new-empty"), nil, 0o600))
 	require.NoError(t, os.Chmod(filepath.Join(dir, "mode.sh"), 0o700|os.ModeSetuid))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "newline.txt"), []byte("same\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "to-binary"), []byte{0, 7}, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "to-text"), []byte("now text\n"), 0o600))
 	require.NoError(t, os.Remove(filepath.Join(dir, "link")))
@@ -99,64 +95,35 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	changed, err := Diff(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Equal(t, before, snapshotTree(t, dir), "diff must not change source or baseline")
-	repeated, err := Diff(t.Context(), dir)
-	require.NoError(t, err)
-	assert.Equal(t, changed, repeated)
-
-	wantPaths := []string{"a.txt", "binary-add", "binary-delete", "binary-modify", "delete.txt", "link", "mode.sh", "new-empty", "new.txt", "newline.txt", "to-binary", "to-text"}
-	require.Len(t, changed.Changes, len(wantPaths))
-	for i, change := range changed.Changes {
-		assert.Equal(t, wantPaths[i], change.Path())
-		switch change.Path() {
-		case "a.txt":
-			assert.Equal(t, "modified", change.Status())
-			assert.Contains(t, renderPatch(t, change.Patch), "-original\n+edited\n")
-		case "binary-add":
-			assert.Equal(t, "added", change.Status())
-			assert.Nil(t, change.Before)
-			assert.Equal(t, digest.FromBytes([]byte{0, 6}).String(), change.After.Digest)
-			assert.EqualValues(t, 2, change.After.Size)
+	record := func(path, kind, contents string, mode uint32) *FileRecord {
+		r := &FileRecord{Path: path, Kind: kind, Mode: mode, Size: int64(len(contents)), Digest: digest.FromString(contents).String()}
+		if kind == "symlink" {
+			r.Target = contents
+		}
+		return r
+	}
+	want := []struct {
+		before, after *FileRecord
+		patch         string
+	}{
+		{record("a.txt", "text", "original\n", 0o600), record("a.txt", "text", "edited\n", 0o600), "-original\n+edited\n"},
+		{nil, record("binary-add", "binary", "\x00\x06", 0o600), ""},
+		{record("binary-delete", "binary", "\x00\x01", 0o600), nil, ""},
+		{record("binary-modify", "binary", "\x00\x02", 0o600), record("binary-modify", "binary", "\x00\x04\x05", 0o600), ""},
+		{record("link", "symlink", external, 0o777), record("link", "symlink", "missing-target", 0o777), ""},
+		{record("mode.sh", "text", "echo unchanged\n", 0o600), record("mode.sh", "text", "echo unchanged\n", 0o4700), ""},
+		{record("to-binary", "text", "previous text\n", 0o600), record("to-binary", "binary", "\x00\x07", 0o600), "-previous text\n"},
+		{record("to-text", "binary", "\x00\x03", 0o600), record("to-text", "text", "now text\n", 0o600), "+now text\n"},
+	}
+	require.Len(t, changed.Changes, len(want))
+	for i, expected := range want {
+		change := changed.Changes[i]
+		assert.Equal(t, expected.before, change.Before)
+		assert.Equal(t, expected.after, change.After)
+		if expected.patch == "" {
 			assert.Nil(t, change.Patch)
-		case "binary-delete":
-			assert.Equal(t, "deleted", change.Status())
-			assert.Nil(t, change.After)
-			assert.Equal(t, digest.FromBytes([]byte{0, 1}).String(), change.Before.Digest)
-			assert.Nil(t, change.Patch)
-		case "binary-modify":
-			assert.Equal(t, digest.FromBytes([]byte{0, 2}).String(), change.Before.Digest)
-			assert.Equal(t, digest.FromBytes([]byte{0, 4, 5}).String(), change.After.Digest)
-			assert.EqualValues(t, 3, change.After.Size)
-			assert.Nil(t, change.Patch)
-		case "delete.txt":
-			assert.Equal(t, "deleted", change.Status())
-			assert.Contains(t, renderPatch(t, change.Patch), "+++ /dev/null\n")
-			assert.Contains(t, renderPatch(t, change.Patch), "-deleted text\n\\ No newline at end of file\n")
-		case "link":
-			assert.Equal(t, external, change.Before.Target)
-			assert.Equal(t, "missing-target", change.After.Target)
-			assert.Nil(t, change.Patch)
-		case "mode.sh":
-			assert.EqualValues(t, 0o600, change.Before.Mode)
-			assert.EqualValues(t, 0o4700, change.After.Mode)
-			assert.Equal(t, change.Before.Digest, change.After.Digest)
-			assert.Nil(t, change.Patch)
-		case "new-empty":
-			assert.Equal(t, "added", change.Status())
-			assert.EqualValues(t, 0, change.After.Size)
-		case "new.txt":
-			assert.Equal(t, "added", change.Status())
-			assert.Contains(t, renderPatch(t, change.Patch), "--- /dev/null\n")
-			assert.Contains(t, renderPatch(t, change.Patch), "+new text\n")
-		case "newline.txt":
-			assert.Contains(t, renderPatch(t, change.Patch), "-same\n\\ No newline at end of file\n+same\n")
-		case "to-binary":
-			assert.Equal(t, "text", change.Before.Kind)
-			assert.Equal(t, "binary", change.After.Kind)
-			assert.Contains(t, renderPatch(t, change.Patch), "-previous text\n")
-		case "to-text":
-			assert.Equal(t, "binary", change.Before.Kind)
-			assert.Equal(t, "text", change.After.Kind)
-			assert.Contains(t, renderPatch(t, change.Patch), "+now text\n")
+		} else {
+			assert.Contains(t, renderPatch(t, change.Patch), expected.patch)
 		}
 	}
 	// A readonly source and baseline remain usable: the command needs no lock,
@@ -234,25 +201,28 @@ func TestDiffRejectsInvalidBaselineWithoutPartialResults(t *testing.T) {
 func TestDiffTextPatches(t *testing.T) {
 	const header = "--- \"a/source.txt\"\n+++ \"b/source.txt\"\n"
 	for _, tc := range []struct {
-		name, before, after, want string
-		added, deleted            bool
+		name, path, before, after, want string
+		added, deleted                  bool
 	}{
 		{name: "modified", before: "before\n", after: "after\n", want: header + "@@ -1 +1 @@\n-before\n+after\n"},
 		{name: "missing final newlines", before: "before", after: "after", want: header + "@@ -1 +1 @@\n-before\n\\ No newline at end of file\n+after\n\\ No newline at end of file\n"},
 		{name: "remove final newline", before: "same\n", after: "same", want: header + "@@ -1 +1 @@\n-same\n+same\n\\ No newline at end of file\n"},
+		{name: "add final newline", before: "same", after: "same\n", want: header + "@@ -1 +1 @@\n-same\n\\ No newline at end of file\n+same\n"},
 		{name: "CRLF", before: "before\r\n", after: "after\r\n", want: header + "@@ -1 +1 @@\n-before\r\n+after\r\n"},
 		{name: "Unicode", before: "é☀\n", after: "é🌙\n", want: header + "@@ -1 +1 @@\n-é☀\n+é🌙\n"},
 		{name: "blank context line", before: "one\n\nthree\n", after: "one\n\nfour\n", want: header + "@@ -1,3 +1,3 @@\n one\n \n-three\n+four\n"},
 		{name: "context without final newline", before: "before\nsame", after: "after\nsame", want: header + "@@ -1,2 +1,2 @@\n-before\n+after\n same\n\\ No newline at end of file\n"},
 		{name: "added", added: true, after: "added\n", want: "--- /dev/null\n+++ \"b/source.txt\"\n@@ -0,0 +1 @@\n+added\n"},
 		{name: "deleted", deleted: true, before: "deleted\n", want: "--- \"a/source.txt\"\n+++ /dev/null\n@@ -1 +0,0 @@\n-deleted\n"},
+		{name: "deleted without final newline", deleted: true, before: "deleted text", want: "--- \"a/source.txt\"\n+++ /dev/null\n@@ -1 +0,0 @@\n-deleted text\n\\ No newline at end of file\n"},
 		{name: "added without final newline", added: true, after: "added", want: "--- /dev/null\n+++ \"b/source.txt\"\n@@ -0,0 +1 @@\n+added\n\\ No newline at end of file\n"},
 		{name: "empty added file", added: true},
 		{name: "empty deleted file", deleted: true},
+		{name: "quoted path", path: "sp ace\t\"é\n.txt", before: "before\n", after: "after\n", want: "--- \"a/sp ace\\t\\\"é\\n.txt\"\n+++ \"b/sp ace\\t\\\"é\\n.txt\"\n@@ -1 +1 @@\n-before\n+after\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			name := filepath.Join(dir, "source.txt")
+			name := filepath.Join(dir, cmp.Or(tc.path, "source.txt"))
 			if !tc.added {
 				require.NoError(t, os.WriteFile(name, []byte(tc.before), 0o600))
 			}
@@ -265,21 +235,15 @@ func TestDiffTextPatches(t *testing.T) {
 			result, err := Diff(t.Context(), dir)
 			require.NoError(t, err)
 			require.Len(t, result.Changes, 1)
-			assert.Equal(t, tc.want, renderPatch(t, result.Changes[0].Patch))
+			change := result.Changes[0]
+			assert.Equal(t, tc.added, change.Before == nil)
+			assert.Equal(t, tc.deleted, change.After == nil)
+			if change.After != nil {
+				assert.EqualValues(t, len(tc.after), change.After.Size)
+			}
+			assert.Equal(t, tc.want, renderPatch(t, change.Patch))
 		})
 	}
-
-	t.Run("quoted path", func(t *testing.T) {
-		dir := t.TempDir()
-		name := "sp ace\t\"é\n.txt"
-		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("before\n"), 0o600))
-		require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("after\n"), 0o600))
-		result, err := Diff(t.Context(), dir)
-		require.NoError(t, err)
-		require.Len(t, result.Changes, 1)
-		assert.Equal(t, "--- \"a/sp ace\\t\\\"é\\n.txt\"\n+++ \"b/sp ace\\t\\\"é\\n.txt\"\n@@ -1 +1 @@\n-before\n+after\n", renderPatch(t, result.Changes[0].Patch))
-	})
 }
 
 func TestDiffLargeTextChanges(t *testing.T) {
@@ -368,9 +332,6 @@ func TestDiffRenames(t *testing.T) {
 			result, err := Diff(t.Context(), dir)
 			require.NoError(t, err)
 			assert.Equal(t, before, snapshotTree(t, dir), "rename detection must not change bytes or permissions")
-			repeated, err := Diff(t.Context(), dir)
-			require.NoError(t, err)
-			assert.Equal(t, result, repeated)
 			if !tc.wantRename {
 				require.Len(t, result.Changes, 2)
 				assert.Equal(t, "added", result.Changes[0].Status())
@@ -432,26 +393,47 @@ func TestDiffKeepsAmbiguousBinaryRenamesSeparate(t *testing.T) {
 	assert.Equal(t, "deleted", result.Changes[2].Status())
 }
 
-func TestDiffRenamesDuplicateTextAboveLimit(t *testing.T) {
-	for _, added := range []int{101, 102, 103} {
-		t.Run(fmt.Sprintf("102 deleted %d added", added), func(t *testing.T) {
+func TestDiffTextRenameCandidates(t *testing.T) {
+	for _, tc := range []struct {
+		name                      string
+		original, current, edited int
+		duplicate                 bool
+		wantRenamed               int
+	}{
+		{name: "duplicate fewer", original: 102, current: 101, duplicate: true, wantRenamed: 101},
+		{name: "duplicate equal", original: 102, current: 102, duplicate: true, wantRenamed: 102},
+		{name: "duplicate extra", original: 102, current: 103, duplicate: true, wantRenamed: 102},
+		{name: "approximate at limit", original: 101, current: 101, edited: 100, wantRenamed: 101},
+		{name: "approximate above limit", original: 102, current: 102, edited: 101, wantRenamed: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			text := func(i int, revision string) []byte {
+				if tc.duplicate {
+					return []byte("identical text\n")
+				}
+				return fmt.Appendf(nil, "file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\n%s\n", i, i, i, i, i, i, revision)
+			}
 			dir := t.TempDir()
 			require.NoError(t, os.Mkdir(filepath.Join(dir, "old"), 0o700))
-			for i := range 102 {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, "old", fmt.Sprintf("%03d.txt", i)), []byte("identical text\n"), 0o600))
+			for i := range tc.original {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "old", fmt.Sprintf("%03d.txt", i)), text(i, "original"), 0o600))
 			}
 			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
 			require.NoError(t, os.Rename(filepath.Join(dir, "old"), filepath.Join(dir, "new")))
-			if added < 102 {
-				require.NoError(t, os.Remove(filepath.Join(dir, "new", "101.txt")))
-			} else if added > 102 {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, "new", "102.txt"), []byte("identical text\n"), 0o600))
+			for i := range max(tc.original, tc.current) {
+				name := filepath.Join(dir, "new", fmt.Sprintf("%03d.txt", i))
+				switch {
+				case i >= tc.current:
+					require.NoError(t, os.Remove(name))
+				case i >= tc.original || i < tc.edited:
+					require.NoError(t, os.WriteFile(name, text(i, "edited"), 0o600))
+				}
 			}
 			before := snapshotTree(t, dir)
 			result, err := Diff(t.Context(), dir)
 			require.NoError(t, err)
 			assert.Equal(t, before, snapshotTree(t, dir))
-			require.Len(t, result.Changes, max(102, added))
+			require.Len(t, result.Changes, tc.original+tc.current-tc.wantRenamed)
 			var renamed, additions, deletions int
 			previous := ""
 			for _, change := range result.Changes {
@@ -460,7 +442,9 @@ func TestDiffRenamesDuplicateTextAboveLimit(t *testing.T) {
 				switch change.Status() {
 				case "renamed":
 					assert.Equal(t, strings.TrimPrefix(change.Before.Path, "old/"), strings.TrimPrefix(change.After.Path, "new/"))
-					assert.Nil(t, change.Patch)
+					if tc.duplicate {
+						assert.Nil(t, change.Patch)
+					}
 					renamed++
 				case "added":
 					additions++
@@ -468,49 +452,12 @@ func TestDiffRenamesDuplicateTextAboveLimit(t *testing.T) {
 					deletions++
 				}
 			}
-			assert.Equal(t, min(102, added), renamed)
-			assert.Equal(t, max(0, added-102), additions)
-			assert.Equal(t, max(0, 102-added), deletions)
+			assert.Equal(t, tc.wantRenamed, renamed)
+			assert.Equal(t, tc.current-tc.wantRenamed, additions)
+			assert.Equal(t, tc.original-tc.wantRenamed, deletions)
 			repeated, err := Diff(t.Context(), dir)
 			require.NoError(t, err)
-			assert.Equal(t, result, repeated, "duplicate text matching must be deterministic")
-		})
-	}
-}
-
-func TestDiffBoundsApproximateTextRenames(t *testing.T) {
-	for _, unmatched := range []int{100, 101} {
-		t.Run(fmt.Sprintf("%d unmatched", unmatched), func(t *testing.T) {
-			dir := t.TempDir()
-			require.NoError(t, os.Mkdir(filepath.Join(dir, "old"), 0o700))
-			for i := range unmatched + 1 {
-				text := fmt.Sprintf("file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\noriginal\n", i, i, i, i, i, i)
-				require.NoError(t, os.WriteFile(filepath.Join(dir, "old", fmt.Sprintf("%03d.txt", i)), []byte(text), 0o600))
-			}
-			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
-			require.NoError(t, os.Rename(filepath.Join(dir, "old"), filepath.Join(dir, "new")))
-			for i := range unmatched {
-				text := fmt.Sprintf("file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\nedited\n", i, i, i, i, i, i)
-				require.NoError(t, os.WriteFile(filepath.Join(dir, "new", fmt.Sprintf("%03d.txt", i)), []byte(text), 0o600))
-			}
-			result, err := Diff(t.Context(), dir)
-			require.NoError(t, err)
-			wantChanges, wantRenamed := 203, 1
-			if unmatched == 100 {
-				wantChanges, wantRenamed = 101, 101
-			}
-			require.Len(t, result.Changes, wantChanges)
-			var renamed int
-			previous := ""
-			for _, change := range result.Changes {
-				assert.Greater(t, change.Path(), previous)
-				previous = change.Path()
-				if change.Status() == "renamed" {
-					renamed++
-					assert.Equal(t, strings.TrimPrefix(change.Before.Path, "old/"), strings.TrimPrefix(change.After.Path, "new/"))
-				}
-			}
-			assert.Equal(t, wantRenamed, renamed, "only unmatched candidates count toward the approximate limit")
+			assert.Equal(t, result, repeated, "text rename matching must be deterministic")
 		})
 	}
 }
