@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -72,17 +72,10 @@ func (b *Bundle) Create(ctx context.Context) error {
 			return err
 		}
 
-		getSigCreatePassword := func(_ bool) ([]byte, error) {
-			if b.cfg.CreateOpts.SigningKeyPassword != "" {
-				return []byte(b.cfg.CreateOpts.SigningKeyPassword), nil
-			}
-			return interactive.PromptSigPassword()
-		}
-
 		// sign the bundle
 		signBlobOptions := signing.DefaultSignBlobOptions()
 		signBlobOptions.OutputSignature = filepath.Join(b.tmp, config.BundleYAMLSignature)
-		signBlobOptions.PassFunc = getSigCreatePassword
+		signBlobOptions.PassFunc = b.getSigCreatePassword
 		signBlobOptions.Key = b.cfg.CreateOpts.SigningKeyPath
 		signBlobOptions.NewBundleFormat = false
 		_, err := signing.CosignSignBlobWithOptions(ctx, bundlePath, signBlobOptions)
@@ -108,6 +101,19 @@ func (b *Bundle) Create(ctx context.Context) error {
 	bundlerClient := bundler.NewBundler(&opts)
 
 	return bundlerClient.Create(ctx)
+}
+
+// getSigCreatePassword returns the password for the bundle signing key. With
+// --confirm there is no one to answer a prompt, so an unset password is passed
+// to cosign as empty (keys generated with no passphrase) instead of prompting.
+func (b *Bundle) getSigCreatePassword(_ bool) ([]byte, error) {
+	if b.cfg.CreateOpts.SigningKeyPassword != "" {
+		return []byte(b.cfg.CreateOpts.SigningKeyPassword), nil
+	}
+	if config.CommonOptions.Confirm {
+		return []byte{}, nil
+	}
+	return interactive.PromptSigPassword()
 }
 
 // confirmBundleCreation prompts the user to confirm bundle creation
