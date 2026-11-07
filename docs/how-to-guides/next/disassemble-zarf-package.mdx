@@ -1,8 +1,8 @@
 ---
 title: Disassemble and reassemble a Zarf package
-description: Recover a complete Zarf package as editable source and recreate it without remote source access.
+description: Recover a complete Zarf package as editable source, review local changes, and recreate it without remote source access.
 sidebar:
-  order: 4.9
+  order: 4.900
 ---
 
 import { Steps } from '@astrojs/starlight/components';
@@ -45,10 +45,13 @@ By the end of this guide, you will have edited source and a recreated package th
 
 3. **Review the generated worktree**
 
-   The generated `app-source/zarf.yaml` references local assets and preserves the package API version and architecture. Existing versions receive the `-disassembled` suffix; an unversioned package receives the version `disassembled`. The `.uds/disassembly.json` file records the metadata format version, source architecture, and source flavor required for reassembly.
+   The generated `app-source/zarf.yaml` references local assets and preserves the package API version and architecture. Existing versions receive the `-disassembled` suffix; an unversioned package receives the version `disassembled`. The `.uds/disassembly.json` file records the metadata format version, source architecture, source flavor, package digest, sanitized source hint, and baseline file inventory. The private `.uds/baseline` directory retains the original generated text for change reports; binary content is recorded by digest and size rather than copied.
 
    > [!CAUTION]
-   > Do not edit `.uds/disassembly.json`. Reassembly rejects unsupported metadata versions and architecture drift between that file and `zarf.yaml`.
+   > Do not edit `.uds` metadata or baseline files. Reassembly rejects unsupported metadata versions and architecture drift between `.uds/disassembly.json` and `zarf.yaml`. Change reports validate the metadata and retained baseline before producing output.
+
+   > [!CAUTION]
+   > Protect the worktree, baseline, and change reports at the same sensitivity level as the package and its environment. `.uds` files and directories are private to the current user, but baseline text remains there even after you delete it from the visible source. Reports can expose that deleted text. The baseline is debugging material, not signed or tamper-evident audit evidence, and is excluded from reassembled packages. Remove the worktree and its baseline together when the workaround is no longer needed.
 
    > [!CAUTION]
    > For Git repositories, disassembly replaces the original repository URL with an absolute `file://` source. This also changes the rebuilt repository's deploy identity. Manifests or GitOps consumers that reference the original URL may need adjustments to work correctly.
@@ -58,6 +61,17 @@ By the end of this guide, you will have edited source and a recreated package th
    Edit the generated source, then review the complete worktree. Keep the version ending in `disassembled` so operators can distinguish the recreated package from the original signed artifact.
 
    If you edit files inside a recovered Git repository, commit those changes in that repository before reassembly. Zarf clones committed content, so uncommitted working-tree edits are not included. Other generated source files do not require Git commits.
+
+   > [!NOTE]
+   > At any time while editing, you can compare your changes with the source captured during disassembly:
+   >
+   > ```bash
+   > uds --features=NextMode=true,PackageMod=true package mod diff ./app-source
+   > ```
+   >
+   > The report lists added, deleted, renamed, and modified files, shows text differences, and identifies binary changes. It does not modify your files or require the original package or network access. The report displays `No changes.` when no source changes are found.
+   >
+   > Use the report to promote lasting changes upstream within your environment's security rules.
 
 5. **Reassemble the package**
 
@@ -78,6 +92,12 @@ A package archive beneath `./build` confirms that the generated source is builda
 Reassembly does not prove deployment behavior. Validate the recreated artifact in its intended environment, then review and sign it according to your trust policy.
 
 ## Troubleshooting
+
+### The baseline is missing, corrupt, or uses another format
+
+**Symptom:** `package mod diff` reports missing or invalid metadata, an incomplete or corrupt text baseline, or an unsupported metadata format version.
+
+**Solution:** Use a CLI version compatible with the worktree's recorded metadata format. Do not change the version field or fabricate a replacement baseline. Preserve your edited worktree; if the baseline is missing or corrupt, disassemble the original package into a separate empty directory to obtain a valid starting point. Worktrees created without a diff baseline cannot produce a change report until they have a valid baseline from disassembly.
 
 ### The output directory contains files
 

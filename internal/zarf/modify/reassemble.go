@@ -6,6 +6,7 @@ package modify
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
@@ -26,7 +27,12 @@ func Reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
 }
 
 func reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
-	metadata, err := readDisassemblyMetadata(opts.SourceDir)
+	root, err := os.OpenRoot(opts.SourceDir)
+	if err != nil {
+		return "", fmt.Errorf("opening source directory: %w", err)
+	}
+	defer root.Close()
+	metadata, err := readDisassemblyMetadata(root)
 	if err != nil {
 		return "", err
 	}
