@@ -37,6 +37,12 @@ func (o DeployOptions) Validate() error {
 	if err := validateConfig(o.Config); err != nil {
 		return err
 	}
+	if o.ZarfTimeout < 0 {
+		return fmt.Errorf("ZarfTimeout must not be negative: %w", ErrInvalidDeployOptions)
+	}
+	if o.ZarfRetries < 0 {
+		return fmt.Errorf("ZarfRetries must not be negative: %w", ErrInvalidDeployOptions)
+	}
 	return nil
 }
 
