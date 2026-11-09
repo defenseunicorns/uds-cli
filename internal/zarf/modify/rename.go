@@ -157,7 +157,7 @@ func textRenameEntry(store *memory.Storage, name string, contents []byte) (objec
 		return object.ChangeEntry{}, err
 	}
 	// The tree supplies content to Go-Git; ChangeEntry.Name keeps the inventory
-	// path. Regular mode makes matching independent of the real permissions.
+	// path.
 	entry := object.TreeEntry{Name: "content", Mode: filemode.Regular, Hash: hash}
 	tree := &object.Tree{Entries: []object.TreeEntry{entry}}
 	encoded := &plumbing.MemoryObject{}

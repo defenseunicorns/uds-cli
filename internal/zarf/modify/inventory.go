@@ -21,11 +21,10 @@ import (
 	"golang.org/x/text/transform"
 )
 
-// FileRecord identifies one source file or symbolic link. Mode contains Unix
-// permission and special bits; a link's size and digest describe its target string.
+// FileRecord identifies one source file or symbolic link. A link's size and
+// digest describe its target string.
 type FileRecord struct {
 	Path   string `json:"path"`
-	Mode   uint32 `json:"mode"`
 	Size   int64  `json:"size"`
 	Kind   string `json:"kind"`
 	Digest string `json:"digest"`
@@ -57,16 +56,7 @@ func inventory(ctx context.Context, root *os.Root) ([]FileRecord, error) {
 		if err != nil {
 			return err
 		}
-		record := FileRecord{Path: name, Mode: uint32(info.Mode().Perm())}
-		if info.Mode()&os.ModeSetuid != 0 {
-			record.Mode |= 0o4000
-		}
-		if info.Mode()&os.ModeSetgid != 0 {
-			record.Mode |= 0o2000
-		}
-		if info.Mode()&os.ModeSticky != 0 {
-			record.Mode |= 0o1000
-		}
+		record := FileRecord{Path: name}
 		switch {
 		case info.Mode()&os.ModeSymlink != 0:
 			record.Kind = "symlink"

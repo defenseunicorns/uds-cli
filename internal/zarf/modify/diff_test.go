@@ -75,9 +75,10 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	clean, err := Diff(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Empty(t, clean.Changes)
-	// Ignored metadata and link destinations do not change source identity.
+	// Ignored metadata, permissions, and link destinations do not change source identity.
 	require.NoError(t, os.WriteFile(external, []byte("destination changed"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "repo/.git/config"), []byte("changed"), 0o600))
+	require.NoError(t, os.Chmod(filepath.Join(dir, "mode.sh"), 0o700|os.ModeSetuid))
 	ignored, err := Diff(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Equal(t, clean, ignored)
@@ -86,7 +87,6 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	require.NoError(t, os.Remove(filepath.Join(dir, "binary-delete")))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "binary-modify"), []byte{0, 4, 5}, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "binary-add"), []byte{0, 6}, 0o600))
-	require.NoError(t, os.Chmod(filepath.Join(dir, "mode.sh"), 0o700|os.ModeSetuid))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "to-binary"), []byte{0, 7}, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "to-text"), []byte("now text\n"), 0o600))
 	require.NoError(t, os.Remove(filepath.Join(dir, "link")))
@@ -95,8 +95,8 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	changed, err := Diff(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Equal(t, before, snapshotTree(t, dir), "diff must not change source or baseline")
-	record := func(path, kind, contents string, mode uint32) *FileRecord {
-		r := &FileRecord{Path: path, Kind: kind, Mode: mode, Size: int64(len(contents)), Digest: digest.FromString(contents).String()}
+	record := func(path, kind, contents string) *FileRecord {
+		r := &FileRecord{Path: path, Kind: kind, Size: int64(len(contents)), Digest: digest.FromString(contents).String()}
 		if kind == "symlink" {
 			r.Target = contents
 		}
@@ -106,14 +106,13 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 		before, after *FileRecord
 		patch         string
 	}{
-		{record("a.txt", "text", "original\n", 0o600), record("a.txt", "text", "edited\n", 0o600), "-original\n+edited\n"},
-		{nil, record("binary-add", "binary", "\x00\x06", 0o600), ""},
-		{record("binary-delete", "binary", "\x00\x01", 0o600), nil, ""},
-		{record("binary-modify", "binary", "\x00\x02", 0o600), record("binary-modify", "binary", "\x00\x04\x05", 0o600), ""},
-		{record("link", "symlink", external, 0o777), record("link", "symlink", "missing-target", 0o777), ""},
-		{record("mode.sh", "text", "echo unchanged\n", 0o600), record("mode.sh", "text", "echo unchanged\n", 0o4700), ""},
-		{record("to-binary", "text", "previous text\n", 0o600), record("to-binary", "binary", "\x00\x07", 0o600), "-previous text\n"},
-		{record("to-text", "binary", "\x00\x03", 0o600), record("to-text", "text", "now text\n", 0o600), "+now text\n"},
+		{record("a.txt", "text", "original\n"), record("a.txt", "text", "edited\n"), "-original\n+edited\n"},
+		{nil, record("binary-add", "binary", "\x00\x06"), ""},
+		{record("binary-delete", "binary", "\x00\x01"), nil, ""},
+		{record("binary-modify", "binary", "\x00\x02"), record("binary-modify", "binary", "\x00\x04\x05"), ""},
+		{record("link", "symlink", external), record("link", "symlink", "missing-target"), ""},
+		{record("to-binary", "text", "previous text\n"), record("to-binary", "binary", "\x00\x07"), "-previous text\n"},
+		{record("to-text", "binary", "\x00\x03"), record("to-text", "text", "now text\n"), "+now text\n"},
 	}
 	require.Len(t, changed.Changes, len(want))
 	for i, expected := range want {
@@ -310,20 +309,18 @@ func TestDiffRenames(t *testing.T) {
 	const edited = "alpha\nbravo\ncharlie\ndelta\necho\nupdated\n"
 	for _, tc := range []struct {
 		name, before, after string
-		mode                fs.FileMode
 		wantRename          bool
 	}{
-		{name: "identical binary", before: "\x00before", after: "\x00before", mode: 0o600, wantRename: true},
-		{name: "different binary", before: "\x00before", after: "\x00after", mode: 0o600},
-		{name: "identical text", before: text, after: text, mode: 0o600, wantRename: true},
-		{name: "edited text", before: text, after: edited, mode: 0o600, wantRename: true},
-		{name: "edited executable text", before: text, after: edited, mode: 0o700, wantRename: true},
-		{name: "different text", before: text, after: "entirely unrelated material\n", mode: 0o600},
+		{name: "identical binary", before: "\x00before", after: "\x00before", wantRename: true},
+		{name: "different binary", before: "\x00before", after: "\x00after"},
+		{name: "identical text", before: text, after: text, wantRename: true},
+		{name: "edited text", before: text, after: edited, wantRename: true},
+		{name: "different text", before: text, after: "entirely unrelated material\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			oldPath, newPath := "z-old.txt", "a-new\t\"é.txt"
-			require.NoError(t, os.WriteFile(filepath.Join(dir, oldPath), []byte(tc.before), tc.mode))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, oldPath), []byte(tc.before), 0o600))
 			require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
 			require.NoError(t, os.Rename(filepath.Join(dir, oldPath), filepath.Join(dir, newPath)))
 			require.NoError(t, os.WriteFile(filepath.Join(dir, newPath), []byte(tc.after), 0o600))
@@ -348,8 +345,6 @@ func TestDiffRenames(t *testing.T) {
 			assert.Equal(t, oldPath, change.Path())
 			assert.Equal(t, oldPath, change.Before.Path)
 			assert.Equal(t, newPath, change.After.Path)
-			assert.EqualValues(t, tc.mode, change.Before.Mode)
-			assert.EqualValues(t, 0o640, change.After.Mode)
 			if tc.before == tc.after {
 				assert.Nil(t, change.Patch)
 			} else {

@@ -75,18 +75,9 @@ func writeDiffMetadata(report *strings.Builder, colors gitdiff.ColorConfig, chan
 	before, after := change.Before, change.After
 	paired := before != nil && after != nil
 	typeChanged := paired && before.Kind != after.Kind
-	switch {
-	case before == nil && after != nil:
-		writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("new file mode %06o", diffFileMode(after)))
-	case after == nil && before != nil:
-		writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("deleted file mode %06o", diffFileMode(before)))
-	case paired && diffFileMode(before) != diffFileMode(after):
-		writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("old mode %06o", diffFileMode(before)))
-		writeDiffLine(report, colors, gitdiff.Meta, fmt.Sprintf("new mode %06o", diffFileMode(after)))
-	}
-	if paired && (before.Kind == "text" && after.Kind == "binary" || before.Kind == "binary" && after.Kind == "text") {
-		writeDiffLine(report, colors, gitdiff.Meta, "old content "+before.Kind)
-		writeDiffLine(report, colors, gitdiff.Meta, "new content "+after.Kind)
+	if typeChanged {
+		writeDiffLine(report, colors, gitdiff.Meta, "old type "+before.Kind)
+		writeDiffLine(report, colors, gitdiff.Meta, "new type "+after.Kind)
 	}
 	for _, side := range []struct {
 		prefix string
@@ -118,13 +109,6 @@ func writeDiffMetadata(report *strings.Builder, colors gitdiff.ColorConfig, chan
 	if change.Status() == "renamed" && paired && before.Kind == "binary" && after.Kind == "binary" && before.Digest == after.Digest {
 		writeDiffLine(report, colors, gitdiff.Meta, before.Digest)
 	}
-}
-
-func diffFileMode(record *modify.FileRecord) uint32 {
-	if record.Kind == "symlink" {
-		return 0o120000 | record.Mode
-	}
-	return 0o100000 | record.Mode
 }
 
 type patchBody struct{ gitdiff.Patch }

@@ -8,7 +8,6 @@ package package_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -95,6 +94,7 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 	require.FileExists(t, filepath.Join(worktree, ".uds", "disassembly.json"))
 
 	t.Run("clean diff", func(t *testing.T) {
+		require.NoError(t, os.Chmod(filepath.Join(worktree, "zarf.yaml"), 0o700))
 		streams, _, out, errOut := iostreams.NewTestIOStreams()
 		root := cli.NewRootCommand(streams, features)
 		root.SetArgs([]string{"package", "mod", "diff", worktree})
@@ -139,11 +139,6 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 		t.Setenv("NO_COLOR", "")
 		t.Setenv("TERM", "xterm")
 		definitionPath := filepath.Join(worktree, "zarf.yaml")
-		info, err := os.Stat(definitionPath)
-		require.NoError(t, err)
-		beforeMode := info.Mode().Perm()
-		afterMode := beforeMode ^ 0o100
-		require.NoError(t, os.Chmod(definitionPath, afterMode))
 		require.NoError(t, os.Rename(definitionPath, filepath.Join(worktree, "zarf-workaround.yaml")))
 		require.NoError(t, os.WriteFile(filepath.Join(worktree, "notes.txt"), []byte("reproduce the workaround upstream"), 0o600))
 		require.NoError(t, os.WriteFile(filepath.Join(worktree, "payload.bin"), []byte{0, 1, 2}, 0o600))
@@ -167,8 +162,7 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 		assert.Contains(t, report, "deleted \""+filepath.ToSlash(deletedPath)+"\"")
 		assert.Contains(t, report, "+reproduce the workaround upstream")
 		assert.Contains(t, report, "-offline payload")
-		assert.Contains(t, report, fmt.Sprintf("old mode %06o\nnew mode %06o\n", 0o100000|beforeMode, 0o100000|afterMode))
-		assert.Contains(t, report, "added \"payload.bin\"\nnew file mode 100600\nsize 3 bytes\nsha256:")
+		assert.Contains(t, report, "added \"payload.bin\"\nsize 3 bytes\nsha256:")
 		assert.Contains(t, report, "@@")
 		assert.NotContains(t, report, "No changes.")
 		assert.NotContains(t, report, "\x1b[", "captured reports must remain plain text")

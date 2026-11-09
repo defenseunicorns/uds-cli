@@ -110,8 +110,8 @@ func validateDisassemblyMetadata(metadata disassemblyMetadata) error {
 				return fmt.Errorf("inventory file %q is also a parent directory", parent)
 			}
 		}
-		if record.Mode > 0o7777 || record.Size < 0 || digest.Digest(record.Digest).Validate() != nil || !strings.HasPrefix(record.Digest, "sha256:") {
-			return fmt.Errorf("invalid mode, size, or SHA-256 digest for inventory path %q", record.Path)
+		if record.Size < 0 || digest.Digest(record.Digest).Validate() != nil || !strings.HasPrefix(record.Digest, "sha256:") {
+			return fmt.Errorf("invalid size or SHA-256 digest for inventory path %q", record.Path)
 		}
 		switch record.Kind {
 		case "text", "binary":
