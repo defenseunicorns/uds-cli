@@ -6,6 +6,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -40,6 +41,9 @@ func (b *Bundle) Inspect() error {
 		// Check that provided oci source path is valid, and update it if it's missing the full path
 		source, err := CheckOCISourcePath(b.cfg.InspectOpts.Source)
 		if err != nil {
+			if errors.Is(err, utils.ErrNextBundle) {
+				return err
+			}
 			return fmt.Errorf("source %s is either invalid or doesn't exist", b.cfg.InspectOpts.Source)
 		}
 		b.cfg.InspectOpts.Source = source
