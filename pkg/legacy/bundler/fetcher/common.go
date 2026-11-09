@@ -14,6 +14,7 @@ import (
 	"github.com/defenseunicorns/pkg/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils/boci"
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api"
@@ -48,6 +49,16 @@ func NewBundleOCIRemote(ctx context.Context, url string, platform ocispec.Platfo
 		oci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
 		oci.WithPlainHTTP(plainHTTP),
 	)
+}
+
+// CheckLegacyBundleRemote rejects Next indexes before Legacy platform selection.
+func CheckLegacyBundleRemote(ctx context.Context, remote *oci.OrasRemote) error {
+	repository := remote.Repo()
+	if _, err := boci.GetIndex(remote, repository.Reference.Reference); err != nil {
+		return err
+	}
+	_, err := remote.ResolveRoot(ctx)
+	return err
 }
 
 func packageManifestLayerDescriptor(sourceDesc ocispec.Descriptor) ocispec.Descriptor {

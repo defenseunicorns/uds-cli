@@ -15,6 +15,15 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/signing"
 )
 
+func TestCheckLegacyBundlePath(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, CheckLegacyBundlePath(dir))
+	require.NoError(t, CheckLegacyBundlePath(filepath.Join(dir, "missing")))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "oci"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "oci", "index.json"), []byte(`{}`), 0o600))
+	require.ErrorIs(t, CheckLegacyBundlePath(dir), ErrNextBundle)
+}
+
 func TestReadPackageYAMLV1beta1OptionalComponents(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zarf.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`

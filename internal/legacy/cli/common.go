@@ -85,12 +85,15 @@ func configureZarf() {
 }
 
 func setBundleFile(args []string) error {
-	pathToBundleFile := ""
+	pathToBundleFile := "."
 	if len(args) > 0 {
-		if !helpers.IsDir(args[0]) {
-			return fmt.Errorf("(%q) is not a valid path to a directory", args[0])
-		}
-		pathToBundleFile = filepath.Join(args[0])
+		pathToBundleFile = args[0]
+	}
+	if err := utils.CheckLegacyBundlePath(pathToBundleFile); err != nil {
+		return err
+	}
+	if !helpers.IsDir(pathToBundleFile) {
+		return fmt.Errorf("(%q) is not a valid path to a directory", pathToBundleFile)
 	}
 	// Handle .yaml or .yml
 	bundleYml := strings.Replace(config.BundleYAML, ".yaml", ".yml", 1)
