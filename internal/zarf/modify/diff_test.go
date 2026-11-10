@@ -307,6 +307,7 @@ func TestDiffLargeTextChanges(t *testing.T) {
 func TestDiffRenames(t *testing.T) {
 	const text = "alpha\nbravo\ncharlie\ndelta\necho\nfoxtrot\n"
 	const edited = "alpha\nbravo\ncharlie\ndelta\necho\nupdated\n"
+	padding := strings.Repeat("a", (1<<20)-len(text))
 	for _, tc := range []struct {
 		name, before, after string
 		wantRename          bool
@@ -316,6 +317,9 @@ func TestDiffRenames(t *testing.T) {
 		{name: "identical text", before: text, after: text, wantRename: true},
 		{name: "edited text", before: text, after: edited, wantRename: true},
 		{name: "different text", before: text, after: "entirely unrelated material\n"},
+		{name: "edited text at 1 MiB", before: padding + text, after: padding + edited, wantRename: true},
+		{name: "edited text above 1 MiB", before: padding + "a" + text, after: padding + "a" + edited},
+		{name: "identical text above 1 MiB", before: padding + "a" + text, after: padding + "a" + text, wantRename: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -337,6 +341,21 @@ func TestDiffRenames(t *testing.T) {
 				assert.Equal(t, oldPath, result.Changes[1].Path())
 				assert.Equal(t, digest.FromString(tc.after).String(), result.Changes[0].After.Digest)
 				assert.Equal(t, digest.FromString(tc.before).String(), result.Changes[1].Before.Digest)
+				for i, contents := range []string{tc.after, tc.before} {
+					change := result.Changes[i]
+					if strings.ContainsRune(contents, 0) {
+						assert.Nil(t, change.Patch)
+						continue
+					}
+					require.NotNil(t, change.Patch)
+					var patched strings.Builder
+					for _, file := range change.Patch.FilePatches() {
+						for _, chunk := range file.Chunks() {
+							patched.WriteString(chunk.Content())
+						}
+					}
+					assert.Equal(t, contents, patched.String(), "fallback patches must retain every byte")
+				}
 				return
 			}
 			require.Len(t, result.Changes, 1)
@@ -392,6 +411,7 @@ func TestDiffTextRenameCandidates(t *testing.T) {
 	for _, tc := range []struct {
 		name                      string
 		original, current, edited int
+		oversized                 int
 		duplicate                 bool
 		wantRenamed               int
 	}{
@@ -400,13 +420,18 @@ func TestDiffTextRenameCandidates(t *testing.T) {
 		{name: "duplicate extra", original: 102, current: 103, duplicate: true, wantRenamed: 102},
 		{name: "approximate at limit", original: 101, current: 101, edited: 100, wantRenamed: 101},
 		{name: "approximate above limit", original: 102, current: 102, edited: 101, wantRenamed: 1},
+		{name: "oversized candidates excluded from count", original: 102, current: 102, edited: 101, oversized: 1, wantRenamed: 101},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			text := func(i int, revision string) []byte {
 				if tc.duplicate {
 					return []byte("identical text\n")
 				}
-				return fmt.Appendf(nil, "file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\n%s\n", i, i, i, i, i, i, revision)
+				contents := fmt.Appendf(nil, "file %d\nalpha %d\nbravo %d\ncharlie %d\ndelta %d\necho %d\n%s\n", i, i, i, i, i, i, revision)
+				if i < tc.oversized {
+					contents = append(contents, strings.Repeat("a", 1<<20)...)
+				}
+				return contents
 			}
 			dir := t.TempDir()
 			require.NoError(t, os.Mkdir(filepath.Join(dir, "old"), 0o700))

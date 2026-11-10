@@ -13,7 +13,10 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 )
 
-const textRenameLimit = 100
+const (
+	textRenameLimit     = 100
+	textRenameSizeLimit = 1 << 20
+)
 
 func detectRenames(ctx context.Context, changes []FileChange, texts map[string][]byte) ([]FileChange, error) {
 	type identity struct {
@@ -33,7 +36,7 @@ func detectRenames(ctx context.Context, changes []FileChange, texts map[string][
 			record = change.After
 		}
 		byPath[record.Path] = i
-		if record.Kind == "text" {
+		if record.Kind == "text" && record.Size <= textRenameSizeLimit {
 			if change.Before != nil {
 				textDeleted++
 			} else {
@@ -64,7 +67,7 @@ func detectRenames(ctx context.Context, changes []FileChange, texts map[string][
 			}
 			before, after := group.deleted[i], group.added[i]
 			mates[before], mates[after] = after, before
-			if key.kind == "text" {
+			if key.kind == "text" && key.size <= textRenameSizeLimit {
 				textDeleted--
 				textAdded--
 			}
@@ -79,7 +82,7 @@ func detectRenames(ctx context.Context, changes []FileChange, texts map[string][
 			}
 			name := change.Path()
 			contents, ok := texts[name]
-			if !ok {
+			if !ok || len(contents) > textRenameSizeLimit {
 				continue
 			}
 			if err := ctx.Err(); err != nil {
@@ -98,8 +101,8 @@ func detectRenames(ctx context.Context, changes []FileChange, texts map[string][
 			candidates = append(candidates, candidate)
 		}
 		options := *object.DefaultDiffTreeOptions
-		// Exact matches are already paired; only unmatched text reaches Go-Git's
-		// bounded approximate comparison.
+		// Exact matches are already paired; only unmatched text at or below the
+		// per-file size limit reaches Go-Git's bounded approximate comparison.
 		options.RenameLimit = textRenameLimit
 		detected, err := object.DetectRenames(candidates, &options)
 		if err != nil {
