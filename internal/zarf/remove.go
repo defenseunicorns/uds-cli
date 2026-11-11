@@ -291,9 +291,9 @@ func (r *ZarfRemover) RemovePackage(ctx context.Context, pkg *spec.Package, opts
 	}
 
 	removeOpts := packager.RemoveOptions{
-		Cluster:           c,
-		Timeout:           helmTimeout,
-		NamespaceOverride: pkg.Namespace,
+		Cluster:      c,
+		Timeout:      helmTimeout,
+		RemoveConfig: packager.RemoveConfig{NamespaceOverride: pkg.Namespace},
 	}
 
 	if err := withTempDir(opts.Config.Options.TmpDir, func() error {

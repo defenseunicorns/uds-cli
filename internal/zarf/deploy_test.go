@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -633,13 +633,13 @@ func TestBuildComponentFilter(t *testing.T) {
 				Components: tt.zarfComponents,
 			}
 
-			selectedDefinition, err := filters.Apply(convert.PackageFromV1alpha1(pkg), filter)
+			selectedDefinition, err := filters.Apply(convert.PackageFromV1alpha1(pkg), filter) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantNames, componentNames(convert.PackageToV1alpha1(selectedDefinition).Components))
+			assert.Equal(t, tt.wantNames, componentNames(convert.PackageToV1alpha1(selectedDefinition).Components)) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 		})
 	}
 }

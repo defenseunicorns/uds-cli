@@ -20,7 +20,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/pkg/packager/assemble"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
@@ -299,8 +299,8 @@ func TestPrefetchPackageMetadata(t *testing.T) {
 func TestDeployPrefetchReusesMetadataDuringPreview(t *testing.T) {
 	ctx := context.Background()
 	// Build valid package metadata containing both sensitive and non-sensitive variables.
-	pkgLayout, err := assemble.AssembleSkeleton(ctx, &load.ResolvedPackage{
-		Definition: convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{
+	pkgLayout, err := assemble.AssembleSkeleton(ctx, &load.ResolvedPackage{ //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
+		Definition: convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{ //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 			Kind: v1alpha1.ZarfPackageConfig,
 			Metadata: v1alpha1.ZarfMetadata{
 				Name:    "internal-package",

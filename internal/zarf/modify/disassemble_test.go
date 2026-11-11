@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/archive"
 	"github.com/zarf-dev/zarf/src/pkg/images"
@@ -89,7 +89,7 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	require.Len(t, pkg.Components[0].Charts, 1)
 	chart := pkg.Components[0].Charts[0]
 	assert.Equal(t, "app", chart.Name)
-	assert.Equal(t, "1.0.0", chart.LegacyVersion)
+	assert.Equal(t, "1.0.0", chart.LegacyVersion) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	require.NotNil(t, chart.Local)
 	assert.Nil(t, chart.HelmRepository)
 	assert.Equal(t, "components/app/charts/app", chart.Local.Path)
@@ -119,12 +119,12 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	assert.Contains(t, string(rendered), "{{ $labels.instance }}")
 	assert.Equal(t, "components/app/files/0-config.yaml", pkg.Components[0].Files[0].Source)
 	assert.Equal(t, "components/app/files/1-config.yaml", pkg.Components[0].Files[1].Source)
-	assert.Equal(t, "components/app/data/0-payload.txt", pkg.Components[0].DataInjections[0].Source)
-	assert.Equal(t, "components/app/data/1-payload.txt", pkg.Components[0].DataInjections[1].Source)
+	assert.Equal(t, "components/app/data/0-payload.txt", pkg.Components[0].DataInjections[0].Source) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
+	assert.Equal(t, "components/app/data/1-payload.txt", pkg.Components[0].DataInjections[1].Source) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	for _, file := range pkg.Components[0].Files {
 		assert.FileExists(t, filepath.Join(outputDir, file.Source))
 	}
-	for _, data := range pkg.Components[0].DataInjections {
+	for _, data := range pkg.Components[0].DataInjections { //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 		assert.FileExists(t, filepath.Join(outputDir, data.Source))
 	}
 	require.Len(t, pkg.Components[0].Repositories, 1)
@@ -164,9 +164,9 @@ func TestDisassembleRoundTripsThroughZarfOffline(t *testing.T) {
 	reassembledREADME, err := os.ReadFile(filepath.Join(reassembledRepositoryRoot, reassembledRepositoryName, "README.md"))
 	require.NoError(t, err)
 	assert.Equal(t, "edited offline repository\n", string(reassembledREADME))
-	assert.Equal(t, "roundtrip", reassembled.AsV1alpha1().Metadata.Name)
-	assert.Equal(t, "1.2.3-disassembled", reassembled.AsV1alpha1().Metadata.Version)
-	assert.Equal(t, packageArchitecture, reassembled.AsV1alpha1().Build.Architecture)
+	assert.Equal(t, "roundtrip", reassembled.AsV1alpha1().Metadata.Name)              //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
+	assert.Equal(t, "1.2.3-disassembled", reassembled.AsV1alpha1().Metadata.Version)  //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
+	assert.Equal(t, packageArchitecture, reassembled.AsV1alpha1().Build.Architecture) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 }
 
 func TestDisassembleRoundTripsCollidingManifestBasenames(t *testing.T) {
@@ -232,7 +232,7 @@ func TestDisassemblePullsOCIPackage(t *testing.T) {
 			pkgLayout := assembleTestPackage(t, sourceDir, load.DefinitionOptions{SkipVersionCheck: true}, assemble.AssembleOptions{SkipSBOM: true, OCIConcurrency: 1, CachePath: t.TempDir()})
 			t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
 			ref := strings.TrimPrefix(server.URL, "http://") + "/test/disassemble:1.0.0"
-			remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: tc.packageArchitecture, OS: packageoci.MultiOS}, zoci.RemoteClientOptions{
+			remote, err := zoci.NewRemote(t.Context(), ref, ocispec.Platform{Architecture: tc.packageArchitecture, OS: packageoci.MultiOS}, zoci.RemoteClientOptions{
 				RemoteOptions: zarftypes.RemoteOptions{PlainHTTP: true},
 			})
 			require.NoError(t, err)
@@ -302,7 +302,7 @@ func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 
 	// Recreate an older package definition that predates migration markers and
 	// stores only the deprecated representation.
-	pkg := pkgLayout.AsV1alpha1()
+	pkg := pkgLayout.AsV1alpha1() //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	pkg.Build.Migrations = nil
 	pkg.Components[0].DeprecatedScripts = v1alpha1.DeprecatedZarfComponentScripts{
 		Prepare: []string{"echo legacy-create"},
@@ -332,9 +332,9 @@ func TestDisassembleRemovesDeprecatedMigrationFields(t *testing.T) {
 	assert.Empty(t, component.Actions.OnCreate)
 	require.Len(t, component.Actions.OnDeploy.Before, 1)
 	assert.Equal(t, "echo legacy-deploy", component.Actions.OnDeploy.Before[0].Cmd)
-	require.Len(t, component.Actions.OnDeploy.After, 1)
-	require.Len(t, component.Actions.OnDeploy.After[0].SetVariables, 1)
-	assert.Equal(t, "RESULT", component.Actions.OnDeploy.After[0].SetVariables[0].Name)
+	require.Len(t, component.Actions.OnDeploy.After, 1)                                 //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
+	require.Len(t, component.Actions.OnDeploy.After[0].SetVariables, 1)                 //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
+	assert.Equal(t, "RESULT", component.Actions.OnDeploy.After[0].SetVariables[0].Name) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 }
 
 // Disassembly selectively rewrites package source fields instead of round-tripping
@@ -347,7 +347,7 @@ func TestZarfPackageSchemaChangesRequireDisassemblyReview(t *testing.T) {
 		schema []byte
 		want   string
 	}{
-		{name: "v1alpha1", schema: zarfschema.GetV1Alpha1Schema(), want: "e46b466b366ba42fa171de0cf27302ced24c3b3416bcbaa8a1da93c2383dfd1b"},
+		{name: "v1alpha1", schema: zarfschema.GetV1Alpha1Schema(), want: "e46b466b366ba42fa171de0cf27302ced24c3b3416bcbaa8a1da93c2383dfd1b"}, //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 		{name: "v1beta1", schema: zarfschema.GetV1Beta1Schema(), want: "0bc3f70ed80b6bbc76a2d17cf63583398fe73af801ff4a42fb732842aa564302"},
 	}
 	for _, tc := range tests {
@@ -405,8 +405,8 @@ func TestDisassemblePreservesFlavorSelectors(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, reassembled.Cleanup()) })
 			assert.Equal(t, tc.wantVersion, reassembled.Definition().Metadata.Version)
-			assert.Equal(t, "offline", reassembled.AsV1alpha1().Build.Flavor)
-			assert.Equal(t, "amd64", reassembled.AsV1alpha1().Build.Architecture)
+			assert.Equal(t, "offline", reassembled.AsV1alpha1().Build.Flavor)     //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
+			assert.Equal(t, "amd64", reassembled.AsV1alpha1().Build.Architecture) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 		})
 	}
 }
@@ -623,7 +623,7 @@ func TestDisassembleRejectsEscapingDocumentationNames(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
 			canaryDir := t.TempDir()
 			canaries := []string{filepath.Join(canaryDir, "first-files"), filepath.Join(canaryDir, "second-files")}
-			definition := pkgLayout.AsV1alpha1()
+			definition := pkgLayout.AsV1alpha1() //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 			definition.Documentation = make(map[string]string)
 			for _, canary := range canaries {
 				require.NoError(t, os.WriteFile(canary, []byte("untouched\n"), 0o600))
@@ -813,8 +813,8 @@ func TestWriteSourceDefinitionFormatting(t *testing.T) {
 			alphaFields := ""
 			metadataSuffix, componentSuffix := "", ""
 			if version != v1beta1.APIVersion {
-				pkg.Constants = []api.Constant{{Name: "FIXED", Value: "fixed"}}
-				pkg.Variables = []api.InteractiveVariable{{Variable: api.Variable{Name: "INPUT"}, Default: "input"}}
+				pkg.Constants = []api.Constant{{Name: "FIXED", Value: "fixed"}}                                      //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
+				pkg.Variables = []api.InteractiveVariable{{Variable: api.Variable{Name: "INPUT"}, Default: "input"}} //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 				alphaFields = "\nconstants:\n  - name: FIXED\n    value: fixed\n\nvariables:\n  - name: INPUT\n    default: input\n"
 				metadataSuffix = "  allowNamespaceOverride: true\n"
 				componentSuffix = "    required: true\n"
@@ -857,7 +857,7 @@ func TestWriteSourceDefinitionFormattingPreservesMultilineScalars(t *testing.T) 
 					Values:      api.Values{Files: []string{"values.yaml"}},
 					Attachments: map[string]string{"guide": text},
 				}
-				var definition any = convert.PackageToV1alpha1(pkg)
+				var definition any = convert.PackageToV1alpha1(pkg) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 				if version == v1beta1.APIVersion {
 					definition = convert.PackageToV1beta1(pkg)
 				}

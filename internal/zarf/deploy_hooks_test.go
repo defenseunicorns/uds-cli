@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
@@ -99,7 +99,7 @@ func TestBundleDeployHooks_DefaultsAreNoOps(t *testing.T) {
 // in isolation: zeroing Images and ImageArchives on an in-memory PackageLayout.
 func TestImageZeroingMutation(t *testing.T) {
 	pkgLayout := &layout.PackageLayout{}
-	definition := convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{
+	definition := convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{ //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 		Components: []v1alpha1.ZarfComponent{
 			{
 				Name:   "main",
@@ -115,7 +115,7 @@ func TestImageZeroingMutation(t *testing.T) {
 		},
 	})
 	require.NoError(t, pkgLayout.Filter(testComponentSelection(definition.Components)))
-	zarfPkg := pkgLayout.AsV1alpha1()
+	zarfPkg := pkgLayout.AsV1alpha1() //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 
 	// Precondition: components have images before mutation.
 	require.NotEmpty(t, zarfPkg.Components[0].Images)
@@ -127,10 +127,10 @@ func TestImageZeroingMutation(t *testing.T) {
 		zarfPkg.Components[i].Images = []string{}
 		zarfPkg.Components[i].ImageArchives = []v1alpha1.ImageArchive{}
 	}
-	updated := convert.PackageFromV1alpha1(zarfPkg)
+	updated := convert.PackageFromV1alpha1(zarfPkg) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	require.NoError(t, pkgLayout.Filter(testComponentSelection(updated.Components)))
 
-	for _, c := range pkgLayout.AsV1alpha1().Components {
+	for _, c := range pkgLayout.AsV1alpha1().Components { //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 		assert.Empty(t, c.Images, "component %q: Images should be empty after mutation", c.Name)
 		assert.Empty(t, c.ImageArchives, "component %q: ImageArchives should be empty after mutation", c.Name)
 	}

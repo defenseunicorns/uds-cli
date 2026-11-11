@@ -421,7 +421,7 @@ func deployedPackageIsSuccessful(pkg state.DeployedPackage) bool {
 	deployedComponents := make(map[string]state.DeployedComponent, len(pkg.DeployedComponents))
 	for _, deployedComponent := range pkg.DeployedComponents {
 		deployedComponents[deployedComponent.Name] = deployedComponent
-		if deployedComponent.Status != state.ComponentStatusSucceeded {
+		if deployedComponent.Status != state.ComponentStatusSucceeded { //nolint:staticcheck // Read status from deployment records written before Zarf v1.
 			return false
 		}
 	}

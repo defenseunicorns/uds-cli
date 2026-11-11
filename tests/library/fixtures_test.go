@@ -19,6 +19,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/signing"
 	"github.com/zarf-dev/zarf/src/types"
 	orasregistry "oras.land/oras-go/v2/registry"
 )
@@ -153,11 +154,13 @@ components:
         target: /tmp/%s-optional.txt
 `, name, architecture, name, name)), 0o600))
 
-	packagePath, err := packager.Create(t.Context(), packageDir, root, packager.CreateOptions{
-		CachePath:      t.TempDir(),
-		SigningKeyPath: signingKey,
-		SkipSBOM:       true,
-	})
+	opts := packager.CreateOptions{CachePath: t.TempDir(), SkipSBOM: true}
+	if signingKey != "" {
+		signOpts := signing.DefaultSignBlobOptions()
+		signOpts.Key = signingKey
+		opts.SignBlobOptions = &signOpts
+	}
+	packagePath, err := packager.Create(t.Context(), packageDir, root, opts)
 	require.NoError(t, err)
 	return packagePath
 }

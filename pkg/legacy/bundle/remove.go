@@ -122,8 +122,8 @@ func removePackages(packagesToRemove []types.Package) error {
 
 func newRemoveOptions(namespace string, c *cluster.Cluster) packager.RemoveOptions {
 	return packager.RemoveOptions{
-		Cluster:           c,
-		Timeout:           config.HelmTimeout,
-		NamespaceOverride: namespace,
+		Cluster:      c,
+		Timeout:      config.HelmTimeout,
+		RemoveConfig: packager.RemoveConfig{NamespaceOverride: namespace},
 	}
 }
