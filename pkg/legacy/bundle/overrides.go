@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -18,6 +18,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/chartvariable"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/types/valuesources"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	zarfValue "github.com/zarf-dev/zarf/src/pkg/value"
 	"helm.sh/helm/v4/pkg/cli/values"
 	"helm.sh/helm/v4/pkg/getter"
 )
@@ -130,7 +131,7 @@ func convertOverridesMap(overrideMap map[string]map[string]*values.Options) (pac
 	processed := make(packager.ValuesOverrides)
 	// Convert the options.Values map (located in chart.MergeValues) to the PkgOverrideMap format
 	for componentName, component := range overrideMap {
-		componentMap := make(map[string]map[string]interface{})
+		componentMap := make(map[string]zarfValue.Values)
 
 		for chartName, chart := range component {
 			//escape commas (with \\) in values so helm v3 can process them

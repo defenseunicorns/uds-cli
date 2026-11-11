@@ -15,7 +15,7 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
 
@@ -156,7 +156,7 @@ func localizeComponent(ctx context.Context, pkgLayout *layout.PackageLayout, out
 			return err
 		}
 	}
-	if len(component.DataInjections) > 0 {
+	if len(component.DataInjections) > 0 { //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 		if err := localizeDataInjections(ctx, pkgLayout, componentOutDir, tmpRoot, component); err != nil {
 			return err
 		}

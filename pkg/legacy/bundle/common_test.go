@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -247,9 +247,9 @@ func TestCrossRegistryPackageWithImageLoadsFromBundle(t *testing.T) {
 	dstRef := strings.TrimPrefix(dstServer.URL, "http://") + "/test/bundle:v1"
 	platform := ocispec.Platform{Architecture: config.GetArch(), OS: zarfoci.MultiOS}
 	options := zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{PlainHTTP: true}}
-	src, err := zoci.NewRemoteWithOptions(ctx, srcRef, platform, options)
+	src, err := zoci.NewRemote(ctx, srcRef, platform, options)
 	require.NoError(t, err)
-	dst, err := zoci.NewRemoteWithOptions(ctx, dstRef, platform, options)
+	dst, err := zoci.NewRemote(ctx, dstRef, platform, options)
 	require.NoError(t, err)
 
 	pushPackageFile := func(data []byte, title string) ocispec.Descriptor {
@@ -655,7 +655,7 @@ func Test_deployedPackageIsSuccessful(t *testing.T) {
 			})
 			t.Run("current PackageData", func(t *testing.T) {
 				pkg := state.DeployedPackage{Name: "test", DeployedComponents: tt.deployedComponents}
-				definition := convert.PackageFromV1alpha1(tt.definition)
+				definition := convert.PackageFromV1alpha1(tt.definition) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 				definition.APIVersion = v1beta1.APIVersion
 				require.NoError(t, pkg.SetPackageDefinition(definition))
 				require.NotEmpty(t, pkg.PackageData)

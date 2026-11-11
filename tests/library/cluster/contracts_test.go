@@ -7,7 +7,6 @@ package cluster_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -25,6 +24,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	zarfcluster "github.com/zarf-dev/zarf/src/pkg/cluster"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 	"github.com/zarf-dev/zarf/src/types"
@@ -431,10 +431,8 @@ func assertStagedUnder(t *testing.T, root, path string) {
 
 func deployedPackageDigest(t *testing.T, client *kubernetes.Clientset, packageName, namespace string) string {
 	t.Helper()
-	secretName := (&state.DeployedPackage{Name: packageName, NamespaceOverride: namespace}).GetSecretName()
-	secret, err := client.CoreV1().Secrets(state.ZarfNamespaceName).Get(t.Context(), secretName, metav1.GetOptions{})
+	zarfClient := &zarfcluster.Cluster{Clientset: client}
+	deployed, err := zarfClient.GetDeployedPackage(t.Context(), packageName, state.WithPackageNamespaceOverride(namespace))
 	require.NoError(t, err)
-	var deployed state.DeployedPackage
-	require.NoError(t, json.Unmarshal(secret.Data["data"], &deployed))
 	return deployed.Digest
 }

@@ -54,7 +54,7 @@ func TestCopySelectedPackageWritesFilteredManifest(t *testing.T) {
 
 	root, err := pkgLayout.Manifest()
 	require.NoError(t, err)
-	selected, partial, err := selectZarfLayers(t.Context(), root, pkgLayout, filters.Combine(filters.ForDeploy("included", false)))
+	selected, partial, err := selectZarfLayers(t.Context(), root, pkgLayout, filters.Combine(filters.ForDeploy("included")))
 	require.NoError(t, err)
 	assert.True(t, partial)
 	expected := selectedLayers(root.Layers, selected)

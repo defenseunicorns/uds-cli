@@ -100,7 +100,7 @@ func resumeMatches(intended *PackageSpec, deployed []state.DeployedPackage) bool
 		components[name] = struct{}{}
 	}
 	for _, component := range deployed[0].DeployedComponents {
-		if component.Name == "" || component.Status != state.ComponentStatusSucceeded {
+		if component.Name == "" || component.Status != state.ComponentStatusSucceeded { //nolint:staticcheck // Read status from deployment records written before Zarf v1.
 			return false
 		}
 		if _, ok := components[component.Name]; !ok {

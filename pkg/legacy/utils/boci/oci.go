@@ -21,7 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -549,7 +549,7 @@ func getFilteredComponents(ctx context.Context, fetcher BundleLayerFetcher, mani
 }
 
 func filterComponents(zarfPkg api.Package, optionalComponents []string) ([]api.Component, error) {
-	filtered, err := filters.Apply(zarfPkg, filters.ForDeploy(strings.Join(optionalComponents, ","), false))
+	filtered, err := filters.Apply(zarfPkg, filters.ForDeploy(strings.Join(optionalComponents, ",")))
 	if err != nil {
 		return nil, err
 	}

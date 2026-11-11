@@ -20,7 +20,7 @@ import (
 func writeSourceDefinition(path string, pkg api.Package) error {
 	// Write only the source API version. Zarf's multi-version writer projects beta
 	// service components into an alpha init package that cannot pass source validation.
-	var definition any = convert.PackageToV1alpha1(pkg)
+	var definition any = convert.PackageToV1alpha1(pkg) //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	if pkg.GetAPIVersion() == v1beta1.APIVersion {
 		definition = convert.PackageToV1beta1(pkg)
 	}

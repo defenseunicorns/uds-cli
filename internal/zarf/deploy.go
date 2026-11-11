@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
@@ -341,6 +342,11 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		return fmt.Errorf("package %q: %w", pkg.Name, err)
 	}
 
+	// Package variables only exist in v1alpha1. Bundle variables still render
+	// values_files for every schema, including v1beta1.
+	if pkgLayout.Definition().GetAPIVersion() != v1alpha1.APIVersion {
+		setVars = nil
+	}
 	deployOpts := packager.DeployOptions{
 		SkipArchitectureCheck: opts.Config.Options.SkipArchitectureCheck,
 		Timeout:               opts.ZarfTimeout,
@@ -351,6 +357,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		NamespaceOverride:     pkg.Namespace, // empty string is fine - Zarf ignores it
 	}
 	if pkgLayout.Definition().IsInitConfig() {
+		// Zarf init state needs an explicit policy when called through the SDK.
 		deployOpts.AgentMutationPolicy = state.MutationPolicyAll
 	}
 

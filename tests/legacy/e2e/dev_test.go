@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -50,7 +50,7 @@ func TestDevDeploy(t *testing.T) {
 		e2e.DeleteZarfPkg(t, "testdata/legacy/packages/podinfo")
 		bundleDir := "testdata/legacy/bundles/03-local-and-remote"
 
-		runCmd(t, fmt.Sprintf("dev deploy %s --ref %s", bundleDir, "nginx=0.0.2"))
+		runCmd(t, fmt.Sprintf("dev deploy %s --ref %s", bundleDir, "nginx=0.0.3"))
 
 		ref, _ := runCmd(t, "zarf tools kubectl get deployment -n nginx nginx-deployment -o=jsonpath='{.spec.template.spec.containers[0].image}'")
 		require.Contains(t, ref, "nginx")

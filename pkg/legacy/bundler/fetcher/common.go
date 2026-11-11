@@ -18,24 +18,33 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Preserve support for existing v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
+	"github.com/zarf-dev/zarf/src/pkg/logger"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 )
 
+// NewZarfOCIRemote returns the OCI client used for Zarf packages.
 func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...zarfoci.Modifier) (*zoci.Remote, error) {
 	plainHTTP, err := utils.NegotiatePlainHTTPForOCIRef(ctx, url, config.CommonOptions.Insecure)
 	if err != nil {
 		return nil, err
 	}
 	modifiers := append([]zarfoci.Modifier{
+		zarfoci.WithLogger(logger.From(ctx)),
 		zarfoci.WithUserAgent("uds-cli/" + config.CLIVersion),
 		zarfoci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
 		zarfoci.WithPlainHTTP(plainHTTP),
 	}, mods...)
-	return zoci.NewRemote(ctx, url, platform, modifiers...) //nolint:staticcheck // preserve the UDS user-agent override
+	// Zarf's package remote no longer accepts modifiers. Construct its upstream
+	// OCI client directly to retain this public helper's modifier contract.
+	remote, err := zarfoci.NewOrasRemote(url, platform, modifiers...)
+	if err != nil {
+		return nil, err
+	}
+	return &zoci.Remote{OrasRemote: remote}, nil
 }
 
 // NewBundleOCIRemote returns the OCI client used for UDS bundle artifacts.

@@ -69,7 +69,7 @@ func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zo
 	if err != nil {
 		return nil, err
 	}
-	return zoci.NewRemoteWithOptions(ctx, ref, platform, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{
+	return zoci.NewRemote(ctx, ref, platform, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{
 		PlainHTTP:             plainHTTP,
 		InsecureSkipTLSVerify: s.opts.SkipTLSVerify,
 	}})

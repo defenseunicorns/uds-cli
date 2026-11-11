@@ -93,7 +93,7 @@ func TestPackageDisassemblyLifecycle(t *testing.T) {
 			t.Errorf("connect for disassembly package cleanup: %v", err)
 			return
 		}
-		if err := packager.Remove(ctx, deployed, packager.RemoveOptions{Cluster: client, NamespaceOverride: namespace}); err != nil {
+		if err := packager.Remove(ctx, deployed, packager.RemoveOptions{Cluster: client, RemoveConfig: packager.RemoveConfig{NamespaceOverride: namespace}}); err != nil {
 			t.Errorf("remove disassembly lifecycle package: %v", err)
 		}
 	})
@@ -108,7 +108,7 @@ func TestPackageDisassemblyLifecycle(t *testing.T) {
 
 	client, err := cluster.New(t.Context())
 	require.NoError(t, err)
-	require.NoError(t, packager.Remove(t.Context(), deployed, packager.RemoveOptions{Cluster: client, NamespaceOverride: namespace}))
+	require.NoError(t, packager.Remove(t.Context(), deployed, packager.RemoveOptions{Cluster: client, RemoveConfig: packager.RemoveConfig{NamespaceOverride: namespace}}))
 	assertLifecycleResourcesRemoved(t, k8s, namespace)
 	_, err = client.GetDeployedPackage(t.Context(), disassemblyLifecyclePackageName, state.WithPackageNamespaceOverride(namespace))
 	require.True(t, apierrors.IsNotFound(err), "expected deployed package state to be removed, got %v", err)
