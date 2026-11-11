@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,22 @@ func TestDeployOptions_Complete(t *testing.T) {
 			assert.NotNil(t, o.Printer)
 		})
 	}
+}
+
+func TestDeployOptions_RunDoesNotLeakSetConversionDetailsBeforeDefaults(t *testing.T) {
+	streams, _, out, errOut := iostreams.NewTestIOStreams()
+	bundleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`variables = { credential = sensitive({}) }`), 0o600))
+	o := NewDeployOptions(streams)
+	o.BundlePath = filepath.Join(bundleDir, "bundle.tar.zst")
+	o.Variables = []string{`credential={"secret-canary"=null}`}
+	o.Verification.SkipSignatureVerification = true
+
+	err := o.Run(t.Context())
+	require.ErrorIs(t, err, bundleinternal.ErrInvalidVariables)
+	assert.NotContains(t, err.Error(), "secret-canary")
+	assert.NotContains(t, out.String(), "secret-canary")
+	assert.NotContains(t, errOut.String(), "secret-canary")
 }
 
 func TestDeployOptions_Validate(t *testing.T) {

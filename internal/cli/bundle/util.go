@@ -281,6 +281,7 @@ func toInternalConfig(cfg *bundle.UDSBundleConfig) *bundleinternal.UDSBundleConf
 		Options:               options,
 		SignatureVerification: toInternalVerificationPolicy(cfg.SignatureVerification),
 		Variables:             toInternalVariables(cfg.Variables),
+		SensitiveVariables:    cfg.SensitiveVariables,
 	}
 }
 

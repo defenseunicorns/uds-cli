@@ -133,6 +133,40 @@ When the resolved configuration contains variables, the values file is rendered 
 
 Config variables do not change the bundle definition, package sources, package signature policies, or the set of packages in the artifact.
 
+Use `sensitive(value)` only for values inside the `variables` object in `config.uds.hcl` or `defaults.uds.hcl`. It marks the top-level variable as sensitive:
+
+```hcl title="config.uds.hcl"
+variables = {
+  # Replace the example placeholder values as needed.
+  example_token = sensitive("replace-me")
+  password = sensitive(file("secrets/password.txt"))
+  registry = {
+    example_credential = sensitive("replace-me-too")
+  }
+}
+```
+
+Create `secrets/password.txt` beside `config.uds.hcl` with the password value
+before using this example. A nested mark makes the whole top-level variable
+sensitive. The mark persists through defaults, config values, and `--set`
+overrides; `--set` cannot call `sensitive()`.
+
+Templates and Zarf receive the original values:
+
+```yaml title="values/app.yaml"
+exampleToken: {{ printf "%q" .vars.example_token }}
+password: {{ printf "%q" .vars.password }}
+exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
+```
+
+When any variable is sensitive, UDS suppresses backend diagnostics it controls
+and detailed template errors. Unmarked configs retain template details. YAML
+errors omit raw content. Progress remains visible. Helm and external code may
+still expose values outside UDS output controls.
+
+Sensitivity metadata does not encrypt values. Defaults stored in bundle
+artifacts remain plaintext, including values loaded with `file()`.
+
 ## Precedence and timing
 
 The two configuration categories resolve independently:

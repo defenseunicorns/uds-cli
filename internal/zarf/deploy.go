@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -274,7 +275,14 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	log := logger.Bind(d.streams, opts.Config.Options.LogLevel)
 	log.Debug("preparing package deployment", "name", pkg.Name, "source", pkg.Source)
 
-	ctx = newZarfLoggerContext(ctx, log)
+	sensitive := hasSensitiveVariables(opts.Config)
+	backendLog := log
+	if sensitive {
+		// Zarf cannot mask sensitive Package Values, so discard its context logs to avoid exposing them.
+		// https://github.com/zarf-dev/zarf/issues/5658
+		backendLog = logger.Bind(iostreams.New(nil, nil, io.Discard), opts.Config.Options.LogLevel)
+	}
+	ctx = newZarfLoggerContext(ctx, backendLog)
 
 	loader := d.Loader
 	if loader == nil {
@@ -378,6 +386,9 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		}
 	}
 	if err := deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial); err != nil {
+		if sensitive {
+			return fmt.Errorf("package %q: %w", pkg.Name, ErrDeployPackage)
+		}
 		return fmt.Errorf("package %q: %w: %w", pkg.Name, ErrDeployPackage, err)
 	}
 
@@ -387,6 +398,15 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 
 	log.Info("package deployed", "name", pkg.Name)
 	return nil
+}
+
+func hasSensitiveVariables(cfg *UDSBundleConfig) bool {
+	for _, sensitive := range cfg.SensitiveVariables {
+		if sensitive {
+			return true
+		}
+	}
+	return false
 }
 
 func isRetryableStagingError(err error) bool {
@@ -410,7 +430,7 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 
 		// 2. Template {{ .vars.* }} placeholders using config variables
 		var filesToParse []string
-		filesToParse, err = templateValuesFiles(ctx, resolved, configVars, opts.Config.Options.TmpDir)
+		filesToParse, err = templateValuesFiles(ctx, resolved, configVars, opts.Config.Options.TmpDir, hasSensitiveVariables(opts.Config))
 		// Temp files are fully consumed by ParseFiles below or any subsequent error; clean up on return.
 		if configVars != nil {
 			defer cleanupTempFiles(ctx, streams, filesToParse)
@@ -422,7 +442,11 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 		// 3. Parse YAML files with Zarf's value package
 		zarfValues, err = value.ParseFiles(ctx, filesToParse, value.ParseFilesOptions{})
 		if err != nil {
-			return nil, nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrParseValues, err)
+			file := valuesFileName(err, filesToParse, resolved)
+			if file != "" {
+				return nil, nil, fmt.Errorf("package %q values file %q: %w", pkg.Name, file, ErrParseValues)
+			}
+			return nil, nil, fmt.Errorf("package %q: %w", pkg.Name, ErrParseValues)
 		}
 		loadedFileCount = len(filesToParse)
 	}
@@ -435,6 +459,27 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 		streams.Debug("loaded values files", "package", pkg.Name, "count", loadedFileCount)
 	}
 	return zarfValues, setVars, nil
+}
+
+func valuesFileName(err error, parsed, source []string) string {
+	var path string
+	var yamlErr *value.YAMLDecodeError
+	if errors.As(err, &yamlErr) {
+		path = yamlErr.FilePath
+	}
+	var extErr *value.InvalidFileExtError
+	if errors.As(err, &extErr) {
+		path = extErr.FilePath
+	}
+	for i, name := range parsed {
+		if path == name && i < len(source) {
+			return filepath.Base(source[i])
+		}
+	}
+	if path == "" {
+		return ""
+	}
+	return filepath.Base(path)
 }
 
 // resolveValuesFiles resolves values file paths relative to bundleDir.
@@ -467,7 +512,7 @@ func resolveValuesFiles(files []string, bundleDir string) []string {
 //
 // Missing keys produce a clear error (template.Option("missingkey=error")).
 // If vars is nil, the original file paths are returned unchanged (no temp copies created).
-func templateValuesFiles(_ context.Context, files []string, vars bundleinternal.Variables, tmpDir string) ([]string, error) {
+func templateValuesFiles(_ context.Context, files []string, vars bundleinternal.Variables, tmpDir string, sensitive bool) ([]string, error) {
 	if vars == nil {
 		return files, nil
 	}
@@ -485,12 +530,18 @@ func templateValuesFiles(_ context.Context, files []string, vars bundleinternal.
 
 		tmpl, err := template.New(filepath.Base(f)).Option("missingkey=error").Parse(string(src))
 		if err != nil {
-			return result, fmt.Errorf("%w %q: %w", ErrParseValuesTemplate, f, err)
+			if !sensitive {
+				return result, fmt.Errorf("%w %q: %w", ErrParseValuesTemplate, f, err)
+			}
+			return result, fmt.Errorf("%w %q", ErrParseValuesTemplate, filepath.Base(f))
 		}
 
 		var buf bytes.Buffer
 		if err := tmpl.Execute(&buf, data); err != nil {
-			return result, fmt.Errorf("%w %q: %w", ErrRenderValues, f, err)
+			if !sensitive {
+				return result, fmt.Errorf("%w %q: %w", ErrRenderValues, f, err)
+			}
+			return result, fmt.Errorf("%w %q", ErrRenderValues, filepath.Base(f))
 		}
 
 		tmp, err := os.CreateTemp(tmpDir, "uds-values-*.yaml")

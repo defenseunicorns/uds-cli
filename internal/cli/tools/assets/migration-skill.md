@@ -377,11 +377,13 @@ Continue when the workload is Ready.
 
 ## Included documentation: docs/reference/next/bundle-uds-hcl.mdx
 
-<!-- Source SHA256: be88263cd0c728718397d32c82649a9f8c9c8c9ade5eb0bc56275ebaf88b05e9 -->
+<!-- Source SHA256: 249ab30c608c255aad50f36c5fdd68b3bb2db400b3b1ec29a8a1d3d3fbb729e3 -->
 
 `bundle.uds.hcl` is the source definition for a UDS CLI Next bundle. It declares the bundle identity and the Zarf packages that become part of the bundle artifact or are deployed directly in development mode.
 
 The file must be named exactly `bundle.uds.hcl`. It is distinct from `defaults.uds.hcl`, which supplies bundle-level default variables, and `config.uds.hcl`, which supplies consumer-owned deploy-time settings.
+
+Mark sensitive default variables with `sensitive(value)`. Sensitivity metadata does not encrypt defaults stored in bundle artifacts. See the [variable reference](#migration-doc-docs-reference-next-config-uds-hcl-mdx) for merge and output behavior.
 
 ## Top-level structure
 
@@ -590,7 +592,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: cd97002b80c274317bd090859389985dd7e332ca8cf5d983e5a2b8ef28f834a5 -->
+<!-- Source SHA256: acb2bca990e52eb54f001c5beb0d9a5de754aaf68ea8fe8c9e19ae4db9fe5ded -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -719,6 +721,40 @@ auditLogs: {{ .vars.features.audit_logs }}
 When the resolved configuration contains variables, the values file is rendered at deployment time. A referenced variable that is missing from the merged variable set causes deployment to fail. Values files pass through without UDS variable templating only when every configuration layer omits the `variables` attribute. An explicit empty object (`variables = {}`) still renders values files.
 
 Config variables do not change the bundle definition, package sources, package signature policies, or the set of packages in the artifact.
+
+Use `sensitive(value)` only for values inside the `variables` object in `config.uds.hcl` or `defaults.uds.hcl`. It marks the top-level variable as sensitive:
+
+```hcl title="config.uds.hcl"
+variables = {
+  # Replace the example placeholder values as needed.
+  example_token = sensitive("replace-me")
+  password = sensitive(file("secrets/password.txt"))
+  registry = {
+    example_credential = sensitive("replace-me-too")
+  }
+}
+```
+
+Create `secrets/password.txt` beside `config.uds.hcl` with the password value
+before using this example. A nested mark makes the whole top-level variable
+sensitive. The mark persists through defaults, config values, and `--set`
+overrides; `--set` cannot call `sensitive()`.
+
+Templates and Zarf receive the original values:
+
+```yaml title="values/app.yaml"
+exampleToken: {{ printf "%q" .vars.example_token }}
+password: {{ printf "%q" .vars.password }}
+exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
+```
+
+When any variable is sensitive, UDS suppresses backend diagnostics it controls
+and detailed template errors. Unmarked configs retain template details. YAML
+errors omit raw content. Progress remains visible. Helm and external code may
+still expose values outside UDS output controls.
+
+Sensitivity metadata does not encrypt values. Defaults stored in bundle
+artifacts remain plaintext, including values loaded with `file()`.
 
 ## Precedence and timing
 

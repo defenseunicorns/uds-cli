@@ -294,7 +294,7 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
 		}
 	}
-	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
+	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
 }
 
 func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
@@ -310,7 +310,7 @@ func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
 			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
 		}
 	}
-	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables)}
+	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
 }
 
 func toZarfDeployPackageOptions(opts DeployPackageOptions) internalzarf.DeployPackageOptions {
@@ -399,14 +399,15 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 
 func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, defaultsPath string, artifactSource bool) (*UDSBundleConfig, error) {
 	var (
-		defaults bundleinternal.Variables
-		err      error
+		defaults  bundleinternal.Variables
+		sensitive map[string]bool
+		err       error
 	)
 	if config == nil {
 		return nil, fmt.Errorf("config must not be nil")
 	}
 	if !artifactSource {
-		defaults, err = bundleinternal.ParseDefaults(ctx, defaultsPath)
+		defaults, sensitive, err = bundleinternal.ParseDefaultsWithSensitivity(ctx, defaultsPath)
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
@@ -415,13 +416,14 @@ func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, default
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
-		defaults, err = bundleinternal.ParseDefaultsBytes(ctx, defaultsData)
+		defaults, sensitive, err = bundleinternal.ParseDefaultsBytesWithSensitivity(ctx, defaultsData)
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
 	}
 	merged := *config
 	merged.Variables = fromInternalVariables(bundleinternal.MergeVariables(bundleinternal.Variables(defaults), toInternalVariables(config.Variables)))
+	merged.SensitiveVariables = bundleinternal.MergeSensitiveVariables(sensitive, config.SensitiveVariables)
 	return &merged, nil
 }
 

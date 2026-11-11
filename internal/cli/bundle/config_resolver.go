@@ -184,6 +184,7 @@ func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOSt
 		Options:               &options,
 		SignatureVerification: userSignatureVerification(userCfg),
 		Variables:             variables,
+		SensitiveVariables:    bundleinternal.MergeSensitiveVariables(nil, sensitiveVariables(userCfg)),
 	}, flags.ConfigPath, nil
 }
 
@@ -199,8 +200,10 @@ func (r *ConfigResolver) applyBundleDefaults(ctx context.Context, streams iostre
 	resolved := &bundle.UDSBundleConfig{Options: &options, SignatureVerification: base.SignatureVerification}
 	if defaults != nil {
 		resolved.Variables = mergeVariables(defaults.Variables, base.Variables)
+		resolved.SensitiveVariables = bundleinternal.MergeSensitiveVariables(defaults.SensitiveVariables, base.SensitiveVariables)
 	} else {
 		resolved.Variables = mergeVariables(nil, base.Variables)
+		resolved.SensitiveVariables = bundleinternal.MergeSensitiveVariables(nil, base.SensitiveVariables)
 	}
 	return resolved, nil
 }
@@ -225,6 +228,7 @@ func (r *ConfigResolver) parseUserConfig(ctx context.Context, streams iostreams.
 		Options:               fromInternalOptions(cfg.Options),
 		SignatureVerification: fromInternalVerificationPolicy(cfg.SignatureVerification),
 		Variables:             fromInternalVariables(cfg.Variables),
+		SensitiveVariables:    cfg.SensitiveVariables,
 	}, nil
 }
 
@@ -279,12 +283,19 @@ func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, streams iostrea
 	}
 
 	streams.Debug("loading bundle defaults", "path", defaultsPath)
-	vars, err := bundleinternal.ParseDefaults(ctx, defaultsPath)
+	vars, sensitive, err := bundleinternal.ParseDefaultsWithSensitivity(ctx, defaultsPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &bundle.UDSBundleConfig{Variables: fromInternalVariables(vars)}, nil
+	return &bundle.UDSBundleConfig{Variables: fromInternalVariables(vars), SensitiveVariables: sensitive}, nil
+}
+
+func sensitiveVariables(config *bundle.UDSBundleConfig) map[string]bool {
+	if config == nil {
+		return nil
+	}
+	return config.SensitiveVariables
 }
 
 func mergeVariables(base, overrides bundle.Variables) bundle.Variables {

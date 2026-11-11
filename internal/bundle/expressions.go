@@ -37,10 +37,24 @@ func sysVars(arch string) cty.Value {
 // configEvalContext returns the functions available to a file-backed HCL document.
 func configEvalContext(filePath string) *hcl.EvalContext {
 	return &hcl.EvalContext{
-		Functions: map[string]function.Function{
-			"file": newFileFunction(filepath.Dir(filePath)),
-		},
+		Functions: map[string]function.Function{"file": newFileFunction(filepath.Dir(filePath))},
 	}
+}
+
+func variableEvalContext(filePath string) *hcl.EvalContext {
+	ctx := configEvalContext(filePath)
+	ctx.Functions["sensitive"] = sensitiveFunction()
+	return ctx
+}
+
+func sensitiveFunction() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{{Name: "value", Type: cty.DynamicPseudoType}},
+		Type:   func(args []cty.Value) (cty.Type, error) { return args[0].Type(), nil },
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+			return args[0].Mark(sensitiveMark{}), nil
+		},
+	})
 }
 
 // newFileFunction returns the file() implementation for a file-backed HCL document.
@@ -114,7 +128,7 @@ func materializeDefaultsFile(path string) ([]byte, error) {
 	if _, err := parseDefaultsContent(src, path); err != nil {
 		return nil, err
 	}
-	return materializeFileCallExpressions(src, path, configEvalContext(path), nil)
+	return materializeFileCallExpressions(src, path, variableEvalContext(path), nil)
 }
 
 // MaterializeDefaultsFile resolves file() calls in a defaults file.
@@ -164,9 +178,12 @@ func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.Ev
 		}
 		value, diags := expr.Value(exprEvalCtx)
 		if diags.HasErrors() {
+			if expressionContainsFunction(expr, "sensitive") {
+				return nil, fmt.Errorf("evaluating sensitive HCL expression in %q: %w", filename, ErrEvaluateHCLExpression)
+			}
 			return nil, fmt.Errorf("evaluating HCL expression containing file(): %w: %w", ErrEvaluateHCLExpression, diags)
 		}
-		replacements = append(replacements, replacement{r.Start.Byte, r.End.Byte, hclwrite.TokensForValue(value).Bytes()})
+		replacements = append(replacements, replacement{r.Start.Byte, r.End.Byte, valueTokens(value).Bytes()})
 	}
 	sort.Slice(replacements, func(i, j int) bool { return replacements[i].start > replacements[j].start })
 	out := append([]byte(nil), src...)
@@ -177,6 +194,41 @@ func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.Ev
 		out = append(replaced, out[replacement.end:]...)
 	}
 	return out, nil
+}
+
+func valueTokens(value cty.Value) hclwrite.Tokens {
+	value, marks := value.Unmark()
+	var tokens hclwrite.Tokens
+	switch {
+	case value.IsNull():
+		tokens = hclwrite.TokensForValue(value)
+	case value.Type().IsObjectType():
+		attrs := value.Type().AttributeTypes()
+		keys := make([]string, 0, len(attrs))
+		for key := range attrs {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		parts := make([]hclwrite.ObjectAttrTokens, 0, len(keys))
+		for _, key := range keys {
+			parts = append(parts, hclwrite.ObjectAttrTokens{Name: hclwrite.TokensForValue(cty.StringVal(key)), Value: valueTokens(value.GetAttr(key))})
+		}
+		tokens = hclwrite.TokensForObject(parts)
+	case value.Type().IsTupleType() || value.Type().IsListType() || value.Type().IsSetType():
+		var parts []hclwrite.Tokens
+		it := value.ElementIterator()
+		for it.Next() {
+			_, elem := it.Element()
+			parts = append(parts, valueTokens(elem))
+		}
+		tokens = hclwrite.TokensForTuple(parts)
+	default:
+		tokens = hclwrite.TokensForValue(value)
+	}
+	if _, ok := marks[sensitiveMark{}]; ok {
+		tokens = hclwrite.TokensForFunctionCall("sensitive", tokens)
+	}
+	return tokens
 }
 
 // fileCallContainingExpressions returns attribute expressions that contain a file()
@@ -201,6 +253,10 @@ func fileCallContainingExpressions(body *hclsyntax.Body) []hcl.Expression {
 
 // expressionContainsFileCall reports whether an expression invokes the file function.
 func expressionContainsFileCall(expr hcl.Expression) bool {
+	return expressionContainsFunction(expr, "file")
+}
+
+func expressionContainsFunction(expr hcl.Expression, name string) bool {
 	node, ok := expr.(hclsyntax.Node)
 	if !ok {
 		return false
@@ -208,7 +264,7 @@ func expressionContainsFileCall(expr hcl.Expression) bool {
 	hasFileCall := false
 	_ = hclsyntax.VisitAll(node, func(node hclsyntax.Node) hcl.Diagnostics {
 		call, ok := node.(*hclsyntax.FunctionCallExpr)
-		if ok && call.Name == "file" {
+		if ok && call.Name == name {
 			hasFileCall = true
 		}
 		return nil
