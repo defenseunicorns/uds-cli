@@ -93,6 +93,18 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 	require.FileExists(t, filepath.Join(worktree, "zarf.yaml"))
 	require.FileExists(t, filepath.Join(worktree, ".uds", "disassembly.json"))
 
+	t.Run("clean diff", func(t *testing.T) {
+		require.NoError(t, os.Chmod(filepath.Join(worktree, "zarf.yaml"), 0o700))
+		streams, _, out, errOut := iostreams.NewTestIOStreams()
+		root := cli.NewRootCommand(streams, features)
+		root.SetArgs([]string{"package", "mod", "diff", worktree})
+		require.NoError(t, root.ExecuteContext(t.Context()))
+		assert.Contains(t, out.String(), "Package source:")
+		assert.Contains(t, out.String(), "Package digest: sha256:")
+		assert.Contains(t, out.String(), "No changes.")
+		assert.Empty(t, errOut.String())
+	})
+
 	outputDir := t.TempDir()
 	privateKey, _ := testutil.GenerateCosignKeyPair(t)
 	t.Setenv("USER", "reassembly-test")
@@ -122,6 +134,59 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 	assert.True(t, *build.Signed)
 	assert.Equal(t, "reassembly-test", build.User)
 	assert.NotEmpty(t, build.Terminal)
+
+	t.Run("changed diff", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "")
+		t.Setenv("TERM", "xterm")
+		definitionPath := filepath.Join(worktree, "zarf.yaml")
+		require.NoError(t, os.Rename(definitionPath, filepath.Join(worktree, "zarf-workaround.yaml")))
+		require.NoError(t, os.WriteFile(filepath.Join(worktree, "notes.txt"), []byte("reproduce the workaround upstream"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(worktree, "payload.bin"), []byte{0, 1, 2}, 0o600))
+		payloads, err := filepath.Glob(filepath.Join(worktree, "components", "app", "files", "*"))
+		require.NoError(t, err)
+		require.Len(t, payloads, 1)
+		require.NoError(t, os.Remove(payloads[0]))
+		deletedPath, err := filepath.Rel(worktree, payloads[0])
+		require.NoError(t, err)
+
+		streams, _, out, errOut := iostreams.NewTestIOStreams()
+		root := cli.NewRootCommand(streams, features)
+		root.SetArgs([]string{"package", "mod", "diff", worktree})
+		require.NoError(t, root.ExecuteContext(t.Context()))
+		report := out.String()
+		assert.Contains(t, report, "Package source:")
+		assert.Contains(t, report, "Package digest: sha256:")
+		assert.Contains(t, report, "renamed \"zarf.yaml\" -> \"zarf-workaround.yaml\"")
+		assert.Contains(t, report, "--- /dev/null\n+++ \"b/notes.txt\"\n")
+		assert.Contains(t, report, "added \"notes.txt\"")
+		assert.Contains(t, report, "deleted \""+filepath.ToSlash(deletedPath)+"\"")
+		assert.Contains(t, report, "+reproduce the workaround upstream")
+		assert.Contains(t, report, "-offline payload")
+		assert.Contains(t, report, "added \"payload.bin\"\nsize 3 bytes\nsha256:")
+		assert.Contains(t, report, "@@")
+		assert.NotContains(t, report, "No changes.")
+		assert.NotContains(t, report, "\x1b[", "captured reports must remain plain text")
+		assert.Empty(t, errOut.String())
+		assert.Less(t, strings.Index(report, "deleted \""), strings.Index(report, "added \"notes.txt\""))
+		assert.Less(t, strings.Index(report, "added \"notes.txt\""), strings.Index(report, "renamed \"zarf.yaml\""))
+	})
+
+	for _, metadataState := range []string{"missing", "corrupt"} {
+		t.Run(metadataState+" diff metadata", func(t *testing.T) {
+			metadataPath := filepath.Join(worktree, ".uds", "disassembly.json")
+			if metadataState == "missing" {
+				require.NoError(t, os.Remove(metadataPath))
+			} else {
+				require.NoError(t, os.WriteFile(metadataPath, []byte("{not json"), 0o600))
+			}
+			streams, _, out, errOut := iostreams.NewTestIOStreams()
+			root := cli.NewRootCommand(streams, features)
+			root.SetArgs([]string{"package", "mod", "diff", worktree})
+			require.Error(t, root.ExecuteContext(t.Context()))
+			assert.Empty(t, out.String(), "validation must finish before any report is written")
+			assert.Empty(t, errOut.String(), "the executable owns error reporting")
+		})
+	}
 }
 
 type packagePullLog struct {

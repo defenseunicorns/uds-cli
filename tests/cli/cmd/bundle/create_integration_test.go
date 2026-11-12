@@ -227,7 +227,7 @@ func TestCreateAndDeployBetaPackage(t *testing.T) {
 	packageDir := filepath.Join(root, "pkg")
 	require.NoError(t, os.Mkdir(packageDir, 0o755))
 	outputPath := filepath.Join(root, "deployed.txt")
-	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "payload.txt"), []byte("{{ .Values.message }}"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "payload.txt"), []byte("{{ .Values.message }}\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "values.yaml"), []byte("message: beta-default\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "zarf.yaml"), []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1beta1
 kind: ZarfPackageConfig
@@ -270,5 +270,5 @@ package "beta" {
 	require.NoError(t, err)
 	deployed, err := os.ReadFile(outputPath)
 	require.NoError(t, err)
-	assert.Equal(t, "beta-default", string(deployed))
+	assert.Equal(t, "beta-default\n", string(deployed))
 }

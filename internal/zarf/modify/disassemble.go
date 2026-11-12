@@ -108,13 +108,13 @@ func disassemble(ctx context.Context, opts Options) (string, error) {
 	if err := writeSourceDefinition(definitionPath, pkg); err != nil {
 		return "", fmt.Errorf("writing zarf.yaml: %w", err)
 	}
-	if err := writeDisassemblyMetadata(stageDir, buildArchitecture, buildFlavor); err != nil {
+	if err := captureBaseline(ctx, stageDir, buildArchitecture, buildFlavor, pkgLayout.Digest(), opts.Source); err != nil {
 		return "", err
 	}
 	if err := publishOutput(stageDir, finalDir); err != nil {
 		return "", err
 	}
-	warn(opts.Warn, "use disassembled source only as a last resort; port all edits to the upstream source as soon as possible")
+	warn(opts.Warn, "use disassembled source only as a last resort; review edits with uds package mod diff <source-dir> and port all edits to the upstream source as soon as possible")
 
 	return opts.OutputDir, nil
 }
