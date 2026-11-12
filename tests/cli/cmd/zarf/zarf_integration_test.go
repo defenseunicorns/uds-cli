@@ -7,7 +7,12 @@ package zarf_test
 
 import (
 	"bytes"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,6 +20,31 @@ import (
 
 	"github.com/defenseunicorns/uds-cli/tests/testutil"
 )
+
+// TestRunnerWaitRouting exercises Maru's subprocess callback through both command trees.
+func TestRunnerWaitRouting(t *testing.T) {
+	uds, err := testutil.ResolveUDSCLIPath()
+	require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+	tasksPath := filepath.Join(t.TempDir(), "tasks.yaml")
+	var tasks strings.Builder
+	tasks.WriteString("tasks:\n  - name: wait\n    actions:\n")
+	for _, protocol := range []string{"tcp", "http"} {
+		fmt.Fprintf(&tasks, "      - maxTotalSeconds: 10\n        wait:\n          network:\n            protocol: %s\n            address: %s\n", protocol, strings.TrimPrefix(server.URL, "http://"))
+	}
+	require.NoError(t, os.WriteFile(tasksPath, []byte(tasks.String()), 0o600))
+	for _, next := range []bool{false, true} {
+		t.Run(fmt.Sprintf("NextMode=%t", next), func(t *testing.T) {
+			command := exec.CommandContext(t.Context(), uds, fmt.Sprintf("--features=NextMode=%t", next), "run", "wait", "--file", tasksPath)
+			output, err := command.CombinedOutput()
+			require.NoError(t, err, string(output))
+			require.Equal(t, 2, strings.Count(string(output), "succeeded"), string(output))
+		})
+	}
+}
 
 // TestNextEntrypoint covers behavior that depends on process startup, including
 // Zarf's init-time argument inspection. Command contracts otherwise use Cobra directly.

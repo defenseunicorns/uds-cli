@@ -7,6 +7,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/cli"
 	legacycli "github.com/defenseunicorns/uds-cli/internal/legacy/cli"
@@ -46,8 +48,26 @@ func run(args []string) error {
 		return err
 	}
 	root.PersistentFlags().String("features", "", "Features, comma separated name, name=true, or name=false pairs. CLI_FEATURES is also supported.")
-	root.SetArgs(args)
+	root.SetArgs(adaptMaruWaitArgs(args))
 	return root.Execute()
+}
+
+// adaptMaruWaitArgs handles Maru's "zarf tools wait-for KIND/PROTOCOL ..." callbacks.
+// Zarf 1.x requires "resource" before Kubernetes kinds and "network" before TCP/HTTP/HTTPS.
+// Translate at the executable boundary so both Legacy and Next receive the new syntax.
+// Commands that already specify "resource" or "network" pass through unchanged.
+func adaptMaruWaitArgs(args []string) []string {
+	if len(args) < 4 || args[0] != "zarf" || args[1] != "tools" || args[2] != "wait-for" || strings.HasPrefix(args[3], "-") {
+		return args
+	}
+	subcommand := "resource"
+	switch args[3] {
+	case "tcp", "http", "https":
+		subcommand = "network"
+	case "network", "resource":
+		return args
+	}
+	return slices.Insert(slices.Clone(args), 3, subcommand)
 }
 
 func newRootCommand(selected mode.Mode, features mode.FeatureSet) (*cobra.Command, error) {
