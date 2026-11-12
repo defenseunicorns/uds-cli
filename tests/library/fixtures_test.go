@@ -154,17 +154,13 @@ components:
         target: /tmp/%s-optional.txt
 `, name, architecture, name, name)), 0o600))
 
-	var signOptions *signing.SignBlobOptions
+	opts := packager.CreateOptions{CachePath: t.TempDir(), SkipSBOM: true}
 	if signingKey != "" {
-		options := signing.DefaultSignBlobOptions()
-		options.Key = signingKey
-		signOptions = &options
+		signOpts := signing.DefaultSignBlobOptions()
+		signOpts.Key = signingKey
+		opts.SignBlobOptions = &signOpts
 	}
-	packagePath, err := packager.Create(t.Context(), packageDir, root, packager.CreateOptions{
-		CachePath:       t.TempDir(),
-		SignBlobOptions: signOptions,
-		SkipSBOM:        true,
-	})
+	packagePath, err := packager.Create(t.Context(), packageDir, root, opts)
 	require.NoError(t, err)
 	return packagePath
 }
