@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -6,6 +6,7 @@ package test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -158,4 +159,81 @@ func TestResumeFlagWithPackageNamespaceOverrideDuplicates(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = waitForDeployment("resume-override-b", "delete", "30s")
 	require.NoError(t, err)
+}
+
+func TestResumeFlagInterruptedUpgrade(t *testing.T) {
+	deployZarfInit(t)
+	root := t.TempDir()
+	names := []string{"resume-upgrade-first", "resume-upgrade-second", "resume-upgrade-third"}
+	logs := make(map[string]string, len(names))
+	for _, name := range names {
+		logs[name] = filepath.Join(root, name+".log")
+	}
+	writeFile := func(path, contents string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+	}
+	createBundle := func(version string) string {
+		t.Helper()
+		dir := filepath.Join(root, version)
+		require.NoError(t, os.MkdirAll(dir, 0o700))
+		bundleYAML := fmt.Sprintf("kind: UDSBundle\nmetadata:\n  name: resume-upgrade\n  version: %s\npackages:\n", version)
+		for _, name := range names {
+			pkgDir := filepath.Join(dir, name)
+			require.NoError(t, os.MkdirAll(pkgDir, 0o700))
+			writeFile(filepath.Join(pkgDir, "configmap.yaml"), fmt.Sprintf(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: %s
+data:
+  version: %q
+`, name, version))
+			writeFile(filepath.Join(pkgDir, "zarf.yaml"), fmt.Sprintf(`kind: ZarfPackageConfig
+metadata:
+  name: %s
+  version: %s
+components:
+  - name: main
+    required: true
+    manifests:
+      - name: version
+        namespace: resume-upgrade
+        files:
+          - configmap.yaml
+    actions:
+      onDeploy:
+        after:
+          - cmd: echo %s >> %s
+`, name, version, version, logs[name]))
+			runCmd(t, fmt.Sprintf("zarf package create %s --confirm --skip-sbom -a %s -o %s", pkgDir, e2e.Arch, pkgDir))
+			bundleYAML += fmt.Sprintf("  - name: %s\n    path: %s\n    ref: %s\n", name, pkgDir, version)
+		}
+		writeFile(filepath.Join(dir, "uds-bundle.yaml"), bundleYAML)
+		runCmd(t, fmt.Sprintf("create %s --confirm -a %s", dir, e2e.Arch))
+		return filepath.Join(dir, fmt.Sprintf("uds-bundle-resume-upgrade-%s-%s.tar.zst", e2e.Arch, version))
+	}
+	oldBundle := createBundle("0.0.1")
+	newBundle := createBundle("0.0.2")
+	t.Cleanup(func() {
+		runCmd(t, fmt.Sprintf("remove %s --confirm", newBundle))
+	})
+
+	runCmd(t, fmt.Sprintf("deploy %s --confirm", oldBundle))
+	// This produces the state left by an interruption between packages.
+	runCmd(t, fmt.Sprintf("deploy %s --confirm --packages %s", newBundle, names[0]))
+	runCmd(t, fmt.Sprintf("deploy %s --confirm --resume", newBundle))
+
+	checkUpgrade := func() {
+		t.Helper()
+		for _, name := range names {
+			version, _ := runCmd(t, fmt.Sprintf("zarf tools kubectl get configmap %s -n resume-upgrade -o=jsonpath={.data.version}", name))
+			require.Equal(t, "0.0.2", version)
+			deployments, err := os.ReadFile(logs[name])
+			require.NoError(t, err)
+			require.Equal(t, "0.0.1\n0.0.2\n", string(deployments), "%s must deploy each version only once", name)
+		}
+	}
+	checkUpgrade()
+	runCmd(t, fmt.Sprintf("deploy %s --confirm --resume", newBundle))
+	checkUpgrade()
 }

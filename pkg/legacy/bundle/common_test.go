@@ -30,12 +30,8 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
-	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
-	"github.com/zarf-dev/zarf/src/pkg/state"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/content"
@@ -588,79 +584,4 @@ func Test_GetBundleMetadata(t *testing.T) {
 	require.Equal(t, "test-metadata", bndlClient.GetMetadata().Name)
 	require.Equal(t, "test-description", bndlClient.GetMetadata().Description)
 	require.Equal(t, "0.0.1", bndlClient.GetMetadata().Version)
-}
-
-func Test_deployedPackageIsSuccessful(t *testing.T) {
-	boolPtr := func(v bool) *bool {
-		return &v
-	}
-
-	tests := []struct {
-		name               string
-		description        string
-		definition         v1alpha1.ZarfPackage
-		deployedComponents []state.DeployedComponent
-		want               bool
-	}{
-		{
-			name:        "SuccessAllSucceededRequiredPresent",
-			description: "returns true when all deployed components succeeded and required components are present",
-			definition: v1alpha1.ZarfPackage{
-				Components: []v1alpha1.ZarfComponent{
-					{Name: "component-a", Required: boolPtr(true)},
-					{Name: "component-b"},
-				},
-			},
-			deployedComponents: []state.DeployedComponent{
-				{Name: "component-a", Status: state.ComponentStatusSucceeded},
-				{Name: "component-b", Status: state.ComponentStatusSucceeded},
-			},
-			want: true,
-		},
-		{
-			name:        "FailRequiredMissing",
-			description: "returns false when a required component is missing from deployed components",
-			definition: v1alpha1.ZarfPackage{
-				Components: []v1alpha1.ZarfComponent{
-					{Name: "component-a", Required: boolPtr(true)},
-					{Name: "component-b"},
-				},
-			},
-			deployedComponents: []state.DeployedComponent{
-				{Name: "component-b", Status: state.ComponentStatusSucceeded},
-			},
-			want: false,
-		},
-		{
-			name:        "FailDeployedComponentNotSucceeded",
-			description: "returns false when any deployed component is not succeeded",
-			definition: v1alpha1.ZarfPackage{
-				Components: []v1alpha1.ZarfComponent{
-					{Name: "component-a", Required: boolPtr(true)},
-				},
-			},
-			deployedComponents: []state.DeployedComponent{
-				{Name: "component-a", Status: state.ComponentStatusFailed},
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Run("legacy Data", func(t *testing.T) {
-				pkg := state.DeployedPackage{Name: "test", DeployedComponents: tt.deployedComponents}
-				pkg.Data = tt.definition //nolint:staticcheck // Exercise Definition's fallback for state saved before PackageData existed.
-				require.Equal(t, tt.want, deployedPackageIsSuccessful(pkg))
-			})
-			t.Run("current PackageData", func(t *testing.T) {
-				pkg := state.DeployedPackage{Name: "test", DeployedComponents: tt.deployedComponents}
-				definition := convert.PackageFromV1alpha1(tt.definition)
-				definition.APIVersion = v1beta1.APIVersion
-				require.NoError(t, pkg.SetPackageDefinition(definition))
-				require.NotEmpty(t, pkg.PackageData)
-				require.Equal(t, tt.want, deployedPackageIsSuccessful(pkg))
-			})
-		})
-	}
 }
