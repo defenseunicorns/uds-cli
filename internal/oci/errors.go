@@ -35,7 +35,6 @@ var (
 	ErrConfigureTransfer            = errors.New("configuring OCI transfer")
 	ErrPushContent                  = errors.New("pushing OCI content")
 	ErrPullContent                  = errors.New("pulling OCI content")
-	ErrTagContent                   = errors.New("tagging OCI content")
 	ErrCreateTemporaryDirectory     = errors.New("creating temporary directory")
 	ErrCreateOCIDirectory           = errors.New("creating OCI directory")
 	ErrCreateStore                  = errors.New("creating OCI store")
@@ -44,7 +43,6 @@ var (
 	ErrCreateBundleArchive          = errors.New("creating bundle archive")
 	ErrBundleArchiveHookRequired    = errors.New("creating bundle archive: archive hook is required")
 	ErrMissingArchitecture          = errors.New("bundle is missing its architecture annotation")
-	ErrReadRootDescriptor           = errors.New("reading OCI root descriptor")
 	ErrReadExistingRootIndex        = errors.New("reading existing root index")
 	ErrMarshalRootIndex             = errors.New("marshaling root index")
 	ErrParseExistingRegistryContent = errors.New("parsing existing registry content")
@@ -60,7 +58,6 @@ var (
 	_ error = (*EmptyParameterError)(nil)
 	_ error = (*DescriptorTooLargeError)(nil)
 	_ error = (*TargetTagExistsError)(nil)
-	_ error = (*ManifestCountError)(nil)
 	_ error = (*InvalidDigestError)(nil)
 	_ error = (*ConflictingDescriptorSizeError)(nil)
 )
@@ -85,15 +82,6 @@ type TargetTagExistsError struct{ Tag string }
 
 func (e TargetTagExistsError) Error() string {
 	return fmt.Sprintf("target tag %q already exists in registry", e.Tag)
-}
-
-type ManifestCountError struct {
-	Count int
-	Want  int
-}
-
-func (e ManifestCountError) Error() string {
-	return fmt.Sprintf("index.json contains %d manifests; expected exactly %d for a Zarf package layout", e.Count, e.Want)
 }
 
 type InvalidDigestError struct {

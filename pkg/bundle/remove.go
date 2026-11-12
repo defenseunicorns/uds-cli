@@ -73,7 +73,7 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 
 	if udsoci.IsOCIReference(source.BundlePath) || artifact.IsTarZst(source.BundlePath) {
-		metadata, err := artifact.OpenMetadataSource(ctx, source.BundlePath, toInternalConfig(opts.Config))
+		metadata, err := artifact.OpenMetadataSource(ctx, source.BundlePath, toInternalConfig(opts.Config), s)
 		if err != nil {
 			return nil, fmt.Errorf("%w %q: opening artifact metadata: %w", ErrRemoveBundle, source.BundlePath, err)
 		}

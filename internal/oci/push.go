@@ -23,8 +23,6 @@ type Pusher interface {
 	// PushBundle pushes the OCI layout in bundleDir to the given OCI reference.
 	// bundleDir must contain an oci/ subdirectory with a valid OCI layout (index.json + blobs/).
 	PushBundle(ctx context.Context, bundleDir, ociReference string, opts PushOptions) (*PushResult, error)
-	// PushPackage pushes a single Zarf package from packageDir to the given OCI reference.
-	PushPackage(ctx context.Context, packageDir, ociReference string, opts PushOptions) (*PushResult, error)
 }
 
 // PushOptions configures an OCI push operation.
@@ -123,39 +121,5 @@ func (p *defaultPusher) PushBundle(ctx context.Context, bundleDir, ociReference 
 		return nil, err
 	}
 	log.Info("bundle pushed", "ref", ociReference, "arch", arch)
-	return result, nil
-}
-
-// PushPackage pushes a single Zarf package OCI layout from packageDir to a remote OCI registry.
-// packageDir must contain an oci/ subdirectory with a valid OCI layout (index.json + blobs/).
-func (p *defaultPusher) PushPackage(ctx context.Context, packageDir, ociReference string, opts PushOptions) (*PushResult, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	if packageDir == "" {
-		return nil, EmptyParameterError{Name: "packageDir"}
-	}
-	if ociReference == "" {
-		return nil, EmptyParameterError{Name: "ociReference"}
-	}
-
-	ociDir := filepath.Join(packageDir, "oci")
-	store, err := OpenStore(ociDir)
-	if err != nil {
-		return nil, err
-	}
-
-	root, err := packageRootDescriptor(ociDir)
-	if err != nil {
-		return nil, fmt.Errorf("%w from %q: %w", ErrReadRootDescriptor, ociDir, err)
-	}
-
-	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
-	log.Debug("pushing package", "ref", ociReference)
-	result, err := pushToRemote(ctx, store.Store, root, ociReference, &opts)
-	if err != nil {
-		return nil, err
-	}
-	log.Info("package pushed", "ref", ociReference)
 	return result, nil
 }
