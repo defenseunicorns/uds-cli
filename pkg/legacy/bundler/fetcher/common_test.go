@@ -16,8 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Verify Legacy v1alpha1 package compatibility.
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
+	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"oras.land/oras-go/v2/registry/remote/auth"
 )
@@ -114,4 +115,10 @@ func TestNewZarfOCIRemotePreservesUDSUserAgent(t *testing.T) {
 	client, ok := remote.Repo().Client.(*auth.Client)
 	require.True(t, ok)
 	assert.Equal(t, "uds-cli/test-version", client.Header.Get("User-Agent"))
+
+	remote, err = NewZarfOCIRemote(t.Context(), "oci://example.com/repo:tag", ocispec.Platform{}, zarfoci.WithUserAgent("custom-client"))
+	require.NoError(t, err)
+	client, ok = remote.Repo().Client.(*auth.Client)
+	require.True(t, ok)
+	assert.Equal(t, "custom-client", client.Header.Get("User-Agent"))
 }

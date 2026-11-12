@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 package sources
@@ -55,8 +55,11 @@ func TestTarballBundleLoadPackagePreservesManifestDigest(t *testing.T) {
 		Pkg:                     types.Package{Name: "real-simple"},
 		SkipSignatureValidation: true,
 	}
-	loadedLayout, _, err := source.LoadPackage(ctx, filters.Empty())
+	loadedLayout, _, err := source.LoadPackage(ctx, filters.ForDeploy("*"))
 	require.NoError(t, err)
+	selectors, selected := loadedLayout.Definition().ComponentSelectors()
+	require.True(t, selected)
+	require.Equal(t, []string{"*"}, selectors)
 	require.Equal(t, manifestDesc.Digest.String(), loadedLayout.Digest())
 	require.False(t, loadedLayout.IsPushable())
 }

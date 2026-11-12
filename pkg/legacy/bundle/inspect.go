@@ -155,7 +155,7 @@ func (b *Bundle) listImages() error {
 
 		// create filter for optional components
 		inspectFilter := filters.Combine(
-			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
+			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ",")),
 		)
 
 		filteredPackage, err := filters.Apply(zarfPkg, inspectFilter)
@@ -210,7 +210,7 @@ func (b *Bundle) listVariables() error {
 
 		variables := make([]interface{}, 0)
 
-		for _, zarfVar := range zarfPkg.Variables {
+		for _, zarfVar := range zarfPkg.Variables { //nolint:staticcheck // Legacy inspection includes v1alpha1 package variables.
 			variables = append(variables, inspectVariable{
 				Name:        zarfVar.Name,
 				Sensitive:   zarfVar.Sensitive,

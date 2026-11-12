@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Exercise component filtering for supported v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
@@ -605,6 +605,24 @@ func TestBuildComponentFilter(t *testing.T) {
 			wantNames: []string{"required-comp", "opt-a"},
 		},
 		{
+			name:               "later wildcard includes previously excluded optional component",
+			optionalComponents: []string{"-opt-a", "*"},
+			zarfComponents: []v1alpha1.ZarfComponent{
+				{Name: "required-comp", Required: &requiredTrue},
+				{Name: "opt-a"},
+			},
+			wantNames: []string{"required-comp", "opt-a"},
+		},
+		{
+			name:               "later exclusion overrides wildcard",
+			optionalComponents: []string{"*", "-opt-a"},
+			zarfComponents: []v1alpha1.ZarfComponent{
+				{Name: "required-comp", Required: &requiredTrue},
+				{Name: "opt-a"},
+			},
+			wantNames: []string{"required-comp"},
+		},
+		{
 			name:               "explicitly-false required treated as optional",
 			optionalComponents: []string{},
 			zarfComponents: []v1alpha1.ZarfComponent{
@@ -633,13 +651,48 @@ func TestBuildComponentFilter(t *testing.T) {
 				Components: tt.zarfComponents,
 			}
 
-			selectedDefinition, err := filters.Apply(convert.PackageFromV1alpha1(pkg), filter)
+			selectedDefinition, err := filters.Apply(convert.PackageFromV1alpha1(pkg), filter) //nolint:staticcheck // Convert the v1alpha1 fixture for canonical filtering.
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantNames, componentNames(convert.PackageToV1alpha1(selectedDefinition).Components))
+			assert.Equal(t, tt.wantNames, componentNames(convert.PackageToV1alpha1(selectedDefinition).Components)) //nolint:staticcheck // Verify selected components retain v1alpha1 compatibility.
+		})
+	}
+}
+
+func TestDeployPackageVariablesFollowPackageAPIVersion(t *testing.T) {
+	for _, apiVersion := range []string{"zarf.dev/v1alpha1", "zarf.dev/v1beta1"} {
+		t.Run(apiVersion, func(t *testing.T) {
+			pkgDir := t.TempDir()
+			writeMinimalZarfPackage(t, pkgDir, "app")
+			if apiVersion == "zarf.dev/v1beta1" {
+				definition := "apiVersion: zarf.dev/v1beta1\nkind: ZarfPackageConfig\nmetadata:\n  name: app\n  version: 1.0.0\nbuild:\n  architecture: amd64\n  aggregateChecksum: " + emptySHA256 + "\ncomponents: []\n"
+				require.NoError(t, os.WriteFile(filepath.Join(pkgDir, layout.ZarfYAML), []byte(definition), 0o600))
+			}
+			valuesFile := writeTempYAML(t, "domain: '{{ .vars.domain }}'\n")
+			config := newDeployTestConfig(1)
+			config.Variables = bundleinternal.Variables{"domain": "example.test"}
+			called := false
+			err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{
+				Name: "app", Source: pkgDir, ValuesFiles: []string{valuesFile},
+			}, DeployPackageOptions{
+				Config:    config,
+				BundleDir: t.TempDir(),
+				ClusterDeployFn: func(_ context.Context, l *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+					called = true
+					assert.Equal(t, "example.test", opts.Values["domain"])
+					if apiVersion == "zarf.dev/v1beta1" {
+						assert.Empty(t, opts.SetVariables)
+					} else {
+						assert.Equal(t, map[string]string{"DOMAIN": "example.test"}, opts.SetVariables)
+					}
+					return opts.Validate(l.Definition())
+				},
+			})
+			require.NoError(t, err)
+			assert.True(t, called)
 		})
 	}
 }

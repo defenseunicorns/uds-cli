@@ -128,7 +128,7 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 	definition.Build.RegistryOverrides = maps.Clone(definition.Build.RegistryOverrides)
 	definition.Build.VersionRequirements = slices.Clone(definition.Build.VersionRequirements)
 	definition.Build.ProvenanceFiles = slices.Clone(definition.Build.ProvenanceFiles)
-	definition.Build.DifferentialMissing = slices.Clone(definition.Build.DifferentialMissing)
+	definition.Build.DifferentialMissing = slices.Clone(definition.Build.DifferentialMissing) //nolint:staticcheck // Isolate supported v1alpha1 compatibility fields from hook mutations.
 	if definition.Build.Signed != nil {
 		signed := *definition.Build.Signed
 		definition.Build.Signed = &signed
@@ -139,8 +139,8 @@ func fromZarfPackageLayout(pkgLayout *layout.PackageLayout) *ZarfPackageLayout {
 	}
 	definition.Values.Files = slices.Clone(definition.Values.Files)
 	definition.Attachments = maps.Clone(definition.Attachments)
-	definition.Variables = slices.Clone(definition.Variables)
-	definition.Constants = slices.Clone(definition.Constants)
+	definition.Variables = slices.Clone(definition.Variables) //nolint:staticcheck // Isolate supported v1alpha1 compatibility fields from hook mutations.
+	definition.Constants = slices.Clone(definition.Constants) //nolint:staticcheck // Isolate supported v1alpha1 compatibility fields from hook mutations.
 	result := &ZarfPackageLayout{
 		dirPath:           pkgLayout.DirPath(),
 		PackageDefinition: definition,
@@ -198,6 +198,11 @@ func applyPublicPackageLayout(dst *layout.PackageLayout, src *ZarfPackageLayout)
 	dst.SetAnnotations(src.PackageDefinition.Metadata.Annotations)
 	if err := dst.Filter(packageComponentSelection(src.PackageDefinition.Components)); err != nil {
 		return err
+	}
+	// The custom filter copies components; restore the deployment selection
+	// provenance carried by the in-memory definition after the disk reload.
+	if selectors, applied := src.PackageDefinition.ComponentSelectors(); applied {
+		dst.SetComponentSelectors(selectors)
 	}
 	if src.digest != "" {
 		dst.SetRegistryDigest(src.digest)

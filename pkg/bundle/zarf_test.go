@@ -17,9 +17,10 @@ import (
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Exercise supported v1alpha1 package compatibility.
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -27,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:staticcheck // Build supported v1alpha1 package fixtures.
 func newPackageLayout(t *testing.T, pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
 	t.Helper()
 	result := &layout.PackageLayout{}
@@ -172,6 +174,7 @@ func TestCountRemovalResults(t *testing.T) {
 	assert.Equal(t, 1, skipped)
 }
 
+//nolint:staticcheck // Verify hook mutations on supported v1alpha1 packages.
 func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
 		pkgLayout.PackageDefinition.RemoveImages()
@@ -191,6 +194,7 @@ func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 	assert.Equal(t, "sha256:registry", zarfLayout.Digest())
 }
 
+//nolint:staticcheck // Verify isolation of supported v1alpha1 compatibility fields.
 func TestPublicPackageHookCannotChangeUnsupportedDefinitionFields(t *testing.T) {
 	dir := t.TempDir()
 	const zarfYAML = `metadata:
@@ -298,6 +302,75 @@ func TestPublicPackageLayoutLoaderPreservesV1beta1Fields(t *testing.T) {
 	assert.Equal(t, v1beta1.ServiceRegistry, component.Service.Name)
 }
 
+func TestPublicPackageLayoutPreservesComponentSelection(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		apply          bool
+		selectors      string
+		wantSelectors  []string
+		wantComponents []string
+	}{
+		{name: "unselected", wantComponents: []string{"main", "optional", "unused"}},
+		{name: "default selection", apply: true, wantComponents: []string{"main"}},
+		{name: "ordered repeated selectors", apply: true, selectors: " OPTIONAL, -unused, optional ", wantSelectors: []string{"optional", "-unused", "optional"}, wantComponents: []string{"main", "optional"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			const contents = `kind: ZarfPackageConfig
+metadata:
+  name: test
+  version: 0.0.1
+  aggregateChecksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+components:
+  - name: main
+    required: true
+  - name: optional
+  - name: unused
+`
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(contents), 0o600))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, 0o600))
+			original, err := layout.LoadFromDir(t.Context(), dir, layout.PackageLayoutOptions{IsPartial: true, VerificationStrategy: layout.VerifyNever})
+			require.NoError(t, err)
+			if tt.apply {
+				require.NoError(t, original.Filter(filters.ForDeploy(tt.selectors)))
+			}
+			publicLayout := fromZarfPackageLayout(original)
+			for _, conversion := range []string{"staged loader", "in memory", "hook"} {
+				t.Run(conversion, func(t *testing.T) {
+					var converted *layout.PackageLayout
+					switch conversion {
+					case "staged loader":
+						loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{layout: publicLayout}}
+						result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, dir, internalzarf.LoadOptions{IsPartial: true})
+						require.NoError(t, err)
+						converted = &result.Layout
+					case "in memory":
+						converted, err = toZarfPackageLayoutForDeploy(publicLayout)
+						require.NoError(t, err)
+					case "hook":
+						converted = original
+						hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkg *ZarfPackageLayout, _ *DeployPackageOptions) error {
+							pkg.PackageDefinition.RemoveImages()
+							return nil
+						}})
+						opts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig()})
+						require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, converted, &packager.DeployOptions{}, &opts))
+					}
+					definition := converted.Definition()
+					selectors, applied := definition.ComponentSelectors()
+					assert.Equal(t, tt.apply, applied)
+					assert.Equal(t, tt.wantSelectors, selectors)
+					var names []string
+					for _, component := range definition.Components {
+						names = append(names, component.Name)
+					}
+					assert.Equal(t, tt.wantComponents, names)
+				})
+			}
+		})
+	}
+}
+
 func TestPrepareDeploySourceFindsAdjacentDefaults(t *testing.T) {
 	dir := t.TempDir()
 	defaultsPath := filepath.Join(dir, "defaults.uds.hcl")
@@ -339,6 +412,7 @@ func TestPublicPackageHookPreservesPartialMetadata(t *testing.T) {
 	assert.True(t, partial)
 }
 
+//nolint:staticcheck // Verify component mutation through supported v1alpha1 conversion APIs.
 func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
 	manifests := []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}
 	dst := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
@@ -509,6 +583,7 @@ func TestPublicPreDeployReceivesStagedDirectory(t *testing.T) {
 	require.NoError(t, err)
 }
 
+//nolint:staticcheck // Verify component renaming through supported v1alpha1 conversion APIs.
 func TestPublicPreDeployPreservesRename(t *testing.T) {
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 	internalOpts.PackageDeployHooks = toZarfPackageHooks(PackageDeployHooks{
@@ -531,6 +606,7 @@ func TestPublicPreDeployPreservesRename(t *testing.T) {
 	assert.Equal(t, "manifest.yaml", internalLayout.AsV1alpha1().Components[0].Manifests[0].Name)
 }
 
+//nolint:staticcheck // Verify staged deployment data for supported v1alpha1 packages.
 func TestPackageLayoutLoaderAdapterPreservesStagedPrivateDeploymentData(t *testing.T) {
 	dir := t.TempDir()
 	const zarfYAML = `kind: ZarfPackageConfig

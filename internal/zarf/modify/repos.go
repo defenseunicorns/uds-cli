@@ -47,7 +47,7 @@ func localizeRepos(ctx context.Context, pkgLayout *layout.PackageLayout, outputD
 		localizedURL := fileURL(filepath.Join(finalDir, componentSourcePath(component.Name, rel)))
 		repository.URL = localizedURL
 		repository.Ref = nil
-		repository.LegacyURL = localizedURL
+		repository.LegacyURL = localizedURL //nolint:staticcheck // Preserve the localized URL when writing v1alpha1 source.
 	}
 	return nil
 }
@@ -79,8 +79,8 @@ func removeRemoteTrackingRefs(path string) error {
 }
 
 func repositoryLayoutReference(repository api.Repository) (string, error) {
-	if repository.LegacyURL != "" {
-		return repository.LegacyURL, nil
+	if repository.LegacyURL != "" { //nolint:staticcheck // v1alpha1 packaged repository paths use the original URL with its ref.
+		return repository.LegacyURL, nil //nolint:staticcheck // Resolve assets using the v1alpha1 layout reference.
 	}
 	if repository.Ref == nil {
 		return repository.URL, nil
