@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -24,7 +24,9 @@ import (
 	"github.com/defenseunicorns/pkg/helpers/v2"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/message"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/utils"
+	goyaml "github.com/goccy/go-yaml"
 	digest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +34,56 @@ import (
 )
 
 // This file contains helpers for running UDS CLI commands (ie. uds create/deploy/etc with various flags and options)
+
+// prepareRemotePackageBundle publishes fresh package fixtures to a test-owned
+// registry and returns a temporary bundle definition using those remote sources.
+func prepareRemotePackageBundle(t *testing.T, templateDir string, architectures ...string) string {
+	t.Helper()
+	if len(architectures) == 0 {
+		architectures = []string{e2e.Arch}
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	require.NoError(t, listener.Close())
+	e2e.SetupDockerRegistry(t, port)
+	t.Cleanup(func() { e2e.TeardownRegistry(t, port) })
+	registryHost := fmt.Sprintf("localhost:%d", port)
+
+	templateDir, err = filepath.Abs(templateDir)
+	require.NoError(t, err)
+	data, err := os.ReadFile(filepath.Join(templateDir, config.BundleYAML))
+	require.NoError(t, err)
+	var bundle types.UDSBundle
+	require.NoError(t, goyaml.Unmarshal(data, &bundle))
+	for i := range bundle.Packages {
+		pkg := &bundle.Packages[i]
+		if pkg.Path != "" && !filepath.IsAbs(pkg.Path) {
+			pkg.Path = filepath.Join(templateDir, pkg.Path)
+		}
+		if pkg.Repository == "" {
+			continue
+		}
+		require.Contains(t, []string{"nginx", "podinfo"}, pkg.Name)
+		require.Equal(t, "ghcr.io/defenseunicorns/uds-cli/"+pkg.Name, pkg.Repository)
+		require.Equal(t, "0.0.2", pkg.Ref)
+		sourceDir := filepath.Join("testdata", "legacy", "packages", pkg.Name, "refs")
+		for _, architecture := range architectures {
+			stdout, stderr, err := e2e.UDS("zarf", "package", "create", sourceDir,
+				"--architecture", architecture, "--output", "oci://"+registryHost+"/fixtures",
+				"--plain-http", "--confirm")
+			require.NoError(t, err, "%s\n%s", stdout, stderr)
+		}
+		pkg.Repository = registryHost + "/fixtures/" + pkg.Name
+	}
+
+	bundleDir := t.TempDir()
+	data, err = goyaml.Marshal(bundle)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, config.BundleYAML), data, 0o600))
+	return bundleDir
+}
 
 func inspectRemoteInsecure(t *testing.T, ref string, bundleName string) {
 	runCmd(t, fmt.Sprintf("inspect %s --insecure --sbom", ref))
