@@ -90,7 +90,7 @@ tasks:
   - name: bundle
     description: only run tests in bundle_test.go
     actions:
-      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m bundle_test.go commands_test.go main_test.go
+      - cmd: cd tests/legacy/e2e && go test -failfast -v -timeout 30m bundle_test.go publish_auth_test.go commands_test.go main_test.go
 
   - name: deploy-flags
     description: only run tests in bundle_deploy_flags_test.go
