@@ -170,9 +170,7 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-When any variable is sensitive, UDS suppresses backend diagnostics it controls and detailed template errors. Unmarked configs retain template details. YAML errors omit raw content. Cancellation and deadline errors remain detectable with `errors.Is`. Progress remains visible. Helm and external code may still expose values outside UDS output controls.
-
-Sensitivity metadata does not encrypt values. Defaults stored in bundle artifacts remain plaintext, including values loaded with `file()`.
+UDS limits logging when processing sensitive variables. Sensitivity does not encrypt values; defaults stored in bundle artifacts remain plaintext.
 
 ## Precedence and timing
 

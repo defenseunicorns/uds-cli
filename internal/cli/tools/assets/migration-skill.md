@@ -593,7 +593,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 8a552c5eb8d11e920d9b1da6dca1e88dd1377f43554e737c6ceabeeb19782d5e -->
+<!-- Source SHA256: d891e20151b45567610939f1a16f8b886936545d5a9b97b662c14c5f6e1d71c7 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -760,9 +760,7 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-When any variable is sensitive, UDS suppresses backend diagnostics it controls and detailed template errors. Unmarked configs retain template details. YAML errors omit raw content. Cancellation and deadline errors remain detectable with `errors.Is`. Progress remains visible. Helm and external code may still expose values outside UDS output controls.
-
-Sensitivity metadata does not encrypt values. Defaults stored in bundle artifacts remain plaintext, including values loaded with `file()`.
+UDS limits logging when processing sensitive variables. Sensitivity does not encrypt values; defaults stored in bundle artifacts remain plaintext.
 
 ## Precedence and timing
 
