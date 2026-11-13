@@ -156,6 +156,9 @@ type DeployPackageResult struct {
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
 // It delegates bundle-level deployment (DAG traversal, ordering, parallelism,
 // and concurrency limits) to the deployment adapter.
+// Sensitive backend deployments redact exact known values in process-wide standard
+// Go logs without serializing deployments. Transformed values may not match.
+// Callers must not reconfigure global logging during deployment.
 func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*DeployResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err

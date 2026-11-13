@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/state"
+	helmutil "helm.sh/helm/v4/pkg/chart/common/util"
 )
 
 type stagingRetryLoader struct {
@@ -695,6 +697,10 @@ func TestDeployPackagePassesTimeoutAndRetriesToZarf(t *testing.T) {
 }
 
 func TestDeployPackageSensitiveVariablesSuppressBackendOutput(t *testing.T) {
+	var globalLogs bytes.Buffer
+	previousWriter := log.Writer()
+	log.SetOutput(&globalLogs)
+	t.Cleanup(func() { log.SetOutput(previousWriter) })
 	const canary = "sensitive-canary-value"
 	transformedCanary := strings.ToUpper(canary)
 	pkgDir := t.TempDir()
@@ -718,11 +724,19 @@ func TestDeployPackageSensitiveVariablesSuppressBackendOutput(t *testing.T) {
 			clusterCalled = true
 			assert.Equal(t, canary, opts.Values["password"])
 			assert.Equal(t, canary, opts.SetVariables["PASSWORD"])
+			helmutil.CoalesceTables(map[string]any{"password": map[string]any{}}, map[string]any{"password": canary})
+			helmutil.CoalesceTables(map[string]any{"password": canary}, map[string]any{"password": map[string]any{"value": canary}})
+			log.Print("ordinary diagnostic")
 			zarflogger.From(ctx).Error("backend diagnostic", "password", transformedCanary)
 			return fmt.Errorf("backend failure: %s", transformedCanary)
 		},
 	})
 
+	assert.Contains(t, globalLogs.String(), "Ignoring non-table value (***)")
+	assert.Contains(t, globalLogs.String(), "cannot overwrite table with non table")
+	assert.Contains(t, globalLogs.String(), "ordinary diagnostic")
+	assert.NotContains(t, globalLogs.String(), canary)
+	assert.Same(t, &globalLogs, log.Writer())
 	require.ErrorIs(t, err, ErrDeployPackage)
 	assert.True(t, clusterCalled)
 	for cause := err; cause != nil; cause = errors.Unwrap(cause) {

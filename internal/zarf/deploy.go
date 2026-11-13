@@ -276,6 +276,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	log.Debug("preparing package deployment", "name", pkg.Name, "source", pkg.Source)
 
 	sensitive := hasSensitiveVariables(opts.Config)
+	redactor := newBackendLogRedactor(opts.Config)
 	backendLog := log
 	if sensitive {
 		// Zarf cannot mask sensitive Package Values, so discard its context logs to avoid exposing them.
@@ -385,7 +386,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 			})
 		}
 	}
-	if err := deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial); err != nil {
+	err = redactor.Run(func() error {
+		return deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial)
+	})
+	if err != nil {
 		if sensitive {
 			return fmt.Errorf("package %q: %w", pkg.Name, redactError(err, ErrDeployPackage))
 		}
