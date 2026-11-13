@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -167,12 +168,6 @@ func (d *ZarfDeployer) DeployBundle(ctx context.Context, b *spec.UDSBundle, opts
 		return nil, fmt.Errorf("%w for bundle %q: %w", ErrBundleValidation, b.Metadata.Name, err)
 	}
 
-	ctx, restoreLogs, err := silenceBundleLogs(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer restoreLogs()
-
 	s := logger.Bind(d.streams, opts.Config.Options.LogLevel)
 
 	dag, err := bundleinternal.BuildDependencyGraph(ctx, s, b)
@@ -285,7 +280,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	if sensitive {
 		// Zarf cannot mask sensitive Package Values, so discard its context logs to avoid exposing them.
 		// https://github.com/zarf-dev/zarf/issues/5658
-		backendLog = logger.Bind(iostreams.IOStreams{}, opts.Config.Options.LogLevel)
+		backendLog = logger.Bind(iostreams.New(nil, nil, io.Discard), opts.Config.Options.LogLevel)
 	}
 	ctx = newZarfLoggerContext(ctx, backendLog)
 

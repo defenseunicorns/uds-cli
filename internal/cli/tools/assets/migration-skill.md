@@ -593,7 +593,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: d78677fa22301fb2103edd411e87522719d1d8716d0ac8b3fbb23dc75b484f54 -->
+<!-- Source SHA256: 8a552c5eb8d11e920d9b1da6dca1e88dd1377f43554e737c6ceabeeb19782d5e -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -760,9 +760,7 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-When any variable is sensitive, UDS suppresses backend diagnostics it controls and detailed template errors. Unmarked configs retain template details. YAML errors omit raw content. Cancellation and deadline errors remain detectable with `errors.Is`.
-
-During every bundle deployment, UDS also silences Go’s global `log` and `slog` loggers, including Helm values-conflict warnings and unrelated global logs from concurrent callers. UDS restores the previous logging configuration when the bundle finishes. Package deployments within a bundle remain parallel; independent bundle deployments in the same Go process wait for one another, and waiting callers can cancel. Separate CLI processes are unaffected. Applications must not reconfigure the global loggers during deployment. Deployment callbacks must use their supplied context; starting a nested bundle deployment with that context returns an error instead of waiting for its parent. Callbacks must not wait for another deployment started with an unrelated context. Progress through IOStreams remains visible. Package actions and external code may still expose values through other output paths.
+When any variable is sensitive, UDS suppresses backend diagnostics it controls and detailed template errors. Unmarked configs retain template details. YAML errors omit raw content. Cancellation and deadline errors remain detectable with `errors.Is`. Progress remains visible. Helm and external code may still expose values outside UDS output controls.
 
 Sensitivity metadata does not encrypt values. Defaults stored in bundle artifacts remain plaintext, including values loaded with `file()`.
 
