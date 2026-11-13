@@ -44,8 +44,6 @@ type UDSBundleConfig struct {
 	Remain                hcl.Body `hcl:",remain"` // captures variables and any other unstructured top-level attributes
 }
 
-type sensitiveMark struct{}
-
 // SignatureVerification holds consumer-owned bundle signature trust material.
 type SignatureVerification struct {
 	PublicKey string               `hcl:"public_key,optional"`
@@ -169,7 +167,8 @@ func markedTopLevelVariables(val cty.Value) map[string]bool {
 	}
 	sensitive := make(map[string]bool)
 	for name := range val.Type().AttributeTypes() {
-		if val.GetAttr(name).ContainsMarked() {
+		_, marks := val.GetAttr(name).UnmarkDeep()
+		if _, ok := marks[sensitiveMark]; ok {
 			sensitive[name] = true
 		}
 	}

@@ -47,12 +47,15 @@ func variableEvalContext(filePath string) *hcl.EvalContext {
 	return ctx
 }
 
+// sensitiveMark connects HCL evaluation, redaction flags, and defaults serialization.
+const sensitiveMark = "sensitive"
+
 func sensitiveFunction() function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{{Name: "value", Type: cty.DynamicPseudoType}},
 		Type:   func(args []cty.Value) (cty.Type, error) { return args[0].Type(), nil },
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-			return args[0].Mark(sensitiveMark{}), nil
+			return args[0].Mark(sensitiveMark), nil
 		},
 	})
 }
@@ -225,7 +228,7 @@ func valueTokens(value cty.Value) hclwrite.Tokens {
 	default:
 		tokens = hclwrite.TokensForValue(value)
 	}
-	if _, ok := marks[sensitiveMark{}]; ok {
+	if _, ok := marks[sensitiveMark]; ok {
 		tokens = hclwrite.TokensForFunctionCall("sensitive", tokens)
 	}
 	return tokens

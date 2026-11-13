@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestParseSetVariables(t *testing.T) {
@@ -599,4 +600,20 @@ func TestMergeVariables_DoesNotMutateBaseNestedMap(t *testing.T) {
 
 	a := base["a"].(Variables)
 	assert.Equal(t, true, a["b"])
+}
+
+func TestSensitivityMarkSurvivesSerialization(t *testing.T) {
+	value := cty.ObjectVal(map[string]cty.Value{
+		"nested": cty.ObjectVal(map[string]cty.Value{
+			"token": cty.StringVal("secret").Mark(sensitiveMark),
+		}),
+		"unrelated": cty.StringVal("visible").Mark("other"),
+		"plain":     cty.StringVal("visible"),
+	})
+	want := map[string]bool{"nested": true}
+	require.Equal(t, want, markedTopLevelVariables(value))
+	serialized := append([]byte("variables = "), valueTokens(value).Bytes()...)
+	_, flags, err := ParseDefaultsBytesWithSensitivity(t.Context(), serialized)
+	require.NoError(t, err)
+	assert.Equal(t, want, flags)
 }
