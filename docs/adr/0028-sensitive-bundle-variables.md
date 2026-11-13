@@ -4,50 +4,55 @@ Date: 2026-11-11
 
 ## Status
 
-Accepted
+Accepted. Adds a deployment-scoped exception to [ADR-0012](0012-library-logging-via-iostreams.md)'s prohibition on changing global logging.
 
 ## Context
 
-Bundle variables can contain credentials and other values that should not appear in CLI-managed output or errors. The CLI needs sensitivity metadata without changing the values passed to package values templates or Zarf.
+Bundle variables can contain secrets. Helm can print them through global loggers that bypass IOStreams.
 
 ## Decision
 
-Use `sensitive(value)` on values in the `variables` object in `config.uds.hcl` or `defaults.uds.hcl`. A marked nested value marks its whole top-level variable. The mark remains when defaults, config values, and `--set` overrides are merged. Values keep their existing template and Zarf behavior. The CLI omits marked values from deployment diagnostics and errors when it controls those outputs.
+### Sensitivity metadata
 
-## Consequences
+Support `sensitive(value)` inside config and defaults variables. Nested marks apply to the whole top-level variable and survive overrides. Store marks separately so templates, Zarf, and public Go values remain unchanged.
 
-This does not guarantee that all output hides marked values. Helm writes some coalescing warnings through Go's process-global logger; those warnings can expose marked values during a values conflict. Package actions, caller hooks, and other external code also control their own output. `sensitive()` is metadata, not encryption. Materialized `sensitive(file(...))` defaults retain the function call, while the referenced file contents are stored as plaintext.
+### Diagnostic redaction
 
-## Alternatives considered
+Suppress sensitive backend and template diagnostics. Omit raw YAML error content. Preserve UDS error categories and standard cancellation/deadline identities without retaining secret-bearing causes.
 
-### Keep sensitivity in a separate user-facing list
+### Backend logging
 
-```hcl
-variables = { registry = { password = "secret" } }
-sensitive_variables = ["registry.password"]
-```
-
-Rejected. This keeps variable values as plain data and avoids per-value wrapper handling in Go, but the parallel path list duplicates variable paths and can drift from the values object. The implementation still carries separate sensitivity metadata internally, but authors mark values at their source.
-
-### Keep marked wrappers through every runtime layer
-
-```hcl
-variables = {
-  password      = sensitive("secret")
-  registry_cert = sensitive(file("secret.txt"))
-}
-```
-
-Selected as the HCL authoring syntax because it marks values where they are defined. It extends the function-registration mechanism used by `file()` and uses HCL marks to carry sensitivity. Keeping wrappers in runtime Go values would require changes across merging, package values templates, and Zarf. Instead, values keep their existing Go forms and sensitivity travels separately at the top-level variable boundary.
-
-### Track secret strings and replace exact matches in output
-
-```go
-output = strings.ReplaceAll(output, "secret", "****")
-```
-
-Rejected. Exact matches miss transformed, encoded, or partial values; errors can expose values through wrapped causes; and replacement cannot protect output outside the configured logger boundary.
+Silence global `log` and `slog` output for each bundle deployment. Keep explicit IOStreams progress visible. Do not patch Helm or Zarf.
 
 ## Implementation details
 
-Keeping `Variables` as plain data preserves public Go map literals and indexing, and compatibility with Go templates, `Flatten`, and Zarf. Sensitivity metadata travels alongside values and through merges, avoiding wrappers and unwrapping across runtime layers. Wrapping `Variables` alone cannot prevent leaks after plain values reach the backend, so safe output boundaries are still required.
+One cancellable lock owns global logging for the whole bundle. This removes per-package reference counting while preserving parallel package deployment. The orchestrator waits for in-flight packages before returning; deferred cleanup restores the previous logger, writer, and flags before releasing the lock.
+
+Every bundle takes the lock because package hooks can introduce sensitive configuration. Nested deployments using the callback's context are rejected to prevent deadlock.
+
+Running Helm in a subprocess would isolate logging, but requires substantial inter-process coordination for inputs, results, errors, cancellation, cleanup, callbacks, and custom loaders. We reject that complexity for this requirement.
+
+## Alternatives considered
+
+### Sensitivity metadata
+
+- **Separate sensitivity list:** rejected because duplicated variable paths can drift from their definitions.
+- **Runtime value wrappers:** rejected because they require changes across public Go values, merging, templates, and Zarf integration.
+
+### Diagnostic redaction
+
+- **String replacement:** rejected because it misses transformed or partial secrets and wrapped error causes.
+
+### Backend logging
+
+- **Per-package suppression:** rejected because shared reference counting and restoration bookkeeping add complexity without improving package parallelism.
+- **Serialize packages:** rejected because it sacrifices package parallelism.
+- **Permanent global suppression:** rejected because it also silences unrelated host logs outside deployment.
+- **Patch Helm/Zarf:** rejected because maintaining dependency patches or forks is outside our maintenance budget.
+- **Helm subprocess:** rejected because coordinating inputs, results, cancellation, cleanup, and callbacks across processes is disproportionate to this requirement.
+
+## Consequences
+
+- Independent bundles serialize within one process; package concurrency and separate CLI processes are unaffected.
+- Unrelated global logs are muted during deployment. Applications must not reconfigure global logging. Callbacks must propagate their supplied context and must not wait for deployments started with an unrelated context.
+- Sensitivity is metadata, not encryption. Artifact defaults remain plaintext. Direct output from package actions and external code remains outside this protection.
