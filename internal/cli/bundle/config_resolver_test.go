@@ -4,12 +4,14 @@
 package bundle
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -123,7 +125,7 @@ func TestApplySetVariables(t *testing.T) {
 	config := &bundle.UDSBundleConfig{Variables: bundle.Variables{
 		"domain":   "from-config.example",
 		"existing": true,
-	}}
+	}, SensitiveVariables: map[string]bool{"existing": true}}
 
 	err := applySetVariables(config, []string{"domain=from-cli.example", "replicas=3"})
 	require.NoError(t, err)
@@ -132,6 +134,7 @@ func TestApplySetVariables(t *testing.T) {
 		"existing": true,
 		"replicas": float64(3),
 	}, config.Variables)
+	assert.Equal(t, map[string]bool{"existing": true}, config.SensitiveVariables)
 }
 
 func TestApplySetVariables_NoEntriesPreservesNilVariables(t *testing.T) {
@@ -141,6 +144,17 @@ func TestApplySetVariables_NoEntriesPreservesNilVariables(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, config.Variables)
+}
+
+func TestApplySetVariablesDoesNotLeakConversionDetails(t *testing.T) {
+	config := &bundle.UDSBundleConfig{}
+	err := applySetVariables(config, []string{`credential={"secret-canary"=null}`})
+	require.ErrorIs(t, err, bundleinternal.ErrInvalidVariables)
+	require.ErrorContains(t, err, `parsing --set variable "credential"`)
+	require.ErrorContains(t, err, "converting --set value: invalid variables")
+	for cause := err; cause != nil; cause = errors.Unwrap(cause) {
+		assert.NotContains(t, cause.Error(), "secret-canary")
+	}
 }
 
 func TestMergeHCL_NilPointer(t *testing.T) {
@@ -744,7 +758,8 @@ func TestResolveBaseAndApplyBundleDefaults(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`
 variables = {
   from_defaults = "default"
-  overridden    = "default"
+  overridden    = sensitive("default")
+  from_defaults_sensitive = sensitive("default-secret")
 }
 `), 0o600))
 	configPath := filepath.Join(t.TempDir(), "config.uds.hcl")
@@ -755,6 +770,7 @@ options {
 variables = {
   overridden  = "config"
   from_config = "config"
+  from_config_sensitive = sensitive("config-secret")
 }
 signature_verification {
   public_key = "trusted-public-key"
@@ -778,7 +794,8 @@ signature_verification {
 	assert.True(t, base.Options.PlainHTTP)
 	assert.Equal(t, 3, base.Options.Concurrency)
 	assert.Equal(t, bundleDir, base.Options.TmpDir)
-	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config"}, base.Variables)
+	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config", "from_config_sensitive": "config-secret"}, base.Variables)
+	assert.Equal(t, map[string]bool{"from_config_sensitive": true}, base.SensitiveVariables)
 	require.NotNil(t, base.SignatureVerification)
 	assert.Equal(t, "trusted-public-key", base.SignatureVerification.PublicKey)
 
@@ -787,13 +804,14 @@ signature_verification {
 	assert.Equal(t, "default", resolved.Variables["from_defaults"])
 	assert.Equal(t, "config", resolved.Variables["overridden"])
 	assert.Equal(t, "config", resolved.Variables["from_config"])
+	assert.Equal(t, map[string]bool{"overridden": true, "from_defaults_sensitive": true, "from_config_sensitive": true}, resolved.SensitiveVariables)
 	assert.Equal(t, base.Options, resolved.Options)
 	assert.NotSame(t, base.Options, resolved.Options)
 	resolved.Options.Concurrency = 99
 	resolved.Options.LogLevel = "debug"
 	assert.Equal(t, 3, base.Options.Concurrency)
 	assert.Equal(t, "info", base.Options.LogLevel)
-	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config"}, base.Variables, "base config must not be mutated")
+	assert.Equal(t, bundle.Variables{"overridden": "config", "from_config": "config", "from_config_sensitive": "config-secret"}, base.Variables, "base config must not be mutated")
 }
 
 func TestResolve_CLIOverridesHCL(t *testing.T) {

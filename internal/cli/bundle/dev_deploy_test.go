@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
 	bundlepkg "github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -40,6 +41,23 @@ func TestDevDeployOptions_Complete(t *testing.T) {
 			assert.NotNil(t, o.Printer)
 		})
 	}
+}
+
+func TestDevDeployOptions_RunDoesNotLeakSetConversionDetailsBeforeDefaults(t *testing.T) {
+	streams, _, out, errOut := iostreams.NewTestIOStreams()
+	bundleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, bundleDefaultsFileName), []byte(`variables = { credential = sensitive({}) }`), 0o600))
+	o := &DevDeployOptions{
+		BundlePath: bundleDir,
+		Variables:  []string{`credential={"secret-canary"=null}`},
+		IOStreams:  streams,
+	}
+
+	err := o.Run(t.Context())
+	require.ErrorIs(t, err, bundleinternal.ErrInvalidVariables)
+	assert.NotContains(t, err.Error(), "secret-canary")
+	assert.NotContains(t, out.String(), "secret-canary")
+	assert.NotContains(t, errOut.String(), "secret-canary")
 }
 
 func TestDevDeployOptions_Validate(t *testing.T) {

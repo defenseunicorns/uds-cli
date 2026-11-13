@@ -156,6 +156,9 @@ type DeployPackageResult struct {
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
 // It delegates bundle-level deployment (DAG traversal, ordering, parallelism,
 // and concurrency limits) to the deployment adapter.
+// Sensitive backend deployments redact exact known values in process-wide standard
+// Go logs without serializing deployments. Transformed values may not match.
+// Callers must not reconfigure global logging during deployment.
 func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*DeployResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -290,7 +293,7 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 		converted := bundleinternal.ConfigOptions(*cfg.Options)
 		options = &converted
 	}
-	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
+	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
 }
 
 func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
@@ -302,7 +305,7 @@ func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
 		converted := ConfigOptions(*cfg.Options)
 		options = &converted
 	}
-	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables)}
+	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
 }
 
 func toZarfDeployPackageOptions(opts DeployPackageOptions) internalzarf.DeployPackageOptions {
@@ -391,14 +394,15 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 
 func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, defaultsPath string, artifactSource bool) (*UDSBundleConfig, error) {
 	var (
-		defaults bundleinternal.Variables
-		err      error
+		defaults  bundleinternal.Variables
+		sensitive map[string]bool
+		err       error
 	)
 	if config == nil {
 		return nil, fmt.Errorf("config must not be nil")
 	}
 	if !artifactSource {
-		defaults, err = bundleinternal.ParseDefaults(ctx, defaultsPath)
+		defaults, sensitive, err = bundleinternal.ParseDefaultsWithSensitivity(ctx, defaultsPath)
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
@@ -407,13 +411,14 @@ func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, default
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
-		defaults, err = bundleinternal.ParseDefaultsBytes(ctx, defaultsData)
+		defaults, sensitive, err = bundleinternal.ParseDefaultsBytesWithSensitivity(ctx, defaultsData)
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
 	}
 	merged := *config
 	merged.Variables = fromInternalVariables(bundleinternal.MergeVariables(bundleinternal.Variables(defaults), toInternalVariables(config.Variables)))
+	merged.SensitiveVariables = bundleinternal.MergeSensitiveVariables(sensitive, config.SensitiveVariables)
 	return &merged, nil
 }
 

@@ -8,7 +8,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,10 +26,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	zarflogger "github.com/zarf-dev/zarf/src/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/state"
+	helmutil "helm.sh/helm/v4/pkg/chart/common/util"
 )
 
 type stagingRetryLoader struct {
@@ -208,7 +213,7 @@ func TestTemplateValuesFiles(t *testing.T) {
 		name         string
 		fileContents []string // one entry per file
 		vars         bundleinternal.Variables
-		wantErr      string
+		wantErr      error
 		wantOutputs  []string // expected rendered content per file
 		wantSameRef  bool     // true when nil vars → paths must equal input paths
 	}{
@@ -265,31 +270,31 @@ func TestTemplateValuesFiles(t *testing.T) {
 			name:         "second file has missing variable",
 			fileContents: []string{"a: {{ .vars.x }}", "b: {{ .vars.missing }}"},
 			vars:         bundleinternal.Variables{"x": "ok"},
-			wantErr:      "map has no entry for key",
+			wantErr:      ErrRenderValues,
 		},
 		{
 			name:         "missing variable key",
 			fileContents: []string{"host: {{ .vars.undefined }}"},
 			vars:         bundleinternal.Variables{},
-			wantErr:      "map has no entry for key",
+			wantErr:      ErrRenderValues,
 		},
 		{
 			name:         "missing nested key",
 			fileContents: []string{"x: {{ .vars.a.missing }}"},
 			vars:         bundleinternal.Variables{"a": bundleinternal.Variables{"present": "yes"}},
-			wantErr:      "map has no entry for key",
+			wantErr:      ErrRenderValues,
 		},
 		{
 			name:         "invalid template syntax",
 			fileContents: []string{"x: {{ .vars. }}"},
 			vars:         bundleinternal.Variables{"k": "v"},
-			wantErr:      "", // any parse error
+			wantErr:      ErrParseValuesTemplate,
 		},
 		{
 			name:         "empty vars map with marker",
 			fileContents: []string{"x: {{ .vars.k }}"},
 			vars:         bundleinternal.Variables{},
-			wantErr:      "map has no entry for key",
+			wantErr:      ErrRenderValues,
 		},
 		{
 			name: "range over list of objects",
@@ -332,19 +337,19 @@ func TestTemplateValuesFiles(t *testing.T) {
 			name:         "env helper is undefined",
 			fileContents: []string{"x: {{ env \"PATH\" }}"},
 			vars:         bundleinternal.Variables{"k": "v"},
-			wantErr:      "function \"env\" not defined",
+			wantErr:      ErrParseValuesTemplate,
 		},
 		{
 			name:         "default helper is undefined",
 			fileContents: []string{"x: {{ default \"fallback\" .vars.present }}"},
 			vars:         bundleinternal.Variables{"present": "yes"},
-			wantErr:      "function \"default\" not defined",
+			wantErr:      ErrParseValuesTemplate,
 		},
 		{
 			name:         "toYaml helper is undefined",
 			fileContents: []string{"x: {{ toYaml .vars.x }}"},
 			vars:         bundleinternal.Variables{"x": "y"},
-			wantErr:      "function \"toYaml\" not defined",
+			wantErr:      ErrParseValuesTemplate,
 		},
 	}
 
@@ -355,10 +360,11 @@ func TestTemplateValuesFiles(t *testing.T) {
 				inputPaths = append(inputPaths, writeTempYAML(t, content))
 			}
 
-			outPaths, err := templateValuesFiles(t.Context(), inputPaths, tt.vars, t.TempDir())
+			outPaths, err := templateValuesFiles(t.Context(), inputPaths, tt.vars, t.TempDir(), false)
 
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Contains(t, err.Error(), filepath.Base(inputPaths[len(inputPaths)-1]))
 				return
 			}
 			if !tt.wantSameRef && tt.wantOutputs == nil {
@@ -690,6 +696,159 @@ func TestDeployPackagePassesTimeoutAndRetriesToZarf(t *testing.T) {
 	assert.True(t, called)
 }
 
+func TestDeployPackageSensitiveVariablesSuppressBackendOutput(t *testing.T) {
+	var globalLogs bytes.Buffer
+	previousWriter := log.Writer()
+	log.SetOutput(&globalLogs)
+	t.Cleanup(func() { log.SetOutput(previousWriter) })
+	const canary = "sensitive-canary-value"
+	transformedCanary := strings.ToUpper(canary)
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "app")
+	valuesPath := writeTempYAML(t, "password: {{ .vars.password }}")
+	var callerLogs, errOut bytes.Buffer
+	streams := iostreams.New(nil, nil, &errOut).WithLogger(slog.New(slog.NewJSONHandler(&callerLogs, nil)), nil)
+	config := newDeployTestConfig(1)
+	config.Variables = bundleinternal.Variables{"password": canary}
+	config.SensitiveVariables = map[string]bool{"password": true}
+	clusterCalled := false
+	err := NewZarfDeployer(streams, nil).DeployPackage(t.Context(), &spec.Package{Name: "app", Source: pkgDir, ValuesFiles: []string{valuesPath}}, DeployPackageOptions{
+		Config:    config,
+		BundleDir: t.TempDir(),
+		PackageDeployHooks: PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, _ *layout.PackageLayout, _ *packager.DeployOptions, opts *DeployPackageOptions) error {
+			// A hook cannot clear the sensitivity decision made before values were rendered.
+			opts.Config.SensitiveVariables = nil
+			return nil
+		}},
+		ClusterDeployFn: func(ctx context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+			clusterCalled = true
+			assert.Equal(t, canary, opts.Values["password"])
+			assert.Equal(t, canary, opts.SetVariables["PASSWORD"])
+			helmutil.CoalesceTables(map[string]any{"password": map[string]any{}}, map[string]any{"password": canary})
+			helmutil.CoalesceTables(map[string]any{"password": canary}, map[string]any{"password": map[string]any{"value": canary}})
+			log.Print("ordinary diagnostic")
+			zarflogger.From(ctx).Error("backend diagnostic", "password", transformedCanary)
+			return fmt.Errorf("backend failure: %s", transformedCanary)
+		},
+	})
+
+	assert.Contains(t, globalLogs.String(), "Ignoring non-table value (***)")
+	assert.Contains(t, globalLogs.String(), "cannot overwrite table with non table")
+	assert.Contains(t, globalLogs.String(), "ordinary diagnostic")
+	assert.NotContains(t, globalLogs.String(), canary)
+	assert.Same(t, &globalLogs, log.Writer())
+	require.ErrorIs(t, err, ErrDeployPackage)
+	assert.True(t, clusterCalled)
+	for cause := err; cause != nil; cause = errors.Unwrap(cause) {
+		assert.NotContains(t, cause.Error(), transformedCanary)
+	}
+	assert.NotContains(t, callerLogs.String(), transformedCanary)
+	assert.NotContains(t, callerLogs.String(), "backend diagnostic")
+	assert.NotContains(t, errOut.String(), transformedCanary)
+	assert.Contains(t, callerLogs.String(), "deploying zarf package to cluster")
+}
+
+func TestDeployPackageUnmarkedVariablesKeepBackendOutput(t *testing.T) {
+	const canary = "unmarked-canary-value"
+	transformedCanary := strings.ToUpper(canary)
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "app")
+	valuesPath := writeTempYAML(t, "password: {{ .vars.password }}")
+	var callerLogs bytes.Buffer
+	streams := iostreams.New(nil, nil, io.Discard).WithLogger(slog.New(slog.NewJSONHandler(&callerLogs, nil)), nil)
+	config := newDeployTestConfig(1)
+	config.Variables = bundleinternal.Variables{"password": canary}
+	err := NewZarfDeployer(streams, nil).DeployPackage(t.Context(), &spec.Package{Name: "app", Source: pkgDir, ValuesFiles: []string{valuesPath}}, DeployPackageOptions{
+		Config:    config,
+		BundleDir: t.TempDir(),
+		ClusterDeployFn: func(ctx context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+			assert.Equal(t, canary, opts.Values["password"])
+			assert.Equal(t, canary, opts.SetVariables["PASSWORD"])
+			zarflogger.From(ctx).Error("backend diagnostic", "password", transformedCanary)
+			return fmt.Errorf("backend failure: %s", transformedCanary)
+		},
+	})
+
+	require.ErrorIs(t, err, ErrDeployPackage)
+	assert.Contains(t, err.Error(), transformedCanary)
+	assert.Contains(t, callerLogs.String(), transformedCanary)
+	assert.Contains(t, callerLogs.String(), "backend diagnostic")
+}
+
+func TestPrepareValuesAndVariablesSanitizesFileErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		contents  string
+		canary    string
+		variables bundleinternal.Variables
+		wantError error
+	}{
+		{name: "template parse", contents: "password: {{ valuesFileCanary }}", canary: "valuesFileCanary", wantError: ErrParseValuesTemplate},
+		{
+			name:      "template execute",
+			contents:  "password: {{ call .vars.password }}",
+			canary:    "execution-canary",
+			variables: bundleinternal.Variables{"password": func() (string, error) { return "", errors.New("execution-canary") }},
+			wantError: ErrRenderValues,
+		},
+		{name: "YAML parse", contents: "password: {{ .vars.password }}\n  invalid: [", canary: "yaml-file-canary", wantError: ErrParseValues},
+	}
+	for _, tt := range tests {
+		for _, sensitive := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/sensitive=%t", tt.name, sensitive), func(t *testing.T) {
+				tmpDir := t.TempDir()
+				valuesPath := writeTempYAML(t, tt.contents)
+				pkg := &spec.Package{Name: "app", ValuesFiles: []string{valuesPath}}
+				variables := tt.variables
+				if variables == nil {
+					variables = bundleinternal.Variables{"password": tt.canary}
+				}
+				opts := DeployPackageOptions{Config: &UDSBundleConfig{
+					Options:   &bundleinternal.ConfigOptions{TmpDir: tmpDir},
+					Variables: variables,
+				}}
+				if sensitive {
+					opts.Config.SensitiveVariables = map[string]bool{"password": true}
+				}
+
+				_, _, err := NewZarfDeployer(iostreams.IOStreams{}, nil).prepareValuesAndVariables(t.Context(), iostreams.IOStreams{}, pkg, opts)
+				require.ErrorIs(t, err, tt.wantError)
+				assert.Contains(t, err.Error(), `package "app"`)
+				assert.Contains(t, err.Error(), filepath.Base(valuesPath))
+				shouldExpose := !sensitive && !errors.Is(tt.wantError, ErrParseValues)
+				if shouldExpose {
+					assert.Contains(t, err.Error(), tt.canary)
+				} else {
+					for cause := err; cause != nil; cause = errors.Unwrap(cause) {
+						assert.NotContains(t, cause.Error(), tt.canary)
+					}
+				}
+				entries, readErr := os.ReadDir(tmpDir)
+				require.NoError(t, readErr)
+				assert.Empty(t, entries)
+			})
+		}
+	}
+}
+
+func TestPrepareValuesAndVariablesCleansUpOnCancellation(t *testing.T) {
+	tmpDir := t.TempDir()
+	valuesPath := writeTempYAML(t, "value: valid")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	opts := DeployPackageOptions{Config: &UDSBundleConfig{
+		Options:   &bundleinternal.ConfigOptions{TmpDir: tmpDir},
+		Variables: bundleinternal.Variables{"value": "valid"},
+	}}
+
+	_, _, err := NewZarfDeployer(iostreams.IOStreams{}, nil).prepareValuesAndVariables(ctx, iostreams.IOStreams{}, &spec.Package{Name: "app", ValuesFiles: []string{valuesPath}}, opts)
+	require.ErrorIs(t, err, ErrParseValues)
+	require.ErrorIs(t, err, context.Canceled)
+	entries, readErr := os.ReadDir(tmpDir)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries)
+}
+
 func TestDeployPackageSetsAgentMutationPolicyForInit(t *testing.T) {
 	pkgDir := t.TempDir()
 	writeMinimalZarfPackage(t, pkgDir, "init")
@@ -781,4 +940,93 @@ func TestDeployBundleRebindsLoggerAfterPreDeployHook(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotContains(t, errOut.String(), "deploying bundle")
+}
+
+func TestDeployPackagePreservesContextErrors(t *testing.T) {
+	const canary = "backend-secret-canary"
+	for _, tc := range []struct {
+		name  string
+		cause error
+	}{
+		{name: "success"},
+		{name: "ordinary", cause: errors.New("backend failure")},
+		{name: "canceled", cause: context.Canceled},
+		{name: "deadline", cause: context.DeadlineExceeded},
+		{name: "both", cause: errors.Join(context.Canceled, context.DeadlineExceeded)},
+	} {
+		for _, sensitive := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/sensitive=%t", tc.name, sensitive), func(t *testing.T) {
+				pkgDir := t.TempDir()
+				writeMinimalZarfPackage(t, pkgDir, "app")
+				cfg := newDeployTestConfig(1)
+				cfg.SensitiveVariables = map[string]bool{"password": sensitive}
+				var backendErr error
+				if tc.cause != nil {
+					backendErr = fmt.Errorf("%s: %w", canary, tc.cause)
+				}
+				err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{Name: "app", Source: pkgDir}, DeployPackageOptions{
+					Config:    cfg,
+					BundleDir: t.TempDir(),
+					ClusterDeployFn: func(context.Context, *layout.PackageLayout, *packager.DeployOptions, bool) error {
+						return backendErr
+					},
+				})
+				if backendErr == nil {
+					require.NoError(t, err)
+					return
+				}
+				require.ErrorIs(t, err, ErrDeployPackage)
+				for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+					assert.Equal(t, errors.Is(backendErr, cause), errors.Is(err, cause))
+				}
+				if sensitive {
+					assertRedactedErrorTree(t, err, canary)
+					assert.NotErrorIs(t, err, backendErr)
+				} else {
+					assert.ErrorIs(t, err, backendErr)
+				}
+			})
+		}
+	}
+}
+
+func assertRedactedErrorTree(t *testing.T, err error, canary string) {
+	t.Helper()
+	if err == nil {
+		return
+	}
+	assert.NotContains(t, err.Error(), canary)
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, cause := range joined.Unwrap() {
+			assertRedactedErrorTree(t, cause, canary)
+		}
+	} else {
+		assertRedactedErrorTree(t, errors.Unwrap(err), canary)
+	}
+}
+
+func TestSensitiveTemplatePreservesContextErrors(t *testing.T) {
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+		t.Run(cause.Error(), func(t *testing.T) {
+			const canary = "template-secret-canary"
+			valuesPath := writeTempYAML(t, "value: {{ call .vars.value }}")
+			vars := bundleinternal.Variables{"value": func() (string, error) {
+				return "", fmt.Errorf("%s: %w", canary, cause)
+			}}
+			_, err := templateValuesFiles(t.Context(), []string{valuesPath}, vars, t.TempDir(), true)
+			require.ErrorIs(t, err, ErrRenderValues)
+			require.ErrorIs(t, err, cause)
+			assertRedactedErrorTree(t, err, canary)
+		})
+	}
+}
+
+func TestParseValuesPreservesDeadline(t *testing.T) {
+	valuesPath := writeTempYAML(t, "value: valid")
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	defer cancel()
+	opts := DeployPackageOptions{Config: newDeployTestConfig(1)}
+	_, _, err := NewZarfDeployer(iostreams.IOStreams{}, nil).prepareValuesAndVariables(ctx, iostreams.IOStreams{}, &spec.Package{Name: "app", ValuesFiles: []string{valuesPath}}, opts)
+	require.ErrorIs(t, err, ErrParseValues)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

@@ -198,8 +198,10 @@ func (s *DeploySuite) TestDevDeployCommand_MissingTemplateVariable() {
 
 	_, err := executeCLI(s.T(), "", "bundle", "dev", "deploy", bundlePath, "--config", configPath)
 	s.Require().Error(err, "deploy with missing template variable should fail")
+	s.Contains(err.Error(), "templating package values",
+		"error should indicate the safe template error category")
 	s.Contains(err.Error(), "map has no entry for key",
-		"error should indicate the missing variable")
+		"error should include template execution details for unmarked variables")
 }
 
 func prepareClusterFreeVariablesBundle(t *testing.T) string {

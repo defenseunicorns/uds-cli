@@ -57,7 +57,7 @@ func TestDefaultsMergePreservesCallerConfiguration(t *testing.T) {
 	source := preparedLibrarySource(t)
 	source.DefaultsPath = filepath.Join(t.TempDir(), "defaults.uds.hcl")
 	require.NoError(t, os.WriteFile(source.DefaultsPath, []byte(`variables = {
-  domain = "default.test"
+  domain = sensitive("default.test")
   nested = { keep = "default", override = "default" }
   names = ["default"]
 }
@@ -68,24 +68,26 @@ func TestDefaultsMergePreservesCallerConfiguration(t *testing.T) {
 		"nested": map[string]any{"override": "caller"},
 		"names":  []any{"caller"},
 	}
+	config.SensitiveVariables = map[string]bool{"caller_secret": true}
 	before, err := json.Marshal(config.Variables)
 	require.NoError(t, err)
-	var observed bundle.Variables
+	var observed bundle.UDSBundleConfig
 	stop := errors.New("merged defaults captured")
 	_, err = bundle.Deploy(t.Context(), source, bundle.DeployOptions{
 		Config: config,
 		PackageDeployHooks: bundle.PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, _ *bundle.ZarfPackageLayout, opts *bundle.DeployPackageOptions) error {
-			observed = opts.Config.Variables
+			observed = *opts.Config
 			return stop
 		}},
 	})
 	require.ErrorIs(t, err, stop)
-	got, err := json.Marshal(observed)
+	got, err := json.Marshal(observed.Variables)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"domain":"caller.test","nested":{"keep":"default","override":"caller"},"names":["caller"]}`, string(got))
 	after, err := json.Marshal(config.Variables)
 	require.NoError(t, err)
 	assert.JSONEq(t, string(before), string(after))
+	assert.Equal(t, map[string]bool{"domain": true, "caller_secret": true}, observed.SensitiveVariables)
 }
 
 func TestGlobalCompatibilityOptionsPreserveOperationBehavior(t *testing.T) {
@@ -170,7 +172,7 @@ items:
 			require.ErrorIs(t, err, bundle.ErrDeployBundle)
 			if missing {
 				require.NotErrorIs(t, err, stop)
-				require.ErrorContains(t, err, "nested")
+				require.ErrorContains(t, err, "map has no entry for key")
 				assert.False(t, called)
 			} else {
 				require.ErrorIs(t, err, stop)

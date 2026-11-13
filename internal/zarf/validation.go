@@ -52,9 +52,10 @@ func toBundleHCLConfig(cfg *UDSBundleConfig) *bundleinternal.UDSBundleConfig {
 	}
 
 	return &bundleinternal.UDSBundleConfig{
-		Options:   cfg.Options,
-		Variables: cfg.Variables,
-		Remain:    cfg.Remain,
+		Options:            cfg.Options,
+		Variables:          cfg.Variables,
+		SensitiveVariables: cfg.SensitiveVariables,
+		Remain:             cfg.Remain,
 	}
 }
 

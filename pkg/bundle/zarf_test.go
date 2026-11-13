@@ -471,6 +471,22 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 	assert.True(t, internal.Config.Options.SkipArchitectureCheck)
 }
 
+func TestSensitiveVariablesSurvivePublicAndZarfConfigConversion(t *testing.T) {
+	config := &UDSBundleConfig{
+		Options:            &ConfigOptions{LogLevel: "info"},
+		Variables:          Variables{"token": "canary"},
+		SensitiveVariables: map[string]bool{"token": true},
+	}
+
+	zarfConfig := toZarfConfig(config)
+	require.Equal(t, "canary", zarfConfig.Variables["token"])
+	require.Equal(t, map[string]bool{"token": true}, zarfConfig.SensitiveVariables)
+	assert.Equal(t, map[string]bool{"token": true}, fromZarfConfig(zarfConfig).SensitiveVariables)
+
+	internal := internalzarf.UDSBundleConfig{SensitiveVariables: map[string]bool{"token": true}}
+	assert.Equal(t, map[string]bool{"token": true}, toInternalConfig(fromZarfConfig(&internal)).SensitiveVariables)
+}
+
 func TestPackagePreDeployRejectsNilConfig(t *testing.T) {
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 	hooks := toZarfPackageHooks(PackageDeployHooks{
