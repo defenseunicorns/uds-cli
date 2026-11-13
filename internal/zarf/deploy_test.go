@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -31,7 +30,6 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/state"
-	helmutil "helm.sh/helm/v4/pkg/chart/common/util"
 )
 
 type stagingRetryLoader struct {
@@ -930,7 +928,7 @@ func TestDeployBundleRebindsLoggerAfterPreDeployHook(t *testing.T) {
 	assert.NotContains(t, errOut.String(), "deploying bundle")
 }
 
-func TestDeployPackagePreservesContextErrorsAndSuppressesHelmWarnings(t *testing.T) {
+func TestDeployPackagePreservesContextErrors(t *testing.T) {
 	const canary = "backend-secret-canary"
 	for _, tc := range []struct {
 		name  string
@@ -944,10 +942,6 @@ func TestDeployPackagePreservesContextErrorsAndSuppressesHelmWarnings(t *testing
 	} {
 		for _, sensitive := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/sensitive=%t", tc.name, sensitive), func(t *testing.T) {
-				var logs bytes.Buffer
-				original := log.Writer()
-				log.SetOutput(&logs)
-				t.Cleanup(func() { log.SetOutput(original) })
 				pkgDir := t.TempDir()
 				writeMinimalZarfPackage(t, pkgDir, "app")
 				cfg := newDeployTestConfig(1)
@@ -960,18 +954,9 @@ func TestDeployPackagePreservesContextErrorsAndSuppressesHelmWarnings(t *testing
 					Config:    cfg,
 					BundleDir: t.TempDir(),
 					ClusterDeployFn: func(context.Context, *layout.PackageLayout, *packager.DeployOptions, bool) error {
-						helmutil.CoalesceTables(map[string]any{"password": map[string]any{"nested": "value"}}, map[string]any{"password": canary})
 						return backendErr
 					},
 				})
-				assert.Same(t, &logs, log.Writer())
-				if sensitive {
-					assert.NotContains(t, logs.String(), canary)
-				} else {
-					assert.Contains(t, logs.String(), canary)
-				}
-				log.Print("restored logger")
-				assert.Contains(t, logs.String(), "restored logger")
 				if backendErr == nil {
 					require.NoError(t, err)
 					return

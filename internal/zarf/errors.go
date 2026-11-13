@@ -32,6 +32,7 @@ var (
 	ErrLoadPackage                  = errors.New("loading package")
 	ErrIngestPackage                = errors.New("ingesting package")
 	ErrDeployPackage                = errors.New("deploying package")
+	ErrNestedBundleDeploy           = errors.New("cannot deploy a bundle from a deployment hook")
 	ErrRemovePackage                = errors.New("removing package")
 	ErrPackageHook                  = errors.New("package hook failed")
 	ErrBundleHook                   = errors.New("bundle hook failed")

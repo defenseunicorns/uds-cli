@@ -156,6 +156,10 @@ type DeployPackageResult struct {
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
 // It delegates bundle-level deployment (DAG traversal, ordering, parallelism,
 // and concurrency limits) to the deployment adapter.
+// Bundle execution serializes within a process while package deployments remain
+// parallel. Global log/slog output is muted for that execution; IOStreams output
+// remains available. Hooks must propagate their supplied context, and nested
+// deployments using that context are rejected rather than waiting on themselves.
 func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*DeployResult, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
