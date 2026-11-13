@@ -16,12 +16,14 @@ type backendLogRedactor struct {
 	secrets []string
 }
 
-// Run limits redaction to the backend call, including error and panic cleanup.
+// Run registers this call's secrets and releases its scope on return or panic.
 func (r backendLogRedactor) Run(deploy func() error) error {
 	defer redactStandardLogs(r.secrets)()
 	return deploy()
 }
 
+// Registration must update the saved writer, secrets, and global output together.
+// An atomic count alone cannot prevent overlapping calls from replacing each other.
 var standardLogRedaction struct {
 	sync.Mutex
 	active  int
@@ -38,6 +40,7 @@ func (w secretLogWriter) Write(p []byte) (int, error) {
 	if _, err := io.WriteString(w.next, w.replacer.Replace(string(p))); err != nil {
 		return 0, err
 	}
+	// io.Writer counts consumed input, even when redaction shortens the output.
 	return len(p), nil
 }
 
@@ -53,6 +56,7 @@ func redactStandardLogs(secrets []string) func() {
 	}
 	standardLogRedaction.active++
 	standardLogRedaction.secrets = append(standardLogRedaction.secrets, secrets...)
+	// Match longer secrets first so a shared prefix does not expose their suffixes.
 	sort.Slice(standardLogRedaction.secrets, func(i, j int) bool {
 		return len(standardLogRedaction.secrets[i]) > len(standardLogRedaction.secrets[j])
 	})
@@ -60,7 +64,8 @@ func redactStandardLogs(secrets []string) func() {
 	for _, secret := range standardLogRedaction.secrets {
 		pairs = append(pairs, secret, "***")
 	}
-	// Immutable snapshots avoid taking our mutex while log holds its output lock.
+	// Write must not take our mutex: log holds its output lock while calling it,
+	// and SetOutput takes that same lock while we hold this mutex.
 	log.SetOutput(secretLogWriter{standardLogRedaction.writer, strings.NewReplacer(pairs...)})
 	return func() {
 		standardLogRedaction.Lock()
@@ -89,6 +94,7 @@ func newBackendLogRedactor(cfg *UDSBundleConfig) backendLogRedactor {
 			}
 		case nil:
 		default:
+			// An empty search pattern would match every position in a message.
 			if text := fmt.Sprint(v); text != "" {
 				secrets = append(secrets, text)
 			}

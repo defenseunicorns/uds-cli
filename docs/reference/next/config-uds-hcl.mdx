@@ -170,7 +170,7 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-UDS limits logging when processing sensitive variables. During sensitive backend deployment, known sensitive values in standard Go logs are replaced with `***`. Concurrent deployments remain parallel; their combined values remain redacted until the last overlapping deployment finishes. Exact matching can miss transformed or partial values and can redact unrelated logs. Applications must not reconfigure global logging during deployment. Sensitivity does not encrypt values; defaults stored in bundle artifacts remain plaintext.
+UDS limits logging when processing sensitive variables. During sensitive backend deployment, known sensitive values in standard Go logs are replaced with `***`. Concurrent deployments remain parallel; their combined values remain redacted until the last overlapping registered backend call finishes. Exact matching can miss transformed, escaped, or partial values and can redact unrelated logs. Applications must not reconfigure global logging during deployment. Sensitivity does not encrypt values; defaults stored in bundle artifacts remain plaintext.
 
 ## Precedence and timing
 

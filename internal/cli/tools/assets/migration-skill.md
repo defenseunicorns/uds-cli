@@ -593,7 +593,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 954934864745b5fe6bea63b208233b1053e0ca45054aa8dfbd0005c1b7d6af26 -->
+<!-- Source SHA256: a877b7ce24b8b61fd39a2598b7a16a6a534d80f0311f36c80951be4eb50e7cf1 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -760,7 +760,7 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-UDS limits logging when processing sensitive variables. During sensitive backend deployment, known sensitive values in standard Go logs are replaced with `***`. Concurrent deployments remain parallel; their combined values remain redacted until the last overlapping deployment finishes. Exact matching can miss transformed or partial values and can redact unrelated logs. Applications must not reconfigure global logging during deployment. Sensitivity does not encrypt values; defaults stored in bundle artifacts remain plaintext.
+UDS limits logging when processing sensitive variables. During sensitive backend deployment, known sensitive values in standard Go logs are replaced with `***`. Concurrent deployments remain parallel; their combined values remain redacted until the last overlapping registered backend call finishes. Exact matching can miss transformed, escaped, or partial values and can redact unrelated logs. Applications must not reconfigure global logging during deployment. Sensitivity does not encrypt values; defaults stored in bundle artifacts remain plaintext.
 
 ## Precedence and timing
 

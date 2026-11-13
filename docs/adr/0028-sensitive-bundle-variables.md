@@ -4,7 +4,7 @@ Date: 2026-11-11
 
 ## Status
 
-Accepted
+Accepted. Adds a narrow exception to [ADR-0012](0012-library-logging-via-iostreams.md) for standard-log redaction during sensitive backend deployment.
 
 ## Context
 
@@ -22,14 +22,15 @@ omits marked values from deployment diagnostics and errors when it controls
 those outputs. Redacted errors preserve standard cancellation and deadline
 identities without retaining backend messages.
 
+Helm's value-conflict warnings use Go's process-global standard logger and bypass IOStreams and the logger supplied through Zarf. Around sensitive Zarf backend deployment, replace exact known sensitive values in those logs with `***`. This is the closest available boundary without changing Helm or Zarf. Keep context-log suppression and error redaction unchanged.
+
 ## Consequences
 
-This does not guarantee that all output hides marked values. Helm writes some
-coalescing warnings through Go's process-global logger; those warnings can
-expose marked values during a values conflict. Package actions, caller hooks,
-and other external code also control their own output. `sensitive()` is
-metadata, not encryption. Materialized `sensitive(file(...))` defaults retain
-the function call, while the referenced file contents are stored as plaintext.
+Exact matching can miss transformed, escaped, or partial values. Matching text in unrelated standard logs is also redacted. Direct stdout/stderr writes and explicit loggers that bypass the standard logger remain outside this filter, including such output from package actions or caller hooks. Applications must not reconfigure global logging during deployment.
+
+Concurrent deployments remain parallel. Their combined secrets stay registered until the last overlapping registered backend call finishes, then the original writer is restored. This can redact values belonging to a call that has already finished.
+
+Sensitivity is metadata, not encryption. Materializing `sensitive(file(...))` retains the `sensitive()` wrapper but replaces `file(...)` with the plaintext file contents.
 
 ## Alternatives considered
 
@@ -45,7 +46,7 @@ handling in Go, but the parallel path list duplicates variable paths and can
 drift from the values object. The implementation still carries separate
 sensitivity metadata internally, but authors mark values at their source.
 
-### Keep marked wrappers through every runtime layer
+### Use per-value syntax with separate runtime metadata
 
 ```hcl
 variables = {
@@ -54,7 +55,7 @@ variables = {
 }
 ```
 
-Selected as the HCL authoring syntax because it marks values where they are
+Select `sensitive(value)` as the HCL authoring syntax because it marks values where they are
 defined. It extends the function-registration mechanism used by `file()` and
 uses HCL marks to carry sensitivity. Keeping wrappers in runtime Go values
 would require changes across merging, package values templates, and Zarf.
@@ -64,12 +65,22 @@ at the top-level variable boundary.
 ### Track secret strings and replace exact matches in output
 
 ```go
-output = strings.ReplaceAll(output, "secret", "****")
+output = strings.ReplaceAll(output, "secret", "***")
 ```
 
-Rejected. Exact matches miss transformed, encoded, or partial values; errors
-can expose values through wrapped causes; and replacement cannot protect output
-outside the configured logger boundary.
+Selected only as best-effort protection for standard logs. It preserves useful warning text without depending on Helm's message formats. It cannot replace context-log suppression or error redaction because transformed values and wrapped causes can still expose secrets.
+
+### Suppress all standard logs
+
+Rejected because it removes useful diagnostics, including unrelated logs.
+
+### Change Helm/Zarf or isolate Helm in a subprocess
+
+Dependency changes are outside scope. A subprocess would require additional coordination for inputs, results, cancellation, and hooks.
+
+### Use only an atomic counter
+
+Rejected because registration must coordinate the saved writer, combined secrets, and global writer installation. An atomic count alone allows overlapping calls to overwrite filters or restore logging too early. A channel-based coordinator or custom atomic state machine adds complexity without improving deployment concurrency.
 
 ## Implementation details
 
@@ -78,3 +89,9 @@ and compatibility with Go templates, `Flatten`, and Zarf. Sensitivity metadata
 travels alongside values and through merges, avoiding wrappers and unwrapping
 across runtime layers. Wrapping `Variables` alone cannot prevent leaks after
 plain values reach the backend, so safe output boundaries are still required.
+
+`backendLogRedactor` owns collection and filtering behind its constructor and `Run` method. Snapshot marked values before deployment hooks can change them. Collect scalar leaves of marked top-level variables, skip empty strings to avoid matching every position, and match longer values first so a shorter secret cannot leave a longer secret's suffix exposed.
+
+A short mutex protects registration and cleanup only. Backend deployment runs outside it. Each registration installs an immutable writer snapshot that forwards directly to the original writer. The filter never takes the registration mutex: Go's logger holds its own output lock while calling `Write`, so taking our mutex there could deadlock against registration calling `log.SetOutput`.
+
+Keep the combined secrets until the last call finishes to avoid per-secret removal bookkeeping. Deferred cleanup restores logging on success, errors, or panics. `Write` reports the original input length because redaction can shorten the forwarded message.
