@@ -32,15 +32,8 @@ func toInternalConfig(cfg *UDSBundleConfig) *bundleinternal.UDSBundleConfig {
 
 	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
-		options = &bundleinternal.ConfigOptions{
-			LogLevel:              cfg.Options.LogLevel,
-			Architecture:          cfg.Options.Architecture,
-			PlainHTTP:             cfg.Options.PlainHTTP,
-			SkipTLSVerify:         cfg.Options.SkipTLSVerify,
-			TmpDir:                cfg.Options.TmpDir,
-			Concurrency:           cfg.Options.Concurrency,
-			SkipArchitectureCheck: cfg.Options.SkipArchitectureCheck,
-		}
+		converted := bundleinternal.ConfigOptions(*cfg.Options)
+		options = &converted
 	}
 	return &bundleinternal.UDSBundleConfig{
 		Options:               options,
@@ -67,12 +60,7 @@ func toInternalVerificationPolicy(policy *VerificationPolicy) *bundleinternal.Si
 
 // toInternalConfigOptions converts public configuration options to internal options.
 func toInternalConfigOptions(opts ConfigOptions) bundleinternal.ConfigOptions {
-	return bundleinternal.ConfigOptions{
-		LogLevel: opts.LogLevel, Architecture: opts.Architecture,
-		PlainHTTP: opts.PlainHTTP, SkipTLSVerify: opts.SkipTLSVerify,
-		TmpDir: opts.TmpDir, Concurrency: opts.Concurrency,
-		SkipArchitectureCheck: opts.SkipArchitectureCheck,
-	}
+	return bundleinternal.ConfigOptions(opts)
 }
 
 // toInternalVariables recursively converts public variables to internal variables.

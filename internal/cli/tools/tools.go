@@ -16,6 +16,7 @@ import (
 //
 //	uds tools zarf <zarf-commands>
 //	uds tools migrate-bundle skill
+//	uds tools clear-cache
 func NewToolsCommand(streams iostreams.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tools",
@@ -24,6 +25,7 @@ func NewToolsCommand(streams iostreams.IOStreams) *cobra.Command {
 	}
 
 	cmd.AddCommand(cmdzarf.NewZarfCommand())
+	cmd.AddCommand(newClearCacheCommand(streams))
 	cmd.AddCommand(NewMigrateBundleCommand(streams))
 
 	return cmd

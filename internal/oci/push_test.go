@@ -239,60 +239,10 @@ package "pkg1" {
 	assert.Nil(t, result)
 }
 
-func TestPushPackage_RoundTrip(t *testing.T) {
-	t.Parallel()
-
-	pkgDir := t.TempDir()
-	writeMinimalOCILayout(t, filepath.Join(pkgDir, "oci"))
-
-	dst, err := oraci.New(t.TempDir())
-	require.NoError(t, err)
-
-	cfg := newTestConfig()
-	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPusher().PushPackage(t.Context(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
-		Config:    cfg,
-		PushHooks: pushTo(dst),
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "example.com/test/pkg:1.0.0", result.OCIReference)
-
-	_, err = dst.Resolve(t.Context(), "1.0.0")
-	require.NoError(t, err, "manifest should be present in store after push")
-}
-
-func TestPushPackage_EmptyPackageDir(t *testing.T) {
-	t.Parallel()
-
-	cfg := newTestConfig()
-	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPusher().PushPackage(t.Context(), "", "example.com/test/pkg:1.0.0", PushOptions{
-		Config: cfg,
-	})
-	require.ErrorContains(t, err, "packageDir must not be empty")
-	var parameterErr EmptyParameterError
-	require.ErrorAs(t, err, &parameterErr)
-	assert.Equal(t, "packageDir", parameterErr.Name)
-	assert.Nil(t, result)
-}
-
-func TestPushPackage_EmptyOCIReference(t *testing.T) {
-	t.Parallel()
-
-	cfg := newTestConfig()
-	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPusher().PushPackage(t.Context(), t.TempDir(), "", PushOptions{
-		Config: cfg,
-	})
-	require.ErrorContains(t, err, "ociReference must not be empty")
-	assert.Nil(t, result)
-}
-
 func TestPushHooks_ModifyOrasSettings(t *testing.T) {
 	t.Parallel()
 
-	pkgDir := t.TempDir()
-	writeMinimalOCILayout(t, filepath.Join(pkgDir, "oci"))
+	ociDir := writeBundleOCILayout(t, "push-hooks", "1.0.0")
 
 	dst, err := oraci.New(t.TempDir())
 	require.NoError(t, err)
@@ -300,7 +250,7 @@ func TestPushHooks_ModifyOrasSettings(t *testing.T) {
 	hookCalled := false
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPusher().PushPackage(t.Context(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
+	result, err := NewDefaultPusher().PushBundle(t.Context(), filepath.Dir(ociDir), "example.com/test/push-hooks:1.0.0", PushOptions{
 		Config: cfg,
 		PushHooks: PushHooks{
 			ToOrasTarget: func(context.Context, string, *PushOptions) (oras.Target, error) { return dst, nil },
@@ -314,45 +264,6 @@ func TestPushHooks_ModifyOrasSettings(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.True(t, hookCalled, "ModifyOrasSettings hook should have been called")
-}
-
-func TestPushPackage_DoesNotModifySourceIndex(t *testing.T) {
-	t.Parallel()
-
-	pkgDir := t.TempDir()
-	ociDir := filepath.Join(pkgDir, "oci")
-	writeMinimalOCILayout(t, ociDir)
-
-	// Read the original index.json.
-	originalIndexPath := filepath.Join(ociDir, "index.json")
-	originalIndexBytes, err := os.ReadFile(originalIndexPath)
-	require.NoError(t, err)
-
-	// Parse original to verify it has exactly one manifest (no tags).
-	var originalIdx ocispec.Index
-	require.NoError(t, json.Unmarshal(originalIndexBytes, &originalIdx))
-	require.Len(t, originalIdx.Manifests, 1, "original index should have exactly one manifest")
-
-	dst, err := oraci.New(t.TempDir())
-	require.NoError(t, err)
-
-	cfg := newTestConfig()
-	cfg.Options.TmpDir = t.TempDir()
-	_, err = NewDefaultPusher().PushPackage(t.Context(), pkgDir, "example.com/test/pkg:1.0.0", PushOptions{
-		Config:    cfg,
-		PushHooks: pushTo(dst),
-	})
-	require.NoError(t, err)
-
-	// Read the index.json after push and verify it's unchanged.
-	afterIndexBytes, err := os.ReadFile(originalIndexPath)
-	require.NoError(t, err)
-	assert.Equal(t, originalIndexBytes, afterIndexBytes, "source index.json should not be modified by PushPackage")
-
-	// Verify the manifest is still in the store and unchanged.
-	var afterIdx ocispec.Index
-	require.NoError(t, json.Unmarshal(afterIndexBytes, &afterIdx))
-	require.Len(t, afterIdx.Manifests, 1, "index should still have exactly one manifest after push")
 }
 
 func TestPush_PublishesRootIndexRoutingToChild(t *testing.T) {

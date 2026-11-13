@@ -24,10 +24,12 @@ type UDSBundleConfig struct {
 
 // ConfigOptions holds bundle operation settings.
 type ConfigOptions struct {
-	LogLevel              string
-	Architecture          string
-	PlainHTTP             bool
-	SkipTLSVerify         bool
+	LogLevel      string
+	Architecture  string
+	PlainHTTP     bool
+	SkipTLSVerify bool
+	// CacheDir selects the shared OCI cache root. Directories are created on demand.
+	CacheDir              string
 	TmpDir                string
 	Concurrency           int
 	SkipArchitectureCheck bool

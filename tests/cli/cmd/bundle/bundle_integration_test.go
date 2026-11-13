@@ -7,7 +7,6 @@ package bundle_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -30,7 +29,7 @@ func TestInspectCommand_Integration(t *testing.T) {
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "inspect", bundlePath})
+	root.SetArgs([]string{"bundle", "inspect", bundlePath, "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -55,7 +54,7 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 			artifact := createInspectArtifact(t)
 			streams, _, out, _ := iostreams.NewTestIOStreams()
 			root := cli.NewRootCommand(streams, mode.FeatureSet{})
-			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format})
+			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format, "--uds-cache", t.TempDir()})
 			require.NoError(t, root.Execute())
 
 			var result inspectResult
@@ -83,7 +82,7 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 func TestInspectOCICommand_Integration(t *testing.T) {
 	artifactTarball := createInspectArtifact(t)
 	registryHost := testutil.StartLocalRegistry(t)
-	ref := fmt.Sprintf("%s/test/inspect:v1.0.0", registryHost)
+	ref := registryHost + "/test/inspect:v1.0.0"
 	config := &bundlepkg.UDSBundleConfig{
 		Options: &bundlepkg.ConfigOptions{
 			Architecture: runtime.GOARCH,
@@ -97,7 +96,7 @@ func TestInspectOCICommand_Integration(t *testing.T) {
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--output", "json"})
+	root.SetArgs([]string{"bundle", "inspect", ref, "--plain-http", "--output", "json", "--uds-cache", t.TempDir()})
 	require.NoError(t, root.Execute())
 
 	var result inspectResult
@@ -123,7 +122,7 @@ func TestDeployCommand_Integration(t *testing.T) {
 
 	// Use root command because --prompt is a root-level persistent flag
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -142,7 +141,7 @@ func TestDeployCommand_WithBundleFile_Integration(t *testing.T) {
 
 	// Use root command because --prompt is a root-level persistent flag
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "deploy", bundlePath, "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -156,7 +155,7 @@ func TestPullCommand_Integration(t *testing.T) {
 	// Push a bundle programmatically so we can test the pull cobra wiring.
 	bundlePath := createInspectArtifact(t)
 	registryHost := testutil.StartLocalRegistry(t)
-	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
+	ref := registryHost + "/test/k3d-core-init:v0.1.0"
 
 	pushBundleArtifact(t, bundlePath, ref, &bundlepkg.UDSBundleConfig{
 		Options: &bundlepkg.ConfigOptions{TmpDir: t.TempDir(), PlainHTTP: true, Concurrency: 10},
@@ -165,7 +164,7 @@ func TestPullCommand_Integration(t *testing.T) {
 	outDir := t.TempDir()
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"pull", ref, "--output-dir", outDir, "--plain-http", "--skip-signature-verification"})
+	root.SetArgs([]string{"pull", ref, "--output-dir", outDir, "--plain-http", "--skip-signature-verification", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -177,11 +176,11 @@ func TestPullCommand_Integration(t *testing.T) {
 func TestPushCommand_Integration(t *testing.T) {
 	bundlePath := createInspectArtifact(t)
 	registryHost := testutil.StartLocalRegistry(t)
-	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
+	ref := registryHost + "/test/k3d-core-init:v0.1.0"
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http"})
+	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -192,11 +191,11 @@ func TestPushCommand_Integration(t *testing.T) {
 func TestPushCommand_Integration_PlainHTTPAllowsTLS(t *testing.T) {
 	bundlePath := createInspectArtifact(t)
 	registryHost := startLocalTLSRegistry(t)
-	ref := fmt.Sprintf("%s/test/k3d-core-init:v0.1.0", registryHost)
+	ref := registryHost + "/test/k3d-core-init:v0.1.0"
 
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := bundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http", "--skip-tls-verify"})
+	root.SetArgs([]string{"push", bundlePath, ref, "--plain-http", "--skip-tls-verify", "--uds-cache", t.TempDir()})
 
 	require.NoError(t, root.Execute())
 	assert.Contains(t, out.String(), "OCI Reference:")
@@ -216,7 +215,7 @@ func TestRemoveCommand_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "remove", artifact, "--skip-signature-verification", "--prompt"})
+	root.SetArgs([]string{"bundle", "remove", artifact, "--skip-signature-verification", "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -232,7 +231,7 @@ func TestDevRemoveCommand_WithBundleFile_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -248,7 +247,7 @@ func TestRemoveCommand_PackagesFlag_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "remove", artifact, "--packages", "pkg", "--skip-signature-verification", "--prompt"})
+	root.SetArgs([]string{"bundle", "remove", artifact, "--packages", "pkg", "--skip-signature-verification", "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -264,7 +263,7 @@ func TestDevRemoveCommand_PackagesFlag_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init", "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init", "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -281,7 +280,7 @@ func TestRemoveCommand_HelpOutput_Integration(t *testing.T) {
 
 	// Use root command so --prompt (a root-level persistent flag) is visible
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "remove", "--help"})
+	root.SetArgs([]string{"bundle", "remove", "--help", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -299,7 +298,7 @@ func TestDevRemoveCommand_CustomDirWithPackages_Integration(t *testing.T) {
 	in.WriteString("n\n")
 
 	root := cli.NewRootCommand(streams, mode.FeatureSet{})
-	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init,uds_k3d_dev", "--prompt"})
+	root.SetArgs([]string{"bundle", "dev", "remove", bundlePath, "--packages", "init,uds_k3d_dev", "--prompt", "--uds-cache", t.TempDir()})
 
 	err := root.Execute()
 	require.NoError(t, err)
