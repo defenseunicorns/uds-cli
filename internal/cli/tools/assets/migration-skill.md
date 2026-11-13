@@ -593,7 +593,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: a877b7ce24b8b61fd39a2598b7a16a6a534d80f0311f36c80951be4eb50e7cf1 -->
+<!-- Source SHA256: 58244798a506d2f53ba7beca9af1ab56aad60251a54440889551ea4b04ead4c0 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -750,9 +750,9 @@ variables = {
 }
 ```
 
-Create `secrets/password.txt` beside `config.uds.hcl` with the password value before using this example. A nested mark makes the whole top-level variable sensitive. The mark persists through defaults, config values, and `--set` overrides; `--set` cannot call `sensitive()`.
+Create `secrets/password.txt` beside `config.uds.hcl`. Nested marks apply to the top-level variable and survive defaults, config, and `--set` overrides. `--set` cannot call `sensitive()`.
 
-Templates and Zarf receive the original values:
+Templates and Zarf receive unchanged values:
 
 ```yaml title="values/app.yaml"
 exampleToken: {{ printf "%q" .vars.example_token }}
@@ -760,7 +760,7 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-UDS limits logging when processing sensitive variables. During sensitive backend deployment, known sensitive values in standard Go logs are replaced with `***`. Concurrent deployments remain parallel; their combined values remain redacted until the last overlapping registered backend call finishes. Exact matching can miss transformed, escaped, or partial values and can redact unrelated logs. Applications must not reconfigure global logging during deployment. Sensitivity does not encrypt values; defaults stored in bundle artifacts remain plaintext.
+UDS masks known sensitive values in standard logs with `***`. Deployments stay parallel and share redaction until all sensitive backend calls finish. Matching may miss transformed values or mask unrelated logs. Do not reconfigure global logging during deployment. Artifact defaults remain plaintext.
 
 ## Precedence and timing
 
