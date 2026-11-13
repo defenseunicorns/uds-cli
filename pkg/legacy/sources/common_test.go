@@ -50,7 +50,7 @@ func TestHandleFilterPreservesBetaFields(t *testing.T) {
 	pkg := api.Package{APIVersion: "zarf.dev/v1beta1", Components: []api.Component{
 		component, {Name: "optional", Optional: true},
 	}}
-	components, partial, err := handleFilter(pkg, filters.ForDeploy("", false))
+	components, partial, err := handleFilter(pkg, filters.ForDeploy(""))
 	require.NoError(t, err)
 	require.True(t, partial)
 	require.Equal(t, []api.Component{component}, components)

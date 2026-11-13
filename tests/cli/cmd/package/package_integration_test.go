@@ -64,7 +64,7 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 	t.Cleanup(server.Close)
 	ref := strings.TrimPrefix(server.URL, "http://") + "/test/disassemble:1.0.0"
 	architecture := pkgLayout.Definition().Build.Architecture
-	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: architecture, OS: packageoci.MultiOS}, zoci.RemoteClientOptions{
+	remote, err := zoci.NewRemote(t.Context(), ref, ocispec.Platform{Architecture: architecture, OS: packageoci.MultiOS}, zoci.RemoteClientOptions{
 		RemoteOptions: zarftypes.RemoteOptions{PlainHTTP: true},
 	})
 	require.NoError(t, err)

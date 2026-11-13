@@ -258,17 +258,21 @@ metadata {
 package "beta" {
   source = %q
   signature_verification { verify = false }
+  values_files = ["values.yaml"]
 }
 `, packagePath)), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "values.yaml"), []byte("message: '{{ .vars.message }}'\n"), 0o600))
+	configPath := filepath.Join(root, "config.uds.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte("variables = { message = \"beta-configured\", unrelated = \"other-package\" }\n"), 0o600))
 
 	_, err = executeCLI(t, "", "bundle", "create", "--unsigned", root)
 	require.NoError(t, err)
 	artifacts, err := filepath.Glob(filepath.Join(root, "uds-bundle-*.tar.zst"))
 	require.NoError(t, err)
 	require.Len(t, artifacts, 1)
-	_, err = executeCLI(t, "", "bundle", "deploy", "--skip-signature-verification", artifacts[0])
+	_, err = executeCLI(t, "", "bundle", "deploy", "--config", configPath, "--skip-signature-verification", artifacts[0])
 	require.NoError(t, err)
 	deployed, err := os.ReadFile(outputPath)
 	require.NoError(t, err)
-	assert.Equal(t, "beta-default", string(deployed))
+	assert.Equal(t, "beta-configured", string(deployed))
 }

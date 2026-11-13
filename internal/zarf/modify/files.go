@@ -25,7 +25,7 @@ func localizeFiles(ctx context.Context, pkgLayout *layout.PackageLayout, outputD
 }
 
 func localizeDataInjections(ctx context.Context, pkgLayout *layout.PackageLayout, outputDir, tmpRoot string, component *api.Component) error {
-	return localizeIndexedAssets(ctx, pkgLayout, outputDir, tmpRoot, component.Name, layout.DataComponentDir, "data", "data", component.DataInjections,
+	return localizeIndexedAssets(ctx, pkgLayout, outputDir, tmpRoot, component.Name, layout.DataComponentDir, "data", "data", component.DataInjections, //nolint:staticcheck // Localize assets stored by v1alpha1 data injections.
 		func(data *api.ZarfDataInjection) string { return data.Target.Path },
 		func(data *api.ZarfDataInjection, source string) { data.Source = source })
 }

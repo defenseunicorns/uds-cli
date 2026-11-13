@@ -37,9 +37,9 @@ func TestZarfToolsVersions(t *testing.T) {
 			args:        args{tool: "helm", toolRepo: "helm.sh/helm/v4"},
 		},
 		{
-			name:        "CraneVersion",
-			description: "zarf tools crane version",
-			args:        args{tool: "crane", toolRepo: "github.com/google/go-containerregistry"},
+			name:        "RegistryVersion",
+			description: "zarf tools registry version",
+			args:        args{tool: "registry", toolRepo: "github.com/google/go-containerregistry"},
 		},
 		{
 			name:        "SyftVersion",

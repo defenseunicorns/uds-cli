@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -23,7 +23,7 @@ func TestBundleCreateAndPublishGHCR(t *testing.T) {
 	deployZarfInit(t)
 
 	bundleName := "ghcr-test"
-	bundleDir := "testdata/legacy/bundles/06-ghcr"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/06-ghcr", "arm64", "amd64")
 	bundlePathARM := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", "arm64"))
 	bundlePathAMD := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", "amd64"))
 
@@ -59,7 +59,7 @@ func TestBundleCreateAndPublishGHCR(t *testing.T) {
 func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 	deployZarfInit(t)
 
-	bundleDir := "testdata/legacy/bundles/06-ghcr"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/06-ghcr", "arm64", "amd64")
 	bundleName := "ghcr-test"
 	bundleGHCRPath := "defenseunicorns/packages/uds-cli/test/create-remote"
 	registryURL := fmt.Sprintf("ghcr.io/%s", bundleGHCRPath)
@@ -69,8 +69,8 @@ func TestBundleCreateRemoteAndDeployGHCR(t *testing.T) {
 		Reference:  "0.0.1",
 	}
 
-	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "arm64"))
-	runCmd(t, fmt.Sprintf("create %s -o %s --confirm -a %s", bundleDir, registryURL, "amd64"))
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundleDir, registryURL, "arm64"))
+	runCmd(t, fmt.Sprintf("create %s -o %s --confirm --insecure -a %s", bundleDir, registryURL, "amd64"))
 
 	inspectRemote(t, registryURL, bundleName, bundleRef.Reference)
 	runCmd(t, fmt.Sprintf("deploy %s --retries 1 --confirm", bundleRef.String()))

@@ -132,7 +132,5 @@ func packageSpecFromDefinition(definition api.Package, digest string) *PackageSp
 // When optionalComponents lists component names, those are explicitly included alongside
 // Required components. Use the "-name" prefix to explicitly exclude a component.
 func BuildComponentFilter(optionalComponents []string) filters.ComponentFilterStrategy {
-	return filters.Combine(
-		filters.ForDeploy(strings.Join(optionalComponents, ","), false),
-	)
+	return filters.ForDeploy(strings.Join(optionalComponents, ","))
 }

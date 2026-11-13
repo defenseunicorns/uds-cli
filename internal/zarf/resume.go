@@ -86,7 +86,30 @@ type deployedPackageIdentity struct {
 }
 
 func resumeMatches(intended *PackageSpec, deployed []state.DeployedPackage) bool {
-	if intended == nil || intended.Digest == "" || len(deployed) != 1 || deployed[0].Digest == "" || deployed[0].Digest != intended.Digest || len(intended.Components) != len(deployed[0].DeployedComponents) {
+	if intended == nil || intended.Digest == "" {
+		return false
+	}
+	if len(deployed) != 1 {
+		return false
+	}
+	record := deployed[0]
+	if record.Digest == "" || record.Digest != intended.Digest {
+		return false
+	}
+	if len(intended.Components) != len(record.DeployedComponents) {
+		return false
+	}
+	if record.Generation <= 0 {
+		return false
+	}
+	packageEvent, hasPackageEvent := record.LatestEvent()
+	if !hasPackageEvent {
+		return false
+	}
+	if packageEvent.Type != state.EventTypeDeploy || packageEvent.Outcome != state.EventOutcomeSucceeded {
+		return false
+	}
+	if string(packageEvent.Digest) != intended.Digest {
 		return false
 	}
 	components := make(map[string]struct{}, len(intended.Components))
@@ -99,8 +122,17 @@ func resumeMatches(intended *PackageSpec, deployed []state.DeployedPackage) bool
 		}
 		components[name] = struct{}{}
 	}
-	for _, component := range deployed[0].DeployedComponents {
-		if component.Name == "" || component.Status != state.ComponentStatusSucceeded {
+	for _, component := range record.DeployedComponents {
+		if component.Name == "" {
+			return false
+		}
+		event := component.LastEvent
+		if event.Type != state.EventTypeDeploy || event.Outcome != state.EventOutcomeSucceeded {
+			return false
+		}
+		// Retained components from an earlier generation cannot prove that the
+		// current deployment completed.
+		if component.ObservedGeneration != record.Generation {
 			return false
 		}
 		if _, ok := components[component.Name]; !ok {

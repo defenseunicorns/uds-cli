@@ -9,7 +9,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## What you'll accomplish
 
-Configure the container registry, injector image, Git server, artifact server, or storage class that Zarf uses when initializing a cluster through a UDS bundle. Supply the `INIT_*` values at deployment time through `UDS_INIT_*` environment variables or `uds-config.yaml`.
+Configure the container registry, injector image, Git server, or storage class that Zarf uses when initializing a cluster through a UDS bundle. Supply the `INIT_*` values at deployment time through `UDS_INIT_*` environment variables or `uds-config.yaml`.
 
 These instructions apply only to Legacy mode. UDS CLI Next does not currently support this init customization.
 
@@ -29,7 +29,7 @@ The following keys configure init. In an environment variable, prepend `UDS_` to
 | Config key | Purpose |
 | --- | --- |
 | `INIT_REGISTRY_URL` | Container registry address, such as `registry.example.com:5000`, without a URL scheme. |
-| `INIT_REGISTRY_MODE` | Registry access mode: `nodeport`, `proxy`, or `external`. Zarf's `proxy` mode requires its RegistryProxy feature. Use `external` for an external registry. |
+| `INIT_REGISTRY_MODE` | Registry access mode: `nodeport`, `proxy`, or `external`. Use `external` for an external registry. |
 | `INIT_REGISTRY_PUSH_USERNAME` | Username with permission to push images. |
 | `INIT_REGISTRY_PUSH_PASSWORD` | Password for the registry push user. |
 | `INIT_REGISTRY_PULL_USERNAME` | Username with permission to pull images. |
@@ -42,10 +42,13 @@ The following keys configure init. In an environment variable, prepend `UDS_` to
 | `INIT_GIT_PUSH_PASSWORD` | Password or access token for the Git push user. |
 | `INIT_GIT_PULL_USERNAME` | Username with permission to pull Git repositories. |
 | `INIT_GIT_PULL_PASSWORD` | Password or access token for the Git pull user. |
-| `INIT_ARTIFACT_URL` | Artifact server URL. |
-| `INIT_ARTIFACT_PUSH_USERNAME` | Username with permission to push to the artifact server. |
-| `INIT_ARTIFACT_PUSH_TOKEN` | Token for the artifact server push user. |
-| `INIT_STORAGE_CLASS` | Storage class for Zarf's init configuration and variable templating. |
+| `INIT_STORAGE_CLASS` | Storage class for the init package's registry and Git server persistent volume claims. |
+
+Legacy supports these init settings with both v1alpha1 and v1beta1 init packages. For v1beta1, `INIT_STORAGE_CLASS` sets the package values `registry.persistence.storageClass` and `gitServer.persistence.storageClass`. For v1alpha1, it supplies `REGISTRY_STORAGE_CLASS` and `GIT_SERVER_STORAGE_CLASS`; explicit component variables take precedence.
+
+Zarf v1.0.1 removed artifact server support. Legacy returns an error for nonempty `INIT_ARTIFACT_URL`, `INIT_ARTIFACT_PUSH_USERNAME`, or `INIT_ARTIFACT_PUSH_TOKEN` settings. Remove those settings before deployment.
+
+Use bundle chart overrides for other v1beta1 Helm settings. Legacy variables still render those overrides; Zarf v1beta1 packages use package values for their own templating. Legacy forwards package variables to v1alpha1 packages.
 
 Supply only the settings you need. Zarf supplies defaults for omitted settings; for an external registry or Git server, Zarf uses the push credentials for pulling if you omit separate pull credentials. You must provision the external services and any storage class you name before deployment.
 

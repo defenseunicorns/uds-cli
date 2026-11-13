@@ -125,7 +125,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		}
 
 		filter := filters.Combine(
-			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ","), false),
+			filters.ForDeploy(strings.Join(pkg.OptionalComponents, ",")),
 		)
 
 		pkgLayout, _, err := source.LoadPackage(ctx, filter)
@@ -163,6 +163,10 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 			return err
 		}
 
+		if err := configurePackageDeployOptions(&deployOpts, zarfPkg); err != nil {
+			return fmt.Errorf("package %q: %w", pkg.Name, err)
+		}
+
 		// Merge package annotations with bundle annotations; bundle annotations take precedence
 		bundleAnnotations := make(map[string]string)
 		maps.Copy(bundleAnnotations, zarfPkg.Metadata.Annotations)
@@ -186,7 +190,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 		variableConfig := result.VariableConfig
 		for _, exp := range pkg.Exports {
 			// ensure if variable exists in package
-			setVariable, ok := variableConfig.GetSetVariable(exp.Name)
+			setVariable, ok := variableConfig.GetSetVariable(exp.Name) //nolint:staticcheck // Legacy supports exports from v1alpha1 package variables.
 			if !ok {
 				return fmt.Errorf("cannot export variable %s because it does not exist in package %s", exp.Name, pkg.Name)
 			}
@@ -233,16 +237,22 @@ func (b *Bundle) newDeployOptions(ctx context.Context, pkg types.Package, pkgVar
 		NamespaceOverride:     pkg.Namespace,
 		RemoteOptions:         remoteOpts,
 		TakeOwnership:         false,
-		Connected:             config.Dev,
+		Connectivity:          state.PackageConnectivityAirGap,
 		OCIConcurrency:        config.CommonOptions.OCIConcurrency,
 		GitServer:             newGitServerInfo(pkgVars, pkgKind),
 		RegistryInfo:          registryInfo,
-		ArtifactServer:        newArtifactServerInfo(pkgVars, pkgKind),
-		StorageClass:          newStorageClass(pkgVars, pkgKind),
 		IsInteractive:         !config.CommonOptions.Confirm,
 		SkipArchitectureCheck: b.cfg.DeployOpts.SkipArchitectureCheck,
 	}
+	if config.Dev {
+		opts.Connectivity = state.PackageConnectivityConnected
+	}
 	if pkgKind == api.ZarfInitConfig {
+		for _, key := range []string{config.ArtifactURL, config.ArtifactPushUsername, config.ArtifactPushToken} {
+			if pkgVars[key] != "" {
+				return packager.DeployOptions{}, fmt.Errorf("%s is unsupported by Zarf v1.0.1; remove artifact server settings", key)
+			}
+		}
 		opts.InjectorImage = pkgVars[config.InjectorImage]
 		opts.AgentMutationPolicy = state.MutationPolicyAll
 	}
@@ -327,29 +337,6 @@ func newRegistryInfo(pkgVars zarfVarData, zarfPkgKind api.PackageKind) state.Reg
 		}
 	}
 	return registryInfo
-}
-
-// newArtifactServerInfo creates a new ArtifactServerInfo for a package if using custom Zarf init options
-func newArtifactServerInfo(pkgVars zarfVarData, zarfPkgKind api.PackageKind) state.ArtifactServerInfo {
-	if zarfPkgKind != api.ZarfInitConfig {
-		return state.ArtifactServerInfo{}
-	}
-
-	// default artifact server info
-	artifactServerInfo := state.ArtifactServerInfo{}
-
-	// populate artifact server info from pkgVars
-	for k, v := range pkgVars {
-		switch k {
-		case config.ArtifactURL:
-			artifactServerInfo.Address = v
-		case config.ArtifactPushUsername:
-			artifactServerInfo.PushUsername = v
-		case config.ArtifactPushToken:
-			artifactServerInfo.PushToken = v
-		}
-	}
-	return artifactServerInfo
 }
 
 // newStorageClass creates a new storage class for a package if using custom Zarf init options
@@ -510,7 +497,7 @@ func formPkgViewsWithMetadata(b *Bundle, getMetadata func(types.Package) (api.Pa
 		if err != nil {
 			return nil, fmt.Errorf("unable to load metadata for package %q: %w", pkg.Name, err)
 		}
-		sensitiveVars := sensitiveZarfVariableNames(zarfPkg.Variables)
+		sensitiveVars := sensitiveZarfVariableNames(zarfPkg.Variables) //nolint:staticcheck // Mask sensitive variables in Legacy v1alpha1 package previews.
 
 		for compName, component := range pkg.Overrides {
 			for chartName, chart := range component {

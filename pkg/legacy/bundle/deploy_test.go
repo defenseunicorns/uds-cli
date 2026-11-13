@@ -1055,55 +1055,6 @@ func Test_shouldUsePlainHTTPForDeployRegistry(t *testing.T) {
 	}
 }
 
-func Test_newArtifactServerInfo(t *testing.T) {
-	t.Parallel()
-	pkgVars := zarfVarData{
-		"INIT_REGISTRY_URL":           "any",
-		"INIT_REGISTRY_PUSH_USERNAME": "any",
-		"INIT_REGISTRY_PUSH_PASSWORD": "any",
-		"INIT_REGISTRY_PULL_USERNAME": "any",
-		"INIT_REGISTRY_PULL_PASSWORD": "any",
-		"INIT_REGISTRY_SECRET":        "any",
-		"INIT_REGISTRY_NODEPORT":      "any",
-		"INIT_GIT_URL":                "any",
-		"INIT_GIT_PUSH_USERNAME":      "any",
-		"INIT_GIT_PUSH_PASSWORD":      "any",
-		"INIT_GIT_PULL_USERNAME":      "any",
-		"INIT_GIT_PULL_PASSWORD":      "any",
-		"INIT_ARTIFACT_URL":           "fake.artifact",
-		"INIT_ARTIFACT_PUSH_USERNAME": "push-user",
-		"INIT_ARTIFACT_PUSH_TOKEN":    "push-token!",
-		"INIT_STORAGE_CLASS":          "any",
-	}
-	tests := []struct {
-		name     string
-		pkgKind  api.PackageKind
-		expected state.ArtifactServerInfo
-	}{
-		{
-			name:    "init config kind returns artifact info",
-			pkgKind: api.ZarfInitConfig,
-			expected: state.ArtifactServerInfo{
-				Address:      "fake.artifact",
-				PushUsername: "push-user",
-				PushToken:    "push-token!",
-			},
-		},
-		{
-			name:     "package config kind returns empty artifact info",
-			pkgKind:  api.ZarfPackageConfig,
-			expected: state.ArtifactServerInfo{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			actual := newArtifactServerInfo(pkgVars, tt.pkgKind)
-			require.Equal(t, tt.expected, actual)
-		})
-	}
-}
-
 func Test_newStorageClass(t *testing.T) {
 	t.Parallel()
 	pkgVars := zarfVarData{

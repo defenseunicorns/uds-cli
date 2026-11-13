@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Verify Legacy v1alpha1 package compatibility.
 	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
