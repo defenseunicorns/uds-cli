@@ -4,6 +4,8 @@
 package zarf
 
 import (
+	"io"
+	"log"
 	"sync"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
@@ -12,6 +14,36 @@ import (
 )
 
 var zarfTempDir = newTempDirConfig()
+
+var suppressedLogs struct {
+	sync.Mutex
+	active int
+	writer io.Writer
+}
+
+// Helm uses the standard logger; keep it muted until all sensitive deployments finish.
+func withSensitiveLogging(sensitive bool, run func() error) error {
+	if !sensitive {
+		return run()
+	}
+	suppressedLogs.Lock()
+	if suppressedLogs.active == 0 {
+		suppressedLogs.writer = log.Writer()
+		log.SetOutput(io.Discard)
+	}
+	suppressedLogs.active++
+	suppressedLogs.Unlock()
+	defer func() {
+		suppressedLogs.Lock()
+		defer suppressedLogs.Unlock()
+		suppressedLogs.active--
+		if suppressedLogs.active == 0 {
+			log.SetOutput(suppressedLogs.writer)
+			suppressedLogs.writer = nil
+		}
+	}()
+	return run()
+}
 
 type tempDirConfig struct {
 	mu     sync.Mutex

@@ -385,9 +385,11 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 			})
 		}
 	}
-	if err := deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial); err != nil {
+	if err := withSensitiveLogging(sensitive, func() error {
+		return deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial)
+	}); err != nil {
 		if sensitive {
-			return fmt.Errorf("package %q: %w", pkg.Name, ErrDeployPackage)
+			return fmt.Errorf("package %q: %w", pkg.Name, redactError(err, ErrDeployPackage))
 		}
 		return fmt.Errorf("package %q: %w: %w", pkg.Name, ErrDeployPackage, err)
 	}
@@ -443,10 +445,11 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 		zarfValues, err = value.ParseFiles(ctx, filesToParse, value.ParseFilesOptions{})
 		if err != nil {
 			file := valuesFileName(err, filesToParse, resolved)
+			err = redactError(err, ErrParseValues)
 			if file != "" {
-				return nil, nil, fmt.Errorf("package %q values file %q: %w", pkg.Name, file, ErrParseValues)
+				return nil, nil, fmt.Errorf("package %q values file %q: %w", pkg.Name, file, err)
 			}
-			return nil, nil, fmt.Errorf("package %q: %w", pkg.Name, ErrParseValues)
+			return nil, nil, fmt.Errorf("package %q: %w", pkg.Name, err)
 		}
 		loadedFileCount = len(filesToParse)
 	}
@@ -541,7 +544,7 @@ func templateValuesFiles(_ context.Context, files []string, vars bundleinternal.
 			if !sensitive {
 				return result, fmt.Errorf("%w %q: %w", ErrRenderValues, f, err)
 			}
-			return result, fmt.Errorf("%w %q", ErrRenderValues, filepath.Base(f))
+			return result, fmt.Errorf("%w %q", redactError(err, ErrRenderValues), filepath.Base(f))
 		}
 
 		tmp, err := os.CreateTemp(tmpDir, "uds-values-*.yaml")

@@ -4,7 +4,10 @@
 package zarf
 
 import (
+	"bytes"
 	"errors"
+	"io"
+	"log"
 	"testing"
 	"testing/synctest"
 
@@ -123,4 +126,47 @@ func TestWithTempDirWaitsForDifferentDirectoryAfterFailure(t *testing.T) {
 		require.ErrorIs(t, errors.Join(firstErr, secondErr), wantErr)
 		assert.Equal(t, "second", zarfconfig.CommonOptions.TempDirectory)
 	})
+}
+
+func TestSensitiveLoggingRestoresAfterPanic(t *testing.T) {
+	original := log.Writer()
+	require.Panics(t, func() {
+		_ = withSensitiveLogging(true, func() error {
+			assert.Equal(t, io.Discard, log.Writer())
+			panic("backend panic")
+		})
+	})
+	assert.Equal(t, original, log.Writer())
+}
+
+func TestSensitiveLoggingOverlappingDeployments(t *testing.T) {
+	var logs bytes.Buffer
+	original := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(original) })
+	started := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan error, 1)
+	go func() {
+		finished <- withSensitiveLogging(true, func() error {
+			close(started)
+			<-release
+			log.Print("secret after overlapping deployment")
+			return nil
+		})
+	}()
+	<-started
+	wantErr := errors.New("deployment failed")
+	err := withSensitiveLogging(true, func() error {
+		log.Print("secret during overlapping deployment")
+		return wantErr
+	})
+	assert.Equal(t, io.Discard, log.Writer())
+	close(release)
+	require.NoError(t, <-finished)
+	require.ErrorIs(t, err, wantErr)
+	assert.Same(t, &logs, log.Writer())
+	assert.Empty(t, logs.String())
+	log.Print("restored")
+	assert.Contains(t, logs.String(), "restored")
 }

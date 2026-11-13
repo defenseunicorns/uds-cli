@@ -593,7 +593,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 4e68bdf10ca79fd48a0856519026aa0cbb0ec6579f61e7efcb81a7abddea513f -->
+<!-- Source SHA256: ae27d7d7163a404f67c8a3e486953852ba4726efc451418fd2f0d072fb4a2b0b -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -750,10 +750,7 @@ variables = {
 }
 ```
 
-Create `secrets/password.txt` beside `config.uds.hcl` with the password value
-before using this example. A nested mark makes the whole top-level variable
-sensitive. The mark persists through defaults, config values, and `--set`
-overrides; `--set` cannot call `sensitive()`.
+Create `secrets/password.txt` beside `config.uds.hcl` with the password value before using this example. A nested mark makes the whole top-level variable sensitive. The mark persists through defaults, config values, and `--set` overrides; `--set` cannot call `sensitive()`.
 
 Templates and Zarf receive the original values:
 
@@ -763,13 +760,9 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-When any variable is sensitive, UDS suppresses backend diagnostics it controls
-and detailed template errors. Unmarked configs retain template details. YAML
-errors omit raw content. Progress remains visible. Helm and external code may
-still expose values outside UDS output controls.
+When any variable is sensitive, UDS suppresses backend diagnostics it controls and detailed template errors. During sensitive backend deployments, UDS also suppresses Go’s process-global standard logger, including Helm values-conflict warnings and unrelated standard logs from concurrent callers. UDS restores the previous writer after the last overlapping sensitive deployment finishes, including on errors or panics. Applications embedding UDS must not reconfigure that logger during deployment. Unmarked configs retain template details. YAML errors omit raw content. Cancellation and deadline errors remain detectable with `errors.Is`. Progress remains visible. Package actions, caller hooks, and external code may still expose values through other output paths.
 
-Sensitivity metadata does not encrypt values. Defaults stored in bundle
-artifacts remain plaintext, including values loaded with `file()`.
+Sensitivity metadata does not encrypt values. Defaults stored in bundle artifacts remain plaintext, including values loaded with `file()`.
 
 ## Precedence and timing
 
