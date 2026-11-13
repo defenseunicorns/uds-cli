@@ -16,8 +16,8 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Exercise supported v1alpha1 package compatibility.
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
@@ -28,13 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//nolint:staticcheck // Build supported v1alpha1 package fixtures.
-func newPackageLayout(t *testing.T, pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
+func newPackageLayout(t *testing.T, pkg api.Package) *layout.PackageLayout {
 	t.Helper()
 	result := &layout.PackageLayout{}
-	definition := convert.PackageFromV1alpha1(pkg)
-	result.SetName(definition.Metadata.Name)
-	require.NoError(t, result.Filter(packageComponentSelection(definition.Components)))
+	result.SetName(pkg.Metadata.Name)
+	require.NoError(t, result.Filter(packageComponentSelection(pkg.Components)))
 	return result
 }
 
@@ -174,23 +172,22 @@ func TestCountRemovalResults(t *testing.T) {
 	assert.Equal(t, 1, skipped)
 }
 
-//nolint:staticcheck // Verify hook mutations on supported v1alpha1 packages.
 func TestPublicPackageHookConvertsLayoutMutations(t *testing.T) {
 	hooks := toZarfPackageHooks(PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
 		pkgLayout.PackageDefinition.RemoveImages()
 		pkgLayout.SetDeployedDigest("sha256:registry")
 		return nil
 	}})
-	zarfLayout := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	zarfLayout := newPackageLayout(t, api.Package{Components: []api.Component{{
 		Name:          "main",
-		Images:        []string{"example/image:v1"},
-		ImageArchives: []v1alpha1.ImageArchive{{Path: "images.tar", Images: []string{"example/image:v1"}}},
+		Images:        []api.Image{{Name: "example/image:v1"}},
+		ImageArchives: []api.ImageArchive{{Path: "images.tar", Images: []api.ArchiveImage{{Name: "example/image:v1"}}}},
 	}}})
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 
 	require.NoError(t, hooks.PreDeploy(t.Context(), &spec.Package{}, zarfLayout, &packager.DeployOptions{}, &internalOpts))
-	assert.Empty(t, zarfLayout.AsV1alpha1().Components[0].Images)
-	assert.Empty(t, zarfLayout.AsV1alpha1().Components[0].ImageArchives)
+	assert.Empty(t, zarfLayout.Definition().Components[0].Images)
+	assert.Empty(t, zarfLayout.Definition().Components[0].ImageArchives)
 	assert.Equal(t, "sha256:registry", zarfLayout.Digest())
 }
 
@@ -412,22 +409,18 @@ func TestPublicPackageHookPreservesPartialMetadata(t *testing.T) {
 	assert.True(t, partial)
 }
 
-//nolint:staticcheck // Verify component mutation through supported v1alpha1 conversion APIs.
 func TestApplyPublicPackageLayoutUsesHookDefinition(t *testing.T) {
-	manifests := []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}
-	dst := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
+	dst := newPackageLayout(t, api.Package{Components: []api.Component{{
 		Name:      "main",
-		Manifests: manifests,
-		Charts:    []v1alpha1.ZarfChart{{Name: "chart"}},
+		Manifests: []api.Manifest{{Name: "manifest.yaml"}},
+		Charts:    []api.Chart{{Name: "chart"}},
 	}}})
 	src := fromZarfPackageLayout(dst)
-	pkg := convert.PackageToV1alpha1(src.PackageDefinition)
-	pkg.Components = pkg.Components[:0]
-	src.PackageDefinition = convert.PackageFromV1alpha1(pkg)
+	src.PackageDefinition.Components = src.PackageDefinition.Components[:0]
 
 	require.NoError(t, applyPublicPackageLayout(dst, src))
 
-	assert.Empty(t, dst.AsV1alpha1().Components)
+	assert.Empty(t, dst.Definition().Components)
 }
 
 func TestDeployOptionsPropagateArchitectureOverrideToPackages(t *testing.T) {
@@ -583,30 +576,26 @@ func TestPublicPreDeployReceivesStagedDirectory(t *testing.T) {
 	require.NoError(t, err)
 }
 
-//nolint:staticcheck // Verify component renaming through supported v1alpha1 conversion APIs.
 func TestPublicPreDeployPreservesRename(t *testing.T) {
 	internalOpts := toZarfDeployPackageOptions(DeployPackageOptions{Config: validValidationConfig(), BundleDir: t.TempDir()})
 	internalOpts.PackageDeployHooks = toZarfPackageHooks(PackageDeployHooks{
 		PreDeploy: func(_ context.Context, _ *spec.Package, pkgLayout *ZarfPackageLayout, _ *DeployPackageOptions) error {
-			pkg := convert.PackageToV1alpha1(pkgLayout.PackageDefinition)
-			pkg.Components[0].Name = "renamed"
-			pkgLayout.PackageDefinition = convert.PackageFromV1alpha1(pkg)
+			pkgLayout.PackageDefinition.Components[0].Name = "renamed"
 			return nil
 		},
 	})
-	internalLayout := newPackageLayout(t, v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{
-		{Name: "original", Manifests: []v1alpha1.ZarfManifest{{Name: "manifest.yaml"}}},
+	internalLayout := newPackageLayout(t, api.Package{Components: []api.Component{
+		{Name: "original", Manifests: []api.Manifest{{Name: "manifest.yaml"}}},
 	}})
 
 	err := internalOpts.PackageDeployHooks.PreDeploy(
 		t.Context(), &spec.Package{}, internalLayout, &packager.DeployOptions{}, &internalOpts,
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "renamed", internalLayout.AsV1alpha1().Components[0].Name)
-	assert.Equal(t, "manifest.yaml", internalLayout.AsV1alpha1().Components[0].Manifests[0].Name)
+	assert.Equal(t, "renamed", internalLayout.Definition().Components[0].Name)
+	assert.Equal(t, "manifest.yaml", internalLayout.Definition().Components[0].Manifests[0].Name)
 }
 
-//nolint:staticcheck // Verify staged deployment data for supported v1alpha1 packages.
 func TestPackageLayoutLoaderAdapterPreservesStagedPrivateDeploymentData(t *testing.T) {
 	dir := t.TempDir()
 	const zarfYAML = `kind: ZarfPackageConfig
@@ -632,23 +621,22 @@ components:
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "zarf.yaml"), []byte(zarfYAML), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "checksums.txt"), nil, 0o600))
 
+	stagedLayout, err := layout.LoadFromDir(t.Context(), dir, layout.PackageLayoutOptions{
+		IsPartial: true, VerificationStrategy: layout.VerifyNever,
+	})
+	require.NoError(t, err)
 	loader := packageLayoutLoaderAdapter{loader: staticPackageLayoutLoader{
-		layout: &ZarfPackageLayout{PackageDefinition: convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{Components: []v1alpha1.ZarfComponent{{
-			Name:      "main",
-			Charts:    []v1alpha1.ZarfChart{{Name: "chart", Version: "1.0.0", URL: "https://example.com/charts"}},
-			Manifests: []v1alpha1.ZarfManifest{{Name: "manifests", Files: []string{"manifest.yaml"}}},
-			Files:     []v1alpha1.ZarfFile{{Source: "file.txt", Target: "/tmp/file.txt"}},
-		}}})},
+		layout: fromZarfPackageLayout(stagedLayout),
 	}}
 	result, err := loader.LoadPackageLayout(t.Context(), &spec.Package{Name: "test"}, dir, internalzarf.LoadOptions{IsPartial: true})
 	require.NoError(t, err)
 	assert.Equal(t, "test", result.Layout.Definition().Metadata.Name)
-	components := result.Layout.AsV1alpha1().Components
+	components := result.Layout.Definition().Components
 	require.Len(t, components, 1)
 	component := components[0]
 	assert.Equal(t, "chart", component.Charts[0].Name)
 	assert.Equal(t, "manifests", component.Manifests[0].Name)
-	assert.Equal(t, "/tmp/file.txt", component.Files[0].Target)
+	assert.Equal(t, "/tmp/file.txt", component.Files[0].Destination)
 }
 
 func TestPackageLayoutLoaderAdapterPreservesPartialLayout(t *testing.T) {

@@ -21,6 +21,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/api"
 	"github.com/zarf-dev/zarf/src/api/convert"
 	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Exercise component filtering for supported v1alpha1 packages.
 	"github.com/zarf-dev/zarf/src/pkg/packager"
@@ -534,7 +535,7 @@ func TestBuildComponentFilter(t *testing.T) {
 	requiredFalse := false
 
 	// Helper to extract component names from filter result
-	componentNames := func(components []v1alpha1.ZarfComponent) []string {
+	componentNames := func(components []api.Component) []string {
 		names := make([]string, len(components))
 		for i, c := range components {
 			names[i] = c.Name
@@ -657,7 +658,7 @@ func TestBuildComponentFilter(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantNames, componentNames(convert.PackageToV1alpha1(selectedDefinition).Components)) //nolint:staticcheck // Verify selected components retain v1alpha1 compatibility.
+			assert.Equal(t, tt.wantNames, componentNames(selectedDefinition.Components))
 		})
 	}
 }
