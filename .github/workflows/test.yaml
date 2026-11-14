@@ -221,9 +221,9 @@ jobs:
 
       - name: Cache the Next test Zarf tool
         if: matrix.supplied
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          version: 2026.10.25
+          version: 2026.11.8
           install_args: zarf@${{ steps.zarf-version.outputs.version }}
           cache: true
 
@@ -305,9 +305,9 @@ jobs:
         run: echo "version=$(go list -m -json github.com/zarf-dev/zarf | jq -r '.Version | ltrimstr("v")')" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Next test Zarf tool
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          version: 2026.10.25
+          version: 2026.11.8
           install_args: zarf@${{ steps.zarf-version.outputs.version }}
           cache: true
 
@@ -522,7 +522,7 @@ jobs:
         uses: ./.github/actions/setup-uds-e2e
 
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -561,7 +561,7 @@ jobs:
           create-cluster: "false"
 
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -598,7 +598,7 @@ jobs:
           create-cluster: "false"
 
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
