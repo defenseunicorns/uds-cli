@@ -7,6 +7,8 @@ sidebar:
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
+For exact `file()` and `sensitive()` behavior and supported HCL contexts, see the [HCL helper function reference](/cli/reference/next/helper-functions/).
+
 This file is distinct from `bundle.uds.hcl`, which defines the bundle, and `defaults.uds.hcl`, which stores bundle-provided default variables.
 
 ## Supported top-level attributes
