@@ -8,18 +8,22 @@ Accepted
 
 ## Context
 
-CLI Next needs external registry and Git configuration, registry mode selection, and init storage customization.
-Package values handle storage, but cannot supply all Zarf bootstrap settings.
-Legacy uses reserved `INIT_*` variables; Next needs explicit configuration.
+Users need to configure external registries and Git servers, registry mode, and other Zarf initialization settings through CLI Next.
+These settings cannot be supplied through package values overrides alone, even with a separate init package: Zarf needs them to select bootstrap behavior, push destinations, and credentials independently of chart configuration.
+Settings already exposed by the package, such as storage class, can use existing package inputs.
+
+Legacy CLI supports these settings today through `UDS_INIT_*` environment variables and reserved `INIT_*` variables in `uds-config.yaml`.
+It translates them into Zarf deployment options when deploying an init package.
+CLI Next has no equivalent mechanism, leaving a gap for operators migrating from Legacy.
 
 ## Decision
 
-Add optional `options.init` to consumer-owned `config.uds.hcl`, extending
-[ADR-0006](0006-opinionated-cli-settings.md). The proposed syntax is:
+Add optional `options.zarf_init` to consumer-owned `config.uds.hcl`, extending [ADR-0006](0006-opinionated-cli-settings.md).
+The proposed syntax is:
 
 ```hcl
 options {
-  init {
+  zarf_init {
     registry_mode          = "external"
     registry_url           = "registry.example.com:5000"
     registry_push_username = "zarf-push"
@@ -40,51 +44,29 @@ options {
 | Bootstrap | `injector_image`, `injector_port` |
 | Agent | `agent_mutation_policy`, `agent_tls_ca`, `agent_tls_cert`, `agent_tls_key` |
 
-Deprecated inputs are not supported as they have been removed as of Zarf v1.0
-
-### Storage customization
-
-Use Next variables for alpha init packages and package `values_files` for beta:
-
-| Package format | Registry storage class | Git server storage class |
-| --- | --- | --- |
-| v1alpha1 variables | `REGISTRY_STORAGE_CLASS` | `GIT_SERVER_STORAGE_CLASS` |
-| v1beta1 values | `registry.persistence.storageClass` | `gitServer.persistence.storageClass` |
-
-
 ### Deployment behavior
 
 Apply options only when the verified package reports `IsInitConfig()`.
-Redact secrets from logs, previews, and persisted results.
-
 Leave omitted options unset.
 Zarf preserves existing mutation policy or defaults to `all` when absent; remove Next's hardcoded `all` without adding a state lookup.
 Explicit changes follow Zarf's update restrictions.
 Configure mutation policy through init options; the standard beta init values cannot set it.
-
-## Limitations
-
-Options apply to every selected init package.
-Different settings require separate invocations and config files; package-specific overrides are unsupported.
+Settings exposed through package values remain there rather than becoming init options, such as registry and Git server storage classes.
 
 ## Consequences
 
-Initialization becomes configurable without rebuilding bundles.
-Maintain validation, redaction, and alpha/beta compatibility.
-Test fresh init, policy preservation, explicit overrides, and regular packages receiving no init options.
+- All init packages in a deployment share the same settings, preventing different settings per package.
+- Users must understand which settings belong in `options.zarf_init` and which belong in package variables or values.
+- CLI users must supply a `config.uds.hcl` file to customize init options rather than setting them directly through flags.
 
 ## Alternatives considered
 
 - **Reserved variables:** retain Legacy's implicit special meanings.
-- **Package values alone:** support chart customization, but not all bootstrap
-  operations or saved state.
-- **Package-level configuration:** adds flexibility beyond the invocation-wide
-  scope chosen here.
+- **Package values alone:** support chart customization, but not all bootstrap operations or saved state.
+- **Package-level configuration:** adds flexibility beyond the invocation-wide scope chosen here.
 
 ## References
 
 - [Legacy init customization](../how-to-guides/customize-init.mdx).
-- Zarf [init options and validation](https://github.com/zarf-dev/zarf/blob/v1.0.1/src/cmd/initialize.go)
-  and [mutation-policy fix](https://github.com/zarf-dev/zarf/pull/5644).
-- [Alpha-to-beta init input migration](https://github.com/zarf-dev/zarf/blob/v1.0.0/packages/init/v1beta1/MIGRATION.md)
-  and [Zarf 1.0 migration guidance](https://www.docs.zarf.dev/v1.0).
+- Zarf [init options and validation](https://github.com/zarf-dev/zarf/blob/v1.0.1/src/cmd/initialize.go) and [mutation-policy fix](https://github.com/zarf-dev/zarf/pull/5644).
+- [Alpha-to-beta init input migration](https://github.com/zarf-dev/zarf/blob/v1.0.0/packages/init/v1beta1/MIGRATION.md) and [Zarf 1.0 migration guidance](https://www.docs.zarf.dev/v1.0).
