@@ -506,9 +506,6 @@ func (s *Store) GC(ctx context.Context) error {
 			if err := isContextDone(ctx); err != nil {
 				return err
 			}
-			if digestEntry.IsDir() {
-				continue
-			}
 			dgst := digestEntry.Name()
 			blobDigest := digest.NewDigestFromEncoded(digest.Algorithm(alg), dgst)
 			if err := blobDigest.Validate(); err != nil {
@@ -517,9 +514,9 @@ func (s *Store) GC(ctx context.Context) error {
 			}
 			if !reachableNodes.Contains(blobDigest) {
 				// remove the blob from storage if it does not exist in Store
-				blobPath := path.Join(algPath, dgst)
-				if err := os.Remove(blobPath); err != nil {
-					return fmt.Errorf("unable to remove %s: %w", blobPath, err)
+				err = os.Remove(path.Join(algPath, dgst))
+				if err != nil {
+					return err
 				}
 			}
 		}
@@ -561,14 +558,14 @@ func (s *Store) gcIndex(ctx context.Context) error {
 		// check if the referrers manifest can traverse to the existing graph
 		subject := &desc
 		for {
-			next, err := manifestutil.Subject(ctx, s.storage, *subject)
+			subject, err := manifestutil.Subject(ctx, s.storage, *subject)
 			if err != nil {
 				return err
 			}
-			if next == nil {
+			if subject == nil {
 				break
 			}
-			if graph.Exists(*next) {
+			if graph.Exists(*subject) {
 				if err := tagResolver.Tag(ctx, deleteAnnotationRefName(desc), desc.Digest.String()); err != nil {
 					return err
 				}
@@ -578,7 +575,6 @@ func (s *Store) gcIndex(ctx context.Context) error {
 				}
 				break
 			}
-			subject = next
 		}
 	}
 	s.tagResolver = tagResolver
