@@ -49,7 +49,6 @@ options {
 Apply options only when the verified package reports `IsInitConfig()`.
 Leave omitted options unset.
 Zarf preserves existing mutation policy or defaults to `all` when absent; remove Next's hardcoded `all` without adding a state lookup.
-Explicit changes follow Zarf's update restrictions.
 Configure mutation policy through init options; the standard beta init values cannot set it.
 Settings exposed through package values remain there rather than becoming init options, such as registry and Git server storage classes.
 
@@ -58,6 +57,7 @@ Settings exposed through package values remain there rather than becoming init o
 - All init packages in a deployment share the same settings, preventing different settings per package.
 - Users must understand which settings belong in `options.zarf_init` and which belong in package variables or values.
 - CLI users must supply a `config.uds.hcl` file to customize init options rather than setting them directly through flags.
+- Zarf init credentials are not able to be reconciled from `config.uds.hcl`; update existing credentials through the Zarf CLI with `uds tools zarf tools update-creds`.
 
 ## Alternatives considered
 
