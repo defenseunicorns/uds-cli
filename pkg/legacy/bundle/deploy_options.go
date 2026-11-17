@@ -33,6 +33,7 @@ func configurePackageDeployOptions(opts *packager.DeployOptions, pkg api.Package
 						opts.SetVariables[key] = storageClass
 					}
 				}
+				configureLegacyInitChartStorageClasses(opts, pkg)
 			}
 		}
 	}
@@ -42,4 +43,42 @@ func configurePackageDeployOptions(opts *packager.DeployOptions, pkg api.Package
 		opts.SetVariables = nil
 	}
 	return opts.Validate(pkg)
+}
+
+func configureLegacyInitChartStorageClasses(opts *packager.DeployOptions, pkg api.Package) {
+	declared := make(map[string]bool)
+	for _, variable := range pkg.Variables { //nolint:staticcheck // Detect alpha init packages that declare the replacement storage-class variables.
+		declared[variable.Name] = true
+	}
+	targets := map[string]struct{ chart, variable string }{
+		"zarf-seed-registry": {"docker-registry", "REGISTRY_STORAGE_CLASS"},
+		"zarf-registry":      {"docker-registry", "REGISTRY_STORAGE_CLASS"},
+		"git-server":         {"gitea", "GIT_SERVER_STORAGE_CLASS"},
+	}
+	for _, component := range pkg.Components {
+		target, exists := targets[component.Name]
+		if !exists || declared[target.variable] {
+			continue
+		}
+		for _, chart := range component.Charts {
+			if chart.Name != target.chart {
+				continue
+			}
+			// Older init charts use the removed ###ZARF_STORAGE_CLASS###
+			// placeholder. Supply a default while preserving explicit chart overrides.
+			values := value.Values{"persistence": map[string]any{"storageClass": opts.SetVariables[target.variable]}}
+			values.DeepMerge(opts.ValuesOverridesMap[component.Name][chart.Name])
+			overrides := maps.Clone(opts.ValuesOverridesMap)
+			if overrides == nil {
+				overrides = make(packager.ValuesOverrides)
+			}
+			charts := maps.Clone(overrides[component.Name])
+			if charts == nil {
+				charts = make(map[string]value.Values)
+			}
+			charts[chart.Name] = values
+			overrides[component.Name] = charts
+			opts.ValuesOverridesMap = overrides
+		}
+	}
 }

@@ -44,7 +44,9 @@ The following keys configure init. In an environment variable, prepend `UDS_` to
 | `INIT_GIT_PULL_PASSWORD` | Password or access token for the Git pull user. |
 | `INIT_STORAGE_CLASS` | Storage class for the init package's registry and Git server persistent volume claims. |
 
-Legacy supports these init settings with both v1alpha1 and v1beta1 init packages. For v1beta1, `INIT_STORAGE_CLASS` sets the package values `registry.persistence.storageClass` and `gitServer.persistence.storageClass`. For v1alpha1, it supplies `REGISTRY_STORAGE_CLASS` and `GIT_SERVER_STORAGE_CLASS`; explicit component variables take precedence.
+Legacy supports these init settings with both v1alpha1 and v1beta1 init packages. For v1beta1, `INIT_STORAGE_CLASS` sets the package values `registry.persistence.storageClass` and `gitServer.persistence.storageClass`.
+
+For v1alpha1 init packages, Legacy supplies `REGISTRY_STORAGE_CLASS` and `GIT_SERVER_STORAGE_CLASS`. When an older package does not declare those variables, Legacy sets `persistence.storageClass` on its registry and Git Helm charts. Explicit component variables and chart overrides take precedence over `INIT_STORAGE_CLASS`.
 
 Zarf v1.0.1 removed artifact server support. Legacy returns an error for nonempty `INIT_ARTIFACT_URL`, `INIT_ARTIFACT_PUSH_USERNAME`, or `INIT_ARTIFACT_PUSH_TOKEN` settings. Remove those settings before deployment.
 
