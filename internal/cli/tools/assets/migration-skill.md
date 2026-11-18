@@ -594,7 +594,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 8e9cde734b421fe99fdaf1a29f4f54febef492c5eebff7e425947d27e794a23f -->
+<!-- Source SHA256: a61619749c6c2cdac2ba13ce6daba32623bf8875f9a664928865622030c4ba18 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
