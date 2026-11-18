@@ -353,6 +353,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	}
 	if pkgLayout.Definition().IsInitConfig() {
 		applyZarfInitOptions(&deployOpts, opts.Config.Options.ZarfInit)
+		if deployOpts.AgentMutationPolicy == "" {
+			// TODO: undo this when bumped to zarf 1.0.1
+			deployOpts.AgentMutationPolicy = state.MutationPolicyAll
+		}
 	}
 
 	log.Info("deploying zarf package to cluster", "name", pkg.Name)

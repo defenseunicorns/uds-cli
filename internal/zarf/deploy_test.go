@@ -755,7 +755,7 @@ func TestApplyZarfInitOptionsInternalRegistry(t *testing.T) {
 	}
 }
 
-func TestDeployPackageLeavesMutationPolicyUnsetForInit(t *testing.T) {
+func TestDeployPackageDefaultsMutationPolicyForInit(t *testing.T) {
 	pkgDir := t.TempDir()
 	writeMinimalZarfPackage(t, pkgDir, "init")
 
@@ -765,19 +765,30 @@ func TestDeployPackageLeavesMutationPolicyUnsetForInit(t *testing.T) {
 	//nolint:gosec // G703 treats the test-owned fixture path beneath t.TempDir as attacker-controlled.
 	require.NoError(t, os.WriteFile(zarfYAMLPath, []byte(strings.Replace(string(zarfYAML), "ZarfPackageConfig", "ZarfInitConfig", 1)), 0o600))
 
-	called := false
-	err = NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{Name: "init", Source: pkgDir}, DeployPackageOptions{
-		Config:    newDeployTestConfig(1),
-		BundleDir: t.TempDir(),
-		ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
-			called = true
-			assert.Empty(t, opts.AgentMutationPolicy)
-			return nil
-		},
-	})
-
-	require.NoError(t, err)
-	assert.True(t, called)
+	for _, tt := range []struct {
+		name string
+		init *bundleinternal.ZarfInitOptions
+	}{
+		{name: "omitted block"},
+		{name: "omitted policy", init: &bundleinternal.ZarfInitOptions{RegistryPort: 31999}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newDeployTestConfig(1)
+			cfg.Options.ZarfInit = tt.init
+			called := false
+			err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{Name: "init", Source: pkgDir}, DeployPackageOptions{
+				Config:    cfg,
+				BundleDir: t.TempDir(),
+				ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+					called = true
+					assert.Equal(t, state.MutationPolicyAll, opts.AgentMutationPolicy)
+					return nil
+				},
+			})
+			require.NoError(t, err)
+			assert.True(t, called)
+		})
+	}
 }
 
 func TestDeployPackageSetsConfiguredMutationPolicyForInit(t *testing.T) {
