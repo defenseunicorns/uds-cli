@@ -41,25 +41,43 @@ func Simplify() Option {
 	return func(c *config) { c.simplify = true }
 }
 
+// TODO: The interaction between UseSpaces and TabIndent is very subtle,
+// especially given how both are actually on by default.
+// Moreover, it's actually impossible to unset [config.useSpaces].
+// We should probably rethink this API.
+
 // UseSpaces specifies that tabs should be converted to spaces and sets the
 // default tab width.
+//
+// This option is set to 8 by default.
 func UseSpaces(tabwidth int) Option {
 	return func(c *config) {
-		c.UseSpaces = true
-		c.Tabwidth = tabwidth
+		c.useSpaces = true
+		c.tabWidth = tabwidth
 	}
 }
 
-// TabIndent specifies whether to use tabs for indentation independent of
-// UseSpaces.
+// TabIndent specifies whether to use tabs for indentation independent of [UseSpaces].
+//
+// This option is set to true by default.
 func TabIndent(indent bool) Option {
-	return func(c *config) { c.TabIndent = indent }
+	return func(c *config) { c.tabIndent = indent }
 }
 
-// IndentPrefix specifies the number of tabstops to use as a prefix for every
-// line.
+// IndentPrefix specifies the number of tabstops to use as a prefix for every line.
 func IndentPrefix(n int) Option {
-	return func(c *config) { c.Indent = n }
+	return func(c *config) { c.indent = n }
+}
+
+// Version specifies the CUE language version to use when formatting.
+// This affects which canonical style is applied when combined with [Simplify];
+// for instance, as of v0.17.0 commas between list elements on separate lines
+// are omitted when simplifying. An empty version string means the version is
+// taken from the [*ast.File] node being formatted, falling back to conservative
+// behavior (same as pre-v0.17.0: always emit explicit commas). The version must
+// be a valid semantic version string as checked by [semver.IsValid].
+func Version(v string) Option {
+	return func(c *config) { c.languageVersion = v }
 }
 
 // TODO: make public
@@ -106,7 +124,13 @@ func Node(node ast.Node, opt ...Option) ([]byte, error) {
 func Source(b []byte, opt ...Option) ([]byte, error) {
 	cfg := newConfig(opt)
 
-	f, err := parser.ParseFile("", b, parser.ParseComments)
+	// Pass the language version to the parser so that ast.File.LanguageVersion
+	// is set correctly; the formatter then reads it back from the AST.
+	parseOpts := []parser.Option{parser.ParseComments}
+	if cfg.languageVersion != "" {
+		parseOpts = append(parseOpts, parser.Version(cfg.languageVersion))
+	}
+	f, err := parser.ParseFile("", b, parseOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("parse: %s", err)
 	}
@@ -116,20 +140,21 @@ func Source(b []byte, opt ...Option) ([]byte, error) {
 }
 
 type config struct {
-	UseSpaces bool
-	TabIndent bool
-	Tabwidth  int // default: 4
-	Indent    int // default: 0 (all code is indented at least by this much)
+	useSpaces bool // default: true
+	tabIndent bool // default: true
+	tabWidth  int  // default: 8
+	indent    int  // default: 0 (all code is indented at least by this much)
 
-	simplify    bool
-	sortImports bool
+	simplify        bool // default: false
+	sortImports     bool // default: false
+	languageVersion string
 }
 
 func newConfig(opt []Option) *config {
 	cfg := &config{
-		Tabwidth:  8,
-		TabIndent: true,
-		UseSpaces: true,
+		tabWidth:  8,
+		tabIndent: true,
+		useSpaces: true,
 	}
 	for _, o := range opt {
 		o(cfg)
@@ -138,7 +163,7 @@ func newConfig(opt []Option) *config {
 }
 
 // Config defines the output of Fprint.
-func (cfg *config) fprint(node interface{}) (out []byte, err error) {
+func (cfg *config) fprint(node any) (out []byte, err error) {
 	var p printer
 	p.init(cfg)
 	if err = printNode(node, &p); err != nil {
@@ -146,17 +171,17 @@ func (cfg *config) fprint(node interface{}) (out []byte, err error) {
 	}
 
 	padchar := byte('\t')
-	if cfg.UseSpaces {
+	if cfg.useSpaces {
 		padchar = byte(' ')
 	}
 
 	twmode := tabwriter.StripEscape | tabwriter.TabIndent | tabwriter.DiscardEmptyColumns
-	if cfg.TabIndent {
+	if cfg.tabIndent {
 		twmode |= tabwriter.TabIndent
 	}
 
 	buf := &bytes.Buffer{}
-	tw := tabwriter.NewWriter(buf, 0, cfg.Tabwidth, 1, padchar, twmode)
+	tw := tabwriter.NewWriter(buf, 0, cfg.tabWidth, 1, padchar, twmode)
 
 	// write printer result via tabwriter/trimmer to output
 	if _, err = tw.Write(p.output); err != nil {
@@ -169,8 +194,8 @@ func (cfg *config) fprint(node interface{}) (out []byte, err error) {
 	}
 
 	b := buf.Bytes()
-	if !cfg.TabIndent {
-		b = bytes.ReplaceAll(b, []byte{'\t'}, bytes.Repeat([]byte{' '}, cfg.Tabwidth))
+	if !cfg.tabIndent {
+		b = bytes.ReplaceAll(b, []byte{'\t'}, bytes.Repeat([]byte{' '}, cfg.tabWidth))
 	}
 	return b, nil
 }
@@ -212,7 +237,7 @@ const (
 
 	comma      // print a comma, unless trailcomma overrides it
 	trailcomma // print a trailing comma unless closed on same line
-	declcomma  // write a comma when not at the end of line
+	declcomma  // write a comma when not at the end of line (same as struct field separator)
 
 	newline    // write a line in a table
 	formfeed   // next line is not part of the table
@@ -244,7 +269,7 @@ func init() {
 	_ = s.override
 }
 
-func (f *formatter) print(a ...interface{}) {
+func (f *formatter) print(a ...any) {
 	for _, x := range a {
 		f.Print(x)
 		switch x.(type) {

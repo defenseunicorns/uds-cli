@@ -448,6 +448,18 @@ const (
 	IsCyclic
 )
 
+// hasDisjunctConjunct reports whether any of v's conjuncts is a disjunction,
+// either as an unevaluated DisjunctionExpr or an already-built Disjunction.
+func hasDisjunctConjunct(v *Vertex) bool {
+	for c := range v.LeafConjuncts() {
+		switch c.Expr().(type) {
+		case *DisjunctionExpr, *Disjunction:
+			return true
+		}
+	}
+	return false
+}
+
 func (n *nodeContext) detectCycle(arc *Vertex, env *Environment, x Resolver, ci CloseInfo) (_ CloseInfo, skip bool) {
 	n.assertInitialized()
 
@@ -465,6 +477,10 @@ func (n *nodeContext) detectCycle(arc *Vertex, env *Environment, x Resolver, ci 
 	if n.hasNonCyclic && ci.CycleType == MaybeCyclic {
 		return ci, false
 	}
+
+	// Set when the latest same-node reoccurrence of x is a chain step; see
+	// below. Older occurrences would spuriously fail that check.
+	chainStep := false
 
 	for r := ci.Refs; r != nil; r = r.Next {
 		if equalDeref(r.Arc, arc) {
@@ -493,14 +509,51 @@ func (n *nodeContext) detectCycle(arc *Vertex, env *Environment, x Resolver, ci 
 				return ci, false
 			}
 
-			if n.hasNonCycle && n.hasNonCyclic && r.Depth != n.depth {
-				return ci, false
+			// Skip a reoccurring arc that is structure sharing rather than
+			// a cycle: a different reference (r.Ref != x) reaching a node
+			// that still has non-cyclic conjuncts is a definition body
+			// re-instantiated elsewhere (e.g. ({cfg: _} & imp).export of
+			// #4367, or the chained template of #1708), not self-feeding.
+			// The other cases fall through to markCyclicPath, which bounds
+			// them: a same-reference reoccurrence (r.Ref == x) is genuine
+			// self-expansion, and a node with only cyclic conjuncts is
+			// unbounded self-recursion (e.g. (t & {a: a[0]}).out of #4373).
+			// This is safe: a source has finitely many references, so any
+			// unbounded cycle eventually repeats one and is caught by the
+			// r.Ref == x case.
+			//
+			// The skip must not fire, though, when a dynamic node re-enters a
+			// not-yet-finalized disjunction: that is self-feeding recursion
+			// reoccurring through a different reference per disjunct at the same
+			// depth, so the skip would let every disjunct re-expand the whole
+			// disjunction. markCyclicPath bounds it instead.
+			selfFeeding := n.node.IsDynamic && arc.Status() != finalized && hasDisjunctConjunct(arc)
+			if r.Ref != x && n.hasNonCycle && n.hasNonCyclic && !selfFeeding {
+				continue
 			}
 
 			return n.markCyclicPath(arc, env, x, ci)
 		}
 		if r.Ref == x && arc.nonRooted {
 			if equalDeref(r.Node, n.node) {
+				if chainStep {
+					continue
+				}
+				// A same-node reoccurrence is not a cycle when the conjunct
+				// is evaluated in the environment of the node itself or of
+				// the inline vertex the previous occurrence resolved into:
+				// the expression is then stepping one level along a finite
+				// chain of distinct bindings (https://cuelang.org/issue/4430).
+				// Any other route back re-feeds the same instantiation.
+				var v *Vertex
+				if env != nil {
+					v = env.DerefVertex(n.ctx)
+				}
+				if v != nil && (equalDeref(v, n.node) ||
+					(r.Arc.Parent != nil && equalDeref(v, r.Arc.Parent))) {
+					chainStep = true
+					continue
+				}
 				return n.markCyclicPath(arc, env, x, ci)
 			}
 			// Also detect cycles through StructLit inline vertices
@@ -568,6 +621,15 @@ func (n *nodeContext) markCyclicPath(arc *Vertex, env *Environment, x Resolver, 
 	return ci, false
 }
 
+// InStructuralCycle reports whether the cycle detection algorithm has marked
+// the current evaluation context as part of a structural cycle. Recursive
+// validators like matchN consult this to terminate a self-reference (e.g.
+// _x: matchN(2, [_x, _x])) that the usual checks miss because the concrete
+// value being validated always contributes a non-cyclic conjunct.
+func (c *OpContext) InStructuralCycle() bool {
+	return c.ci.CycleInfo.IsCyclic()
+}
+
 // combineCycleInfo merges the cycle information collected in the context into
 // the given CloseInfo. Note that it only merges the cycle information in its
 // entirety, if present, to avoid getting unrelated data.
@@ -589,6 +651,43 @@ func (c *OpContext) combineCycleInfo(ci CloseInfo) CloseInfo {
 func (c *OpContext) hasDepthCycle(v *Vertex) bool {
 	if s := v.state; s != nil && v.status != finalized {
 		return s.evalDepth > 0 && s.evalDepth < c.evalDepth
+	}
+	return false
+}
+
+// sharedTargetHasInProgressCycle reports whether w has a pending
+// (not yet run) Resolver task whose resolution target is currently
+// on the evaluation stack (i.e., would produce a depth cycle). This
+// is used by the sharing path in [Vertex.unify] to skip a recursive
+// w.unify call that would otherwise lock in a structural cycle on w
+// while w's dependency is still being evaluated. The cycle gets
+// resolved later, once w's dependency completes.
+func sharedTargetHasInProgressCycle(c *OpContext, w *Vertex) bool {
+	s := w.state
+	if s == nil {
+		return false
+	}
+	for _, t := range s.tasks {
+		if t.state != taskREADY || t.run != handleResolver {
+			continue
+		}
+		r, ok := t.x.(Resolver)
+		if !ok {
+			continue
+		}
+		// Peek-resolve the reference using the task's env. If it
+		// points to a vertex currently on the evaluation stack,
+		// calling w.unify would recurse and trigger a structural
+		// cycle on w.
+		saved := c.PushConjunct(MakeConjunct(t.env, t.x, t.id))
+		arc := r.resolve(c, Flags{condition: fieldSetKnown, mode: ignore})
+		c.PopState(saved)
+		if arc == nil || arc == emptyNode {
+			continue
+		}
+		if c.hasDepthCycle(arc.DerefNonDisjunct()) {
+			return true
+		}
 	}
 	return false
 }

@@ -31,7 +31,7 @@ import (
 // If the package is present in exactly one module, importFromModules will
 // return the module, its root directory, and a list of other modules that
 // lexically could have provided the package but did not.
-func (pkgs *Packages) importFromModules(ctx context.Context, pkgPath string) (
+func (pkgs *Packages) importFromModules(ctx context.Context, pkgPath string, defaultMajorVersion func(string) (string, modrequirements.MajorVersionDefaultStatus, error)) (
 	m module.Version,
 	mroot module.SourceLoc,
 	pkgLocs []module.SourceLoc,
@@ -62,6 +62,17 @@ func (pkgs *Packages) importFromModules(ctx context.Context, pkgPath string) (
 
 	// Check each module on the build list.
 	var locs []PackageLoc
+	localPkgLocs, err := pkgs.findLocalPackage(pkgPathOnly)
+	if err != nil {
+		return fail(err)
+	}
+	if len(localPkgLocs) > 0 {
+		locs = append(locs, PackageLoc{
+			Module:     module.MustNewVersion("local", ""),
+			ModuleRoot: pkgs.mainModuleLoc,
+			Locs:       localPkgLocs,
+		})
+	}
 	var mg *modrequirements.ModuleGraph
 	versionForModule := func(ctx context.Context, prefix string) (module.Version, error) {
 		var (
@@ -70,7 +81,12 @@ func (pkgs *Packages) importFromModules(ctx context.Context, pkgPath string) (
 		)
 		pkgVersion := pathParts.Version
 		if pkgVersion == "" {
-			if pkgVersion, _ = pkgs.requirements.DefaultMajorVersion(prefix); pkgVersion == "" {
+			var err error
+			pkgVersion, _, err = defaultMajorVersion(prefix)
+			if err != nil {
+				return module.Version{}, err
+			}
+			if pkgVersion == "" {
 				return module.Version{}, nil
 			}
 		}
@@ -92,17 +108,6 @@ func (pkgs *Packages) importFromModules(ctx context.Context, pkgPath string) (
 			return module.Version{}, nil
 		}
 		return m, nil
-	}
-	localPkgLocs, err := pkgs.findLocalPackage(pkgPathOnly)
-	if err != nil {
-		return fail(err)
-	}
-	if len(localPkgLocs) > 0 {
-		locs = append(locs, PackageLoc{
-			Module:     module.MustNewVersion("local", ""),
-			ModuleRoot: pkgs.mainModuleLoc,
-			Locs:       localPkgLocs,
-		})
 	}
 
 	// Iterate over possible modules for the path, not all selected modules.
@@ -168,7 +173,7 @@ type PackageLoc struct {
 	ModuleRoot module.SourceLoc
 	// Locs holds the source locations of the package. There is always
 	// at least one element; there can be more than one when the
-	// module path is "local" (for exampe packages inside cue.mod/pkg).
+	// module path is "local" (for example packages inside cue.mod/pkg).
 	Locs []module.SourceLoc
 }
 
@@ -253,13 +258,14 @@ func locInModule(pkgPath, mpath string, mloc module.SourceLoc, isLocal bool) (lo
 	// Check that there aren't other modules in the way.
 	// This check is unnecessary inside the module cache.
 	// So we only check local module trees
-	// (the main module and, in the future, any directory trees pointed at by replace directives).
+	// (the main module and, in the future, any directory trees pointed at by replaceWith fields).
 	if isLocal {
-		for d := loc.Dir; d != mloc.Dir && len(d) > len(mloc.Dir); {
-			_, err := fs.Stat(mloc.FS, path.Join(d, "cue.mod/module.cue"))
+		// Normalize so that paths like "." and "", which path.Join collapses
+		// when joining with a sub-path, compare equal.
+		mdir := path.Clean(mloc.Dir)
+		for d := path.Clean(loc.Dir); d != mdir; {
 			// TODO should we count it as a module file if it's a directory?
-			haveCUEMod := err == nil
-			if haveCUEMod {
+			if _, err := fs.Stat(mloc.FS, path.Join(d, "cue.mod/module.cue")); err == nil {
 				return module.SourceLoc{}, false, nil
 			}
 			parent := path.Dir(d)
@@ -344,13 +350,19 @@ func isDirWithCUEFiles(loc module.SourceLoc) (bool, error) {
 // and returns its location.
 //
 // The isLocal return value reports whether the replacement,
-// if any, is within the local main module.
+// if any, is within the local main module or a directory replacement.
 func (pkgs *Packages) fetch(ctx context.Context, mod module.Version) (loc module.SourceLoc, isLocal bool, err error) {
 	if mod == pkgs.mainModuleVersion {
 		return pkgs.mainModuleLoc, true, nil
 	}
 	loc, err = pkgs.registry.Fetch(ctx, mod)
-	return loc, false, err
+	if err != nil {
+		return loc, false, err
+	}
+	if repl, ok := pkgs.replacements.Lookup(mod.Path()); ok && repl.Dir != "" {
+		return loc, true, nil
+	}
+	return loc, false, nil
 }
 
 // pathAncestors returns an iterator over all the ancestors

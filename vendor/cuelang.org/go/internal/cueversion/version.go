@@ -14,7 +14,7 @@ import (
 // This determines the latest version of CUE that
 // is accepted by the module.
 func LanguageVersion() string {
-	return "v0.16.1"
+	return "v0.17.1"
 }
 
 // ModuleVersion returns the version of the cuelang.org/go module as best as can
@@ -64,7 +64,7 @@ func findCUEModule(bi *debug.BuildInfo) *debug.Module {
 //
 // Example:
 //
-//	Cue/v0.8.0 (cuelang.org/go; vxXXX) Go/go1.22.0 (linux/amd64)
+//	Cue/v0.16.0 (cuelang.org/go; lang v0.16.0) Go/go1.26.0 (linux/amd64)
 func UserAgent(clientType string) string {
 	if clientType == "" {
 		clientType = "cuelang.org/go"

@@ -27,6 +27,7 @@ import (
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal"
 	"cuelang.org/go/internal/cueexperiment"
+	"cuelang.org/go/internal/mod/semver"
 )
 
 // The parser structure holds the parser's internal state.
@@ -73,7 +74,9 @@ type parser struct {
 	// Non-syntactic parser control
 	exprLev int // < 0: in control clause, >= 0: in expression
 
-	imports []*ast.ImportSpec // list of imports
+	// nestLevel tracks and limits the expression nesting depth during
+	// parsing. See [maxNestLevel].
+	nestLevel int
 }
 
 func (p *parser) init(filename string, src []byte, opts []Option) {
@@ -94,6 +97,16 @@ func (p *parser) init(filename string, src []byte, opts []Option) {
 	p.comments = &commentState{pos: -1}
 
 	p.next()
+}
+
+// versionAtLeast reports whether the file's language version is at least v.
+// An absent version (empty string) is treated as the latest version.
+func (p *parser) versionAtLeast(v string) bool {
+	fv := ""
+	if p.experiments != nil {
+		fv = p.experiments.LanguageVersion()
+	}
+	return fv == "" || semver.Compare(fv, v) >= 0
 }
 
 type commentState struct {
@@ -273,6 +286,28 @@ func trace(p *parser, msg string) *parser {
 func un(p *parser) {
 	p.indent--
 	p.printTrace(")")
+}
+
+// maxNestLevel is the deepest expression nesting the parser accepts. Input
+// nested more deeply is rejected rather than recursed into any further.
+const maxNestLevel = 10_000
+
+// incNestLevel increments the parser's nesting depth, bailing out with an
+// error once it grows past [maxNestLevel]. It pairs with [decNestLevel] in the
+// same way as [trace] and [un]: defer decNestLevel(incNestLevel(p)).
+func incNestLevel(p *parser) *parser {
+	p.nestLevel++
+	if p.nestLevel > maxNestLevel {
+		p.panicking = true
+		p.errf(p.pos, "expression exceeds maximum nesting depth of %d", maxNestLevel)
+		panic("expression too deeply nested")
+	}
+	return p
+}
+
+// decNestLevel decrements the parser's nesting depth. See [incNestLevel].
+func decNestLevel(p *parser) {
+	p.nestLevel--
 }
 
 // Advance to the next
@@ -708,6 +743,9 @@ func (p *parser) parseIndexOrSlice(x ast.Expr) (expr ast.Expr) {
 			index[nColons] = p.parseRHS()
 		}
 	}
+	if nColons == 0 && p.tok == token.COMMA {
+		p.next()
+	}
 	p.exprLev--
 	rbrack := p.expect(token.RBRACK)
 
@@ -902,10 +940,10 @@ func (p *parser) parseField() (decl ast.Decl) {
 		if expr == nil {
 			expr = p.parseRHS()
 		}
-		if a, ok := expr.(*ast.Alias); ok {
-			p.errf(a.Pos(), `pre-v0.2 alias; use "let X = expr" instead`)
+		if _, isAlias := expr.(*ast.Alias); isAlias {
+			p.errorExpected(p.pos, "label or ':'")
 			p.consumeDeclComma()
-			return a
+			return &ast.BadDecl{From: pos, To: p.pos}
 		}
 		e := &ast.EmbedDecl{Expr: expr}
 		p.consumeDeclComma()
@@ -942,17 +980,15 @@ func (p *parser) parseField() (decl ast.Decl) {
 		fallthrough
 
 	case token.RBRACE, token.EOF:
-		if a, ok := expr.(*ast.Alias); ok {
-			p.errf(a.Pos(), `pre-v0.2 alias; use "let X = expr" instead`)
-			return a
-		}
-		switch tok {
-		case token.IDENT, token.LBRACK, token.LPAREN,
-			token.STRING, token.INTERPOLATION,
-			token.NULL, token.TRUE, token.FALSE,
-			token.FOR, token.IF, token.LET, token.IN,
-			token.TRY, token.ELSE, token.FALLBACK, token.OTHERWISE:
-			return &ast.EmbedDecl{Expr: expr}
+		if _, isAlias := expr.(*ast.Alias); !isAlias {
+			switch tok {
+			case token.IDENT, token.LBRACK, token.LPAREN,
+				token.STRING, token.INTERPOLATION,
+				token.NULL, token.TRUE, token.FALSE,
+				token.FOR, token.IF, token.LET, token.IN,
+				token.TRY, token.ELSE, token.FALLBACK, token.OTHERWISE:
+				return &ast.EmbedDecl{Expr: expr}
+			}
 		}
 		fallthrough
 
@@ -1404,7 +1440,7 @@ func (p *parser) parseListElement() (expr ast.Expr, ok bool) {
 	defer func() { c.closeNode(p, expr) }()
 
 	switch p.tok {
-	case token.FOR, token.IF:
+	case token.FOR, token.IF, token.TRY:
 		tok := p.tok
 		pos := p.pos
 		clauses, fc := p.parseComprehensionClauses()
@@ -1442,20 +1478,22 @@ func (p *parser) parseListElement() (expr ast.Expr, ok bool) {
 	expr = p.parseBinaryExprTail(token.LowestPrec+1, expr)
 	expr = p.parseAlias(expr)
 
-	// Enforce there is an explicit comma. We could also allow the
-	// omission of commas in lists, but this gives rise to some ambiguities
-	// with list comprehensions.
-	if p.tok == token.COMMA && p.lit != "," {
+	// Before v0.17.0 the parser required explicit commas between list
+	// elements; automatic (newline-inserted) commas were not accepted.
+	if !p.versionAtLeast("v0.17.0") && p.tok == token.COMMA && p.lit != "," {
 		p.next()
-		// Allow missing comma for last element, though, to be compliant
-		// with JSON.
+		// Allow missing comma for last element to be compliant with JSON.
 		if p.tok == token.RBRACK || p.tok == token.FOR || p.tok == token.IF {
 			return expr, false
 		}
 		p.errf(p.pos, "missing ',' before newline in list literal")
-	} else if !p.atComma("list literal", token.RBRACK, token.FOR, token.IF) {
+		goto exit
+	}
+
+	if !p.atComma("list literal", token.RBRACK, token.FOR, token.IF) {
 		return expr, false
 	}
+exit:
 	p.next()
 
 	return expr, true
@@ -1508,7 +1546,7 @@ func (p *parser) parsePostfixAlias() *ast.PostfixAlias {
 
 	switch p.tok {
 	case token.LPAREN:
-		// Dual form: ~(K,V)
+		// Parenthesized form: ~(X) or ~(K,V)
 		lparen := p.pos
 		p.next()
 
@@ -1517,6 +1555,18 @@ func (p *parser) parsePostfixAlias() *ast.PostfixAlias {
 			return nil
 		}
 		k := p.parseIdent()
+
+		if p.tok == token.RPAREN {
+			// Single form with parens: ~(X)
+			rparen := p.pos
+			p.next()
+			return &ast.PostfixAlias{
+				Tilde:  pos,
+				Lparen: lparen,
+				Field:  k,
+				Rparen: rparen,
+			}
+		}
 
 		comma := p.expect(token.COMMA)
 		if !comma.IsValid() {
@@ -1704,6 +1754,9 @@ func (p *parser) parseUnaryExpr() ast.Expr {
 	if p.trace {
 		defer un(trace(p, "UnaryExpr"))
 	}
+	// Every level of expression nesting reaches this point, so guarding
+	// here alone bounds the parser's recursion depth.
+	defer decNestLevel(incNestLevel(p))
 
 	switch p.tok {
 	case token.EQL:
@@ -1727,25 +1780,6 @@ func (p *parser) parseUnaryExpr() ast.Expr {
 	return p.parsePrimaryExpr()
 }
 
-func (p *parser) tokPrec() (token.Token, int) {
-	tok := p.tok
-	if tok == token.IDENT {
-		switch p.lit {
-		case "quo":
-			return token.IQUO, 7
-		case "rem":
-			return token.IREM, 7
-		case "div":
-			return token.IDIV, 7
-		case "mod":
-			return token.IMOD, 7
-		default:
-			return tok, 0
-		}
-	}
-	return tok, tok.Precedence()
-}
-
 // If lhs is set and the result is an identifier, it is not resolved.
 func (p *parser) parseBinaryExpr(prec1 int) ast.Expr {
 	if p.trace {
@@ -1759,7 +1793,7 @@ func (p *parser) parseBinaryExpr(prec1 int) ast.Expr {
 
 func (p *parser) parseBinaryExprTail(prec1 int, x ast.Expr) ast.Expr {
 	for {
-		op, prec := p.tokPrec()
+		op, prec := p.tok, p.tok.Precedence()
 		if prec < prec1 {
 			return x
 		}
@@ -1801,6 +1835,12 @@ func (p *parser) parseInterpolation() (expr ast.Expr) {
 		exprs = append(exprs, p.parseRHS())
 
 		cc = p.openComments()
+		// If a comma was inserted, consume it to find the closing parenthesis.
+		// Newlines inside string interpolations are allowed; the formatter
+		// normalizes leading/trailing newlines to be both present or both absent.
+		if p.tok == token.COMMA && p.lit == "\n" {
+			p.next()
+		}
 		if p.tok != token.RPAREN {
 			p.errorExpected(p.pos, "')' for string interpolation")
 		}
@@ -1879,7 +1919,6 @@ func (p *parser) parseImportSpec(_ int) *ast.ImportSpec {
 		Path: &ast.BasicLit{ValuePos: pos, Kind: token.STRING, Value: path},
 	}
 	c.closeNode(p, spec)
-	p.imports = append(p.imports, spec)
 
 	return spec
 }
@@ -1997,7 +2036,6 @@ func (p *parser) parseFile() *ast.File {
 	p.closeList()
 
 	f := &ast.File{
-		Imports:         p.imports,
 		Decls:           decls,
 		LanguageVersion: p.cfg.Version,
 	}

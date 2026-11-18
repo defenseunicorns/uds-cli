@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2021-Present the Maru Authors
+// SPDX-FileCopyrightText: 2023-Present the Maru Authors
 
-// Package cmd contains the CLI commands for maru.
 package cmd
 
 import (
@@ -15,8 +14,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Root config keys
 const (
-	// Root config keys
 	V_LOG_LEVEL    = "options.log_level"
 	V_ARCHITECTURE = "options.architecture"
 	V_NO_PROGRESS  = "options.no_progress"

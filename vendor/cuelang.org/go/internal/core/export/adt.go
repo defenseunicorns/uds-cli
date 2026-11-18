@@ -53,7 +53,7 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 		// TODO: should we use pushFrame here?
 		// _, saved := e.pushFrame([]adt.Conjunct{adt.MakeConjunct(nil, x)})
 		// defer e.popFrame(saved)
-		// s := e.frame(0).scope
+		// s := e.frame(0, false).scope
 		s := &ast.StructLit{}
 		// TODO: ensure e.node() is set in more cases. Right now it is not
 		// always set in mergeValues, even in cases where it could be. Better
@@ -101,7 +101,9 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 	case *adt.LabelReference:
 		// get potential label from Source. Otherwise use X.
 		v, ok := e.ctx.Evaluate(env, x)
-		f := e.frame(x.UpCount)
+		// needField skips intermediate mergeValues frames from nested
+		// fields that don't carry the BulkOptionalField's field info.
+		f := e.frame(x.UpCount, true)
 		if ok && (adt.IsConcrete(v) || f.field == nil) {
 			return e.value(v)
 		}
@@ -276,40 +278,6 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 			a = append(a, v)
 		}
 		return ast.NewBinExpr(token.AND, a...)
-
-	case *adt.Comprehension:
-		if !x.DidResolve() {
-			return dummyTop
-		}
-		for _, c := range x.Clauses {
-			switch c := c.(type) {
-			case *adt.ForClause:
-				env = &adt.Environment{Up: env, Vertex: empty}
-			case *adt.IfClause:
-			case *adt.LetClause:
-				env = &adt.Environment{Up: env, Vertex: empty}
-			case *adt.TryClause:
-				if c.Expr != nil {
-					// Assignment form: needs new environment for binding
-					env = &adt.Environment{Up: env, Vertex: empty}
-				}
-				// Struct form: no new environment needed (like IfClause)
-			case *adt.ValueClause:
-				// Can occur in nested comprehenions.
-				env = &adt.Environment{Up: env, Vertex: empty}
-			default:
-				panic("unreachable")
-			}
-		}
-
-		// If this is an "unwrapped" comprehension, we need to also
-		// account for the curly braces of the original comprehension.
-		if x.Nest() > 0 {
-			env = &adt.Environment{Up: env, Vertex: empty}
-		}
-
-		// TODO: consider using adt.EnvExpr.
-		return e.adt(env, adt.ToExpr(x.Value))
 
 	default:
 		panic(fmt.Sprintf("unknown field %T", x))
@@ -539,7 +507,7 @@ func (e *exporter) newIdentForField(
 	orig *ast.Ident,
 	label adt.Feature,
 	upCount int32) (ident *ast.Ident, ok bool) {
-	f := e.frame(upCount)
+	f := e.frame(upCount, false)
 	entry := f.fields[label]
 
 	name := e.identString(label)
@@ -587,7 +555,7 @@ func (e *exporter) decl(env *adt.Environment, d adt.Decl) ast.Decl {
 
 		}
 
-		top := e.frame(0)
+		top := e.frame(0, false)
 		var src *adt.Vertex
 		if top.node != nil {
 			src = top.node.Lookup(x.Label)
@@ -613,7 +581,7 @@ func (e *exporter) decl(env *adt.Environment, d adt.Decl) ast.Decl {
 	case *adt.BulkOptionalField:
 		e.setDocs(x)
 		// set bulk in frame.
-		frame := e.frame(0)
+		frame := e.frame(0, false)
 
 		expr := e.innerExpr(env, x.Filter)
 		frame.labelExpr = expr // see astutil.Resolve.
@@ -676,7 +644,7 @@ func (e *exporter) decl(env *adt.Environment, d adt.Decl) ast.Decl {
 
 		alias := aliasFromLabel(x.Src)
 
-		frame := e.frame(0)
+		frame := e.frame(0, false)
 		frame.dynamicFields = append(frame.dynamicFields, &entry{
 			alias: alias,
 			field: f,
@@ -707,7 +675,7 @@ func filterDocs(a []*ast.CommentGroup) (out []*ast.CommentGroup) {
 }
 
 func (e *exporter) setField(label adt.Feature, f *ast.Field) {
-	frame := e.frame(0)
+	frame := e.frame(0, false)
 	entry := frame.fields[label]
 	entry.field = f
 	entry.node = f.Value
@@ -822,12 +790,6 @@ func (e *exporter) comprehension(env *adt.Environment, comp *adt.Comprehension) 
 		}
 	}
 	e.copyMeta(c, comp.Syntax)
-
-	// If this is an "unwrapped" comprehension, we need to also
-	// account for the curly braces of the original comprehension.
-	if comp.Nest() > 0 {
-		env = &adt.Environment{Up: env, Vertex: empty}
-	}
 
 	// TODO: consider using adt.EnvExpr.
 	v := e.expr(env, adt.ToExpr(comp.Value))

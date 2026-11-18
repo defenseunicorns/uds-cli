@@ -581,8 +581,11 @@ func (v Value) Float64() (float64, error) {
 	return f, nil
 }
 
-// Value holds any value, which may be a Boolean, Error, List, Null, Number,
-// Struct, or String.
+// Value holds a CUE value. The [Value.Kind] method can be used to inspect the
+// kind of value if it's concrete; [Value.IncompleteKind] can be used to find out
+// its possible kinds when it is non-concrete.
+//
+// A Value is considered immutable: methods may be called concurrently.
 type Value struct {
 	idx *runtime.Runtime
 	v   *adt.Vertex
@@ -946,15 +949,8 @@ You could file a bug with the above information at:
 		}
 	}
 
-outer:
-	for _, d := range f.Decls {
-		switch d.(type) {
-		case *ast.Package, *ast.ImportDecl:
-			return f
-		case *ast.CommentGroup, *ast.Attribute:
-		default:
-			break outer
-		}
+	if len(f.Preamble()) > 0 {
+		return f
 	}
 
 	if len(f.Decls) == 1 {
@@ -1590,6 +1586,13 @@ func appendPath(a []Selector, v Value) []Selector {
 	case adt.StringLabel:
 		sel = stringSelector(f.StringValue(v.idx))
 
+	case adt.LetLabel:
+		// A let binding is not addressable as a path, so emit a path error
+		// selector rather than panicking. Dereference may yield a let vertex.
+		sel = pathError{
+			errors.Newf(token.NoPos, "let binding %q is not addressable", f.IdentString(v.idx)),
+		}
+
 	default:
 		panic(fmt.Sprintf("unsupported label type %v", t))
 	}
@@ -1652,8 +1655,7 @@ func (v hiddenValue) LookupField(name string) (FieldInfo, error) {
 // Fill creates a new value by unifying v with the value of x at the given path.
 //
 // Values may be any Go value that can be converted to CUE, an ast.Expr or
-// a Value. In the latter case, it will panic if the Value is not from the same
-// Runtime.
+// a Value.
 //
 // Any reference in v referring to the value at the given path will resolve
 // to x in the newly created value. The resulting value is not validated.
@@ -1677,11 +1679,8 @@ func (v hiddenValue) Fill(x interface{}, path ...string) Value {
 // given path: identifiers that are not resolved within the expression are
 // resolved as if they were defined at the path position.
 //
-// If x is a Value, it will be used as is. It panics if x is not created
-// from the same [Context] as v.
-//
-// Otherwise, the given Go value will be converted to CUE using the same rules
-// as [Context.Encode].
+// If x is a Value, it will be used as is. Otherwise, the given Go value
+// will be converted to CUE using the same rules as [Context.Encode].
 //
 // Any reference in v referring to the value at the given path will resolve to x
 // in the newly created value. The resulting value is not validated.
@@ -1697,9 +1696,6 @@ func (v Value) FillPath(p Path, x interface{}) Value {
 	var expr adt.Expr
 	switch x := x.(type) {
 	case Value:
-		if v.idx != x.idx {
-			panic("values are not from the same runtime")
-		}
 		expr = x.v
 	case ast.Expr:
 		n := getScopePrefix(v, p)
@@ -1798,9 +1794,6 @@ func (v hiddenValue) Template() func(label string) Value {
 //
 // Use the [Raw] option to do a low-level subsumption, taking defaults into
 // account.
-//
-// Value v and w must be obtained from the same build. TODO: remove this
-// requirement.
 func (v Value) Subsume(w Value, opts ...Option) error {
 	o := getOptions(opts)
 	p := subsume.CUE
@@ -1838,9 +1831,6 @@ func allowed(ctx *adt.OpContext, parent, n *adt.Vertex) *adt.Bottom {
 }
 
 // Unify reports the greatest lower bound of v and w.
-//
-// Value v and w must be obtained from the same build.
-// TODO: remove this requirement.
 func (v Value) Unify(w Value) Value {
 	if v.v == nil {
 		return w
@@ -1937,8 +1927,19 @@ func (v hiddenValue) Reference() (inst *Instance, path []string) {
 // ReferencePath returns the value and path referred to by this value such that
 // [Value.LookupPath](path) resolves to the same value, or no path if this value
 // is not a reference.
+//
+// The path is absolute from root and reflects where the reference resolves,
+// not its syntax: scope-relative and absolute references may report the same
+// path despite unifying differently. To tell them apart, inspect the conjunct
+// syntax via [Value.Expr] or [Value.Split].
 func (v Value) ReferencePath() (root Value, p Path) {
 	// TODO: don't include references to hidden fields.
+	if v.v == nil || v.v.IsData() {
+		// A value in data mode, such as the result of [Value.Eval], has had
+		// its references resolved, so it is no longer a reference to another
+		// value regardless of whether structure sharing is enabled.
+		return Value{}, Path{}
+	}
 	c, count := v.v.SingleConjunct()
 	if count != 1 {
 		return Value{}, Path{}
@@ -1946,6 +1947,15 @@ func (v Value) ReferencePath() (root Value, p Path) {
 	ctx := v.ctx()
 
 	env, expr := c.EnvExpr()
+
+	if sl, ok := expr.(*adt.StructLit); ok && sl.IsFile() && len(sl.Decls) == 1 {
+		if e, ok := sl.Decls[0].(adt.Expr); ok {
+			// The value is at the top level and it has a single
+			// conjunct which is a StructLit representing the file
+			// holding a single embedding that may be a reference.
+			expr = e
+		}
+	}
 
 	x, path := reference(v.idx, ctx, env, expr)
 	if x == nil {
@@ -2456,7 +2466,14 @@ process:
 			}
 			break
 		}
-		a = append(a, remakeValue(v, env, x.Fun))
+		if fn, ok := x.Fun.(*adt.Builtin); ok {
+			// Keep the builtin as a bare reference; remakeValue would
+			// re-finalize a bool- or bottom-result builtin (such as error)
+			// into a validator, rendering as "error()" rather than "error".
+			a = append(a, remakeFinal(v, fn))
+		} else {
+			a = append(a, remakeValue(v, env, x.Fun))
+		}
 		for _, arg := range x.Args {
 			a = append(a, remakeValue(v, env, arg))
 		}

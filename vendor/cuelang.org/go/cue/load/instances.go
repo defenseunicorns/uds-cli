@@ -35,6 +35,7 @@ import (
 	"cuelang.org/go/internal/mod/semver"
 	"cuelang.org/go/mod/modfile"
 	"cuelang.org/go/mod/module"
+	pkgpath "cuelang.org/go/pkg/path"
 )
 
 // Instances returns the instances named by the command line arguments 'args'.
@@ -51,30 +52,45 @@ func Instances(args []string, c *Config) []*build.Instance {
 		c = &Config{}
 	}
 
-	// TODO: This requires packages to be placed before files. At some point this
-	// could be relaxed.
-	i := 0
-	isAbsPkg := false
-	for ; i < len(args) && filetypes.IsPackage(args[i]); i++ {
-		if isAbsVersionPackage(args[i]) {
-			if i > 0 {
-				return []*build.Instance{c.newErrInstance(fmt.Errorf("only a single package with absolute version may be specified"))}
-			}
-			isAbsPkg = true
-		}
-	}
-	pkgArgs := args[:i]
-	otherArgs := args[i:]
-	otherFiles, err := filetypes.ParseArgs(otherArgs)
-	if err != nil {
-		return []*build.Instance{c.newErrInstance(err)}
-	}
 	ctx := context.TODO()
 	newC, err := c.complete()
 	if err != nil {
 		return []*build.Instance{c.newErrInstance(err)}
 	}
 	c = newC
+
+	// Rewrite absolute directory arguments as relative paths rooted at
+	// [Config.Dir] so the rest of the loading logic handles them as ordinary
+	// local import paths. Must happen before the package/file split, as
+	// [filetypes.IsPackage] rejects Windows paths like `C:\foo` due to the colon.
+	// Also rewrite \ to / as a courtesy to Windows developers.
+	args = slices.Clone(args)
+	for i, p := range args {
+		if pkgpath.IsAbs(p, c.pathOS) {
+			rel, err := pkgpath.Rel(c.Dir, p, c.pathOS)
+			if err != nil {
+				return []*build.Instance{c.newErrInstance(err)}
+			}
+			p = "./" + rel
+		}
+		args[i] = pkgpath.ToSlash(p, c.pathOS)
+	}
+
+	// Packages and files may be interspersed in any order; split them apart.
+	pkgArgs, otherArgs := filetypes.SplitArgs(args)
+	isAbsPkg := false
+	for _, arg := range pkgArgs {
+		if isAbsVersionPackage(arg) {
+			isAbsPkg = true
+		}
+	}
+	if isAbsPkg && len(pkgArgs) > 1 {
+		return []*build.Instance{c.newErrInstance(fmt.Errorf("only a single package with absolute version may be specified"))}
+	}
+	otherFiles, err := filetypes.ParseArgs(otherArgs)
+	if err != nil {
+		return []*build.Instance{c.newErrInstance(err)}
+	}
 	for _, f := range otherFiles {
 		if err := setFileSource(c, f); err != nil {
 			return []*build.Instance{c.newErrInstance(err)}
@@ -88,15 +104,12 @@ func Instances(args []string, c *Config) []*build.Instance {
 		// between package paths specified as arguments, which
 		// have the qualifier added, and package paths that are dependencies
 		// of those, which don't.
-		pkgArgs1 := make([]string, 0, len(pkgArgs))
-		for _, p := range pkgArgs {
+		for i, p := range pkgArgs {
 			if ip := ast.ParseImportPath(p); !ip.ExplicitQualifier {
 				ip.Qualifier = c.Package
-				p = ip.String()
+				pkgArgs[i] = ip.String()
 			}
-			pkgArgs1 = append(pkgArgs1, p)
 		}
-		pkgArgs = pkgArgs1
 	}
 
 	// When outside a module, a major-only version like foo.com/bar@v2
@@ -308,6 +321,7 @@ func loadPackages(
 		mainModLoc,
 		reqs,
 		cfg.Registry,
+		cfg.replacements,
 		pkgPaths,
 		func(pkgPath string, mod module.Version, fsys fs.FS, mf modimports.ModuleFile) bool {
 			if !cfg.Tools && strings.HasSuffix(mf.FilePath, "_tool.cue") {
