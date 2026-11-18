@@ -38,7 +38,7 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	defer func() { require.NoError(t, pkgLayout.Cleanup()) }()
 
 	ref := strings.TrimPrefix(server.URL, "http://") + "/test/filtered:1.0.0"
-	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: "amd64", OS: packageoci.MultiOS}, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{PlainHTTP: true}})
+	remote, err := zoci.NewRemote(t.Context(), ref, ocispec.Platform{Architecture: "amd64", OS: packageoci.MultiOS}, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{PlainHTTP: true}})
 	require.NoError(t, err)
 	_, err = remote.PushPackage(t.Context(), pkgLayout, zoci.PublishOptions{Retries: 1, OCIConcurrency: 1})
 	require.NoError(t, err)
@@ -52,11 +52,11 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	}
 	rootDesc, err := remote.ResolveRoot(t.Context())
 	require.NoError(t, err)
-	resolved, err := source.resolveFilteredLayers(t.Context(), filters.Combine(filters.ForDeploy("included", false)))
+	resolved, err := source.resolveFilteredLayers(t.Context(), filters.Combine(filters.ForDeploy("included")))
 	require.NoError(t, err)
 	assert.Equal(t, rootDesc.Digest.String(), resolved.remote.Repo().Reference.Reference)
 	assert.Equal(t, strings.TrimSuffix(ref, ":1.0.0")+"@"+rootDesc.Digest.String(), resolved.remote.Repo().Reference.String())
-	loaded, err := source.LoadPackageSpec(t.Context(), filters.Combine(filters.ForDeploy("included", false)))
+	loaded, err := source.LoadPackageSpec(t.Context(), filters.Combine(filters.ForDeploy("included")))
 	require.NoError(t, err)
 	assert.Equal(t, rootDesc.Digest.String(), loaded.Digest)
 	assert.Equal(t, []string{"included"}, loaded.Components)
@@ -71,7 +71,7 @@ func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	require.NoError(t, deploymentLayout.Layout.Cleanup())
 
 	descs, err := source.VerifyAndIngestFiltered(t.Context(), t.TempDir(), layout.PackageLayoutOptions{
-		Filter:               filters.Combine(filters.ForDeploy("included", false)),
+		Filter:               filters.Combine(filters.ForDeploy("included")),
 		VerificationStrategy: layout.VerifyNever,
 	}, store)
 	require.NoError(t, err)

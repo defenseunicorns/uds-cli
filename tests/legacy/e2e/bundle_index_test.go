@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -17,7 +17,7 @@ func TestBundleIndexInRemoteOnPublish(t *testing.T) {
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 
-	bundleDir := "testdata/legacy/bundles/06-ghcr"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/06-ghcr", "arm64", "amd64")
 	bundleName := "ghcr-test"
 	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
 	bundlePathARM := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, "arm64"))
@@ -56,7 +56,7 @@ func TestBundleIndexInRemoteOnCreate(t *testing.T) {
 	e2e.SetupDockerRegistry(t, 888)
 	defer e2e.TeardownRegistry(t, 888)
 
-	bundleDir := "testdata/legacy/bundles/06-ghcr"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/06-ghcr", "arm64", "amd64")
 	bundleName := "ghcr-test"
 	bundleTarballName := fmt.Sprintf("uds-bundle-%s-%s-0.0.1.tar.zst", bundleName, e2e.Arch)
 	tarballPath := filepath.Join("build", bundleTarballName)

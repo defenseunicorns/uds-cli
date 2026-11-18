@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/api/convert"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 )
@@ -99,23 +97,23 @@ func TestBundleDeployHooks_DefaultsAreNoOps(t *testing.T) {
 // in isolation: zeroing Images and ImageArchives on an in-memory PackageLayout.
 func TestImageZeroingMutation(t *testing.T) {
 	pkgLayout := &layout.PackageLayout{}
-	definition := convert.PackageFromV1alpha1(v1alpha1.ZarfPackage{
-		Components: []v1alpha1.ZarfComponent{
+	definition := api.Package{
+		Components: []api.Component{
 			{
 				Name:   "main",
-				Images: []string{"ghcr.io/example/image:v1"},
-				ImageArchives: []v1alpha1.ImageArchive{
-					{Path: "archive.tar", Images: []string{"ghcr.io/example/image:v1"}},
+				Images: []api.Image{{Name: "ghcr.io/example/image:v1"}},
+				ImageArchives: []api.ImageArchive{
+					{Path: "archive.tar", Images: []api.ArchiveImage{{Name: "ghcr.io/example/image:v1"}}},
 				},
 			},
 			{
 				Name:   "secondary",
-				Images: []string{"ghcr.io/example/other:v1"},
+				Images: []api.Image{{Name: "ghcr.io/example/other:v1"}},
 			},
 		},
-	})
+	}
 	require.NoError(t, pkgLayout.Filter(testComponentSelection(definition.Components)))
-	zarfPkg := pkgLayout.AsV1alpha1()
+	zarfPkg := pkgLayout.Definition()
 
 	// Precondition: components have images before mutation.
 	require.NotEmpty(t, zarfPkg.Components[0].Images)
@@ -124,13 +122,12 @@ func TestImageZeroingMutation(t *testing.T) {
 
 	// The Remote Agent PreDeploy hook mutation (promoted from uds-remote-agent client.go:109-113).
 	for i := range zarfPkg.Components {
-		zarfPkg.Components[i].Images = []string{}
-		zarfPkg.Components[i].ImageArchives = []v1alpha1.ImageArchive{}
+		zarfPkg.Components[i].Images = []api.Image{}
+		zarfPkg.Components[i].ImageArchives = []api.ImageArchive{}
 	}
-	updated := convert.PackageFromV1alpha1(zarfPkg)
-	require.NoError(t, pkgLayout.Filter(testComponentSelection(updated.Components)))
+	require.NoError(t, pkgLayout.Filter(testComponentSelection(zarfPkg.Components)))
 
-	for _, c := range pkgLayout.AsV1alpha1().Components {
+	for _, c := range pkgLayout.Definition().Components {
 		assert.Empty(t, c.Images, "component %q: Images should be empty after mutation", c.Name)
 		assert.Empty(t, c.ImageArchives, "component %q: ImageArchives should be empty after mutation", c.Name)
 	}

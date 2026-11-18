@@ -5,10 +5,37 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/defenseunicorns/uds-cli/internal/mode"
 )
+
+func TestAdaptMaruWaitArgs(t *testing.T) {
+	for _, tt := range []struct{ args, want string }{
+		{"zarf tools wait-for tcp localhost:8080 0 --timeout 1s", "zarf tools wait-for network tcp localhost:8080 0 --timeout 1s"},
+		{"zarf tools wait-for http localhost:8080 200", "zarf tools wait-for network http localhost:8080 200"},
+		{"zarf tools wait-for https example.test 200", "zarf tools wait-for network https example.test 200"},
+		{"zarf tools wait-for deployment app available -n app", "zarf tools wait-for resource deployment app available -n app"},
+		{"zarf tools wait-for storageclass", "zarf tools wait-for resource storageclass"},
+		{"zarf tools wait-for network tcp localhost:8080", "zarf tools wait-for network tcp localhost:8080"},
+		{"zarf tools wait-for resource deployment app", "zarf tools wait-for resource deployment app"},
+		{"zarf tools wait-for --help", "zarf tools wait-for --help"},
+		{"zarf tools wait-for", "zarf tools wait-for"},
+		{"run zarf tools wait-for tcp", "run zarf tools wait-for tcp"},
+		{"version", "version"},
+		{"", ""},
+	} {
+		t.Run(tt.args, func(t *testing.T) {
+			t.Parallel()
+			args := strings.Fields(tt.args)
+			assert.Equal(t, strings.Fields(tt.want), adaptMaruWaitArgs(args))
+			assert.Equal(t, strings.Fields(tt.args), args)
+		})
+	}
+}
 
 func TestRunUsesLegacyByDefault(t *testing.T) {
 	unsetEnv(t, mode.FeaturesEnv)

@@ -163,6 +163,8 @@ optional_components = [
 ]
 ```
 
+Selectors support Zarf glob patterns such as `*` and `metrics-*`. When selectors overlap, the last matching selector wins: `["*", "-debug-shell"]` includes optional components except `debug-shell`. Required components remain selected. Required and default selection follows the package's Zarf API version; `v1beta1` packages have optional components and no default component setting.
+
 Component names must not be empty or repeated. Component selection is not a deploy-time bundle variable.
 
 ## `signature_verification`
