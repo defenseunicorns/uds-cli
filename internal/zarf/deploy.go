@@ -19,6 +19,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
+	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	"github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
@@ -339,6 +340,12 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	}()
 	if err := validatePackageFileChecksums(pkgLayout.Definition()); err != nil {
 		return fmt.Errorf("package %q: %w", pkg.Name, err)
+	}
+
+	// Bundle variables render values files for every package. Only v1alpha1
+	// packages also accept Zarf's legacy variable substitution overrides.
+	if pkgLayout.Definition().GetAPIVersion() == v1beta1.APIVersion {
+		setVars = nil
 	}
 
 	deployOpts := packager.DeployOptions{

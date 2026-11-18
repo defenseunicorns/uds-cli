@@ -378,7 +378,7 @@ Continue when the workload is Ready.
 
 ## Included documentation: docs/reference/next/bundle-uds-hcl.mdx
 
-<!-- Source SHA256: be88263cd0c728718397d32c82649a9f8c9c8c9ade5eb0bc56275ebaf88b05e9 -->
+<!-- Source SHA256: e94516e52dd995eb9ded1d6876574561c819148ca72087c08b3078b6b44d6699 -->
 
 `bundle.uds.hcl` is the source definition for a UDS CLI Next bundle. It declares the bundle identity and the Zarf packages that become part of the bundle artifact or are deployed directly in development mode.
 
@@ -538,6 +538,8 @@ optional_components = [
 ]
 ```
 
+Selectors support Zarf glob patterns such as `*` and `metrics-*`. When selectors overlap, the last matching selector wins: `["*", "-debug-shell"]` includes optional components except `debug-shell`. Required components remain selected. Required and default selection follows the package's Zarf API version; `v1beta1` packages have optional components and no default component setting.
+
 Component names must not be empty or repeated. Component selection is not a deploy-time bundle variable.
 
 ## `signature_verification`
@@ -591,7 +593,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: f6f58a975afb7896abff636370fdc40bca69dbfd2e1a2f0accaac82e3d523b43 -->
+<!-- Source SHA256: 5e348c891626a203219da83b29863f68a5bda333191f916cdb0f9c3d85bef0ff -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -721,7 +723,7 @@ variables = {
 }
 ```
 
-Variables are used by `bundle dev deploy` and `bundle deploy`. Top-level scalar values are also exposed to Zarf as uppercase variable names. Nested objects and collection values are intended for [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates.
+Variables are used by `bundle dev deploy` and `bundle deploy` to render [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates. For `v1alpha1` Zarf packages, top-level scalar values are also exposed as uppercase Zarf variable names. For `v1beta1` Zarf packages, including Zarf 1.x init packages, use values file templates to pass bundle variables into package values.
 
 A package values file can read variables with Go template expressions:
 
@@ -732,6 +734,8 @@ auditLogs: {{ .vars.features.audit_logs }}
 ```
 
 When the resolved configuration contains variables, the values file is rendered at deployment time. A referenced variable that is missing from the merged variable set causes deployment to fail. Values files pass through without UDS variable templating only when every configuration layer omits the `variables` attribute. An explicit empty object (`variables = {}`) still renders values files.
+
+Zarf 1.x records deployment configuration, including package values and legacy variable overrides, in Kubernetes package Secrets. Restrict access to those Secrets when values contain credentials. Deployment fails if Zarf cannot write its package state.
 
 Config variables do not change the bundle definition, package sources, package signature policies, or the set of packages in the artifact.
 
@@ -959,7 +963,7 @@ Replace `<ARCH>` with the target architecture, such as `amd64` or `arm64`.
 
 ## Included documentation: docs/how-to-guides/verify-keyless-package-signatures.mdx
 
-<!-- Source SHA256: 64831ad762d83a3c09d17b841ac71c72d5e6d9fdb48f51bdc1243dfc925db335 -->
+<!-- Source SHA256: 980f8a9581f2683b0a6b60d40427a960e38ef7d7c47f9d118a7a604bd17cc4d1 -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -1021,7 +1025,7 @@ packages:
    packages:
      - name: init
        repository: ghcr.io/zarf-dev/packages/init
-       ref: v0.89.0
+       ref: v1.0.1
        keylessVerification:
          certificateIdentityRegexp: https://github\.com/zarf-dev/zarf/\.github/workflows/release\.yml@refs/tags/v\d+\.\d+\.\d+
          certificateOIDCIssuer: https://token.actions.githubusercontent.com

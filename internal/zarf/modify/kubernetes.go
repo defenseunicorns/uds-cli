@@ -76,7 +76,7 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 
 	for idx := range component.Charts {
 		chart := &component.Charts[idx]
-		archiveName := layout.ChartArchiveName(chart.Name, chart.LegacyVersion)
+		archiveName := layout.ChartArchiveName(chart.Name, chart.LegacyVersion) //nolint:staticcheck // v1alpha1 chart archive names include the legacy version.
 		src := filepath.Join(chartDir, archiveName)
 		rel := filepath.ToSlash(filepath.Join("charts", chart.Name))
 		if err := extractChartArchive(src, filepath.Join(outputDir, rel)); err != nil {
@@ -99,7 +99,7 @@ func localizeCharts(ctx context.Context, pkgLayout *layout.PackageLayout, output
 }
 
 func localizeChartValues(valuesDir, outputDir, componentName string, chart api.Chart, idx int, original string) (string, error) {
-	src := filepath.Join(valuesDir, layout.ChartValuesFileName(chart.Name, chart.LegacyVersion, idx))
+	src := filepath.Join(valuesDir, layout.ChartValuesFileName(chart.Name, chart.LegacyVersion, idx)) //nolint:staticcheck // v1alpha1 values filenames include the legacy chart version.
 	base, err := sourceBaseName(original, "values.yaml")
 	if err != nil {
 		return "", fmt.Errorf("resolving chart values name for %s: %w", chart.Name, err)

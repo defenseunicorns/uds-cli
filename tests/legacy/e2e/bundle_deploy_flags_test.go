@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -15,7 +15,7 @@ import (
 func TestPackagesFlag(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "testdata/legacy/packages/podinfo", false)
-	bundleDir := "testdata/legacy/bundles/03-local-and-remote"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/03-local-and-remote")
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))
@@ -73,7 +73,7 @@ func TestResumeFlag(t *testing.T) {
 	runCmdWithErr("zarf tools kubectl delete ns nginx podinfo") // intentionally not err checking this cmd
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "testdata/legacy/packages/podinfo", false)
-	bundleDir := "testdata/legacy/bundles/03-local-and-remote"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/03-local-and-remote")
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))

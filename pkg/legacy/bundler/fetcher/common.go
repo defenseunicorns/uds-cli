@@ -18,11 +18,12 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/zarf-dev/zarf/src/api"
-	"github.com/zarf-dev/zarf/src/api/v1alpha1"
+	"github.com/zarf-dev/zarf/src/api/v1alpha1" //nolint:staticcheck // Legacy bundling supports the v1alpha1 resource layout.
 	"github.com/zarf-dev/zarf/src/api/v1beta1"
 	zarfoci "github.com/zarf-dev/zarf/src/pkg/oci"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
 	"github.com/zarf-dev/zarf/src/pkg/zoci"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
 
 func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform, mods ...zarfoci.Modifier) (*zoci.Remote, error) {
@@ -30,12 +31,20 @@ func NewZarfOCIRemote(ctx context.Context, url string, platform ocispec.Platform
 	if err != nil {
 		return nil, err
 	}
-	modifiers := append([]zarfoci.Modifier{
-		zarfoci.WithUserAgent("uds-cli/" + config.CLIVersion),
-		zarfoci.WithInsecureSkipVerify(config.CommonOptions.Insecure),
-		zarfoci.WithPlainHTTP(plainHTTP),
-	}, mods...)
-	return zoci.NewRemote(ctx, url, platform, modifiers...) //nolint:staticcheck // preserve the UDS user-agent override
+	remote, err := zoci.NewRemote(ctx, url, platform, zoci.RemoteClientOptions{
+		RemoteOptions: zarfTypes.RemoteOptions{
+			PlainHTTP:             plainHTTP,
+			InsecureSkipTLSVerify: config.CommonOptions.Insecure,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	zarfoci.WithUserAgent("uds-cli/" + config.CLIVersion)(remote.OrasRemote)
+	for _, mod := range mods {
+		mod(remote.OrasRemote)
+	}
+	return remote, nil
 }
 
 // NewBundleOCIRemote returns the OCI client used for UDS bundle artifacts.
