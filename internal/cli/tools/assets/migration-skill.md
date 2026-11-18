@@ -593,7 +593,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 5e348c891626a203219da83b29863f68a5bda333191f916cdb0f9c3d85bef0ff -->
+<!-- Source SHA256: 3944d49798283408d09fee5bbd924480478316557560b7d738b92a4c28b3ce27 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -777,6 +777,31 @@ signature_verification {
 ```
 
 The path must identify an existing regular UTF-8 file. Missing files, directories, and invalid UTF-8 cause config evaluation to fail.
+
+## Render a static configuration
+
+`uds bundle config render <config.uds.hcl>` evaluates a consumer configuration and outputs static HCL without deploying a bundle. It resolves supported expressions, including `file()`. It resolves relative `file()` paths from the input configuration file's directory and embeds the referenced contents. It leaves ordinary path strings, such as `options.tmp_dir` and `options.uds_cache`, unchanged. Check that those paths are suitable for the environment where you use the rendered file.
+
+The output preserves the fields present in the input without adding operation defaults. An omitted `variables` attribute remains omitted, while `variables = {}` remains present. Invalid HCL, unrecognized fields, and invalid option values cause the command to fail. If `options.tmp_dir` is non-empty, it must exist when you render the file; a relative path is checked against the current working directory. Rendering does not fully validate signature policy for a particular operation; that validation occurs when the operation uses the policy.
+
+To limit expansion during rendering, the command rejects numbers with a binary exponent magnitude or precision greater than 4096 bits. It also checks literals in expressions that are not selected for evaluation.
+
+Given an existing `./config.uds.hcl` and any files it references, print the rendered HCL to standard output:
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle config render ./config.uds.hcl
+```
+
+To write to a separate file, use `--output-file`. Add `--force` to replace an existing regular output file. The command rejects the input file and symbolic links as output paths, even with `--force`. Use a directory that other processes cannot modify while the command runs; path checks cannot prevent concurrent changes before replacement.
+
+If the filesystem reports that hard links are unsupported, the command creates a new output file exclusively and writes it directly. Other processes may see an incomplete file while the write is in progress. Other link errors are reported without a fallback.
+
+```bash
+CLI_FEATURES=NextMode=true uds bundle config render ./config.uds.hcl --output-file ./rendered-config.uds.hcl
+```
+
+> [!WARNING]
+> Rendered output can contain secrets, including contents inlined by `file()`. Protect the output file and avoid exposing standard output in logs or pipelines.
 
 ## Command consumers
 

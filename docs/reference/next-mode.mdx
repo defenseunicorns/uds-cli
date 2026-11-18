@@ -186,7 +186,7 @@ For the end-to-end artifact signing and verification workflow, see [Sign and ver
 
 ## HCL helpers
 
-Next mode supports `locals` and `file(path)` in its HCL files. See the [`bundle.uds.hcl` reference](/cli/reference/next/bundle-uds-hcl/) and [`config.uds.hcl` reference](/cli/reference/next/config-uds-hcl/) for syntax, supported files, and path resolution.
+Next mode supports `file(path)` in its HCL files and `locals` in bundle definitions. See the [`bundle.uds.hcl` reference](/cli/reference/next/bundle-uds-hcl/) and [`config.uds.hcl` reference](/cli/reference/next/config-uds-hcl/) for syntax, supported files, and path resolution.
 
 ## CLI commands
 
@@ -205,11 +205,12 @@ Use these commands to create, inspect, transfer, deploy, and manage Next-mode bu
 | `uds bundle sign <bundle-artifact>` | Sign a created bundle artifact. |
 | `uds bundle verify <bundle-artifact>` | Verify a created bundle artifact signature. |
 | `uds bundle reconfigure <source> --defaults <defaults-file>` | Reconfigure bundle defaults from a local artifact or OCI reference and produce a derivative artifact. |
+| `uds bundle config render <config.uds.hcl>` | Evaluate a consumer configuration into static HCL. See the [config reference](/cli/reference/next/config-uds-hcl/#render-a-static-configuration) for output and safety behavior. |
 | `uds tools clear-cache` | Clear Next bundle OCI cache content. |
 
 ### Global bundle flags
 
-These flags apply to all `uds bundle` subcommands:
+Bundle subcommands inherit these flags, though not every command uses every flag:
 
 | Flag | Default | Description |
 | --- | --- | --- |
@@ -222,6 +223,8 @@ These flags apply to all `uds bundle` subcommands:
 | `--concurrency` | `10` | Degree of parallelism for concurrent operations. For deploy, applies within a dependency level. |
 | `--config` | none | Path to `config.uds.hcl` for deploy-time variables and options. |
 | `--prompt` | `false` | Enable interactive confirmation before package deployment or removal begins. |
+
+`bundle config render` emits HCL and uses `--output-file` to write it to a file.
 
 > [!NOTE]
 > `--plain-http` does not force HTTP. It allows HTTP only after confirming a registry does not support HTTPS.

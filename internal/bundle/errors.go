@@ -65,6 +65,17 @@ func (e EmptyParameterError) Error() string {
 	return fmt.Sprintf("%s must not be empty", e.Name)
 }
 
+// renderConfigError keeps error identity without exposing evaluated values from
+// the underlying parser or validation error through formatting or unwrapping.
+type renderConfigError struct {
+	message string
+	cause   error
+}
+
+func (e *renderConfigError) Error() string { return e.message }
+
+func (e *renderConfigError) Is(target error) bool { return errors.Is(e.cause, target) }
+
 // LocalsBlockError is a generic error when unable to parse the locals blocks
 type LocalsBlockError struct {
 	Diags hcl.Diagnostics

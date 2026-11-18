@@ -82,16 +82,21 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrReadConfigFile, filePath, err)
 	}
+	return parseBundleConfigContent(src, filePath)
+}
 
+func parseBundleConfigContent(src []byte, filePath string) (*UDSBundleConfig, error) {
 	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filePath, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
 		return nil, fmt.Errorf("%w %q: %w", ErrParseConfig, filePath, hclDiagnostics)
 	}
-	evalContext := configEvalContext(filePath)
+	return decodeBundleConfig(hclFile.Body, configEvalContext(filePath), filePath)
+}
 
+func decodeBundleConfig(body hcl.Body, evalContext *hcl.EvalContext, filePath string) (*UDSBundleConfig, error) {
 	// Decode structured fields (options block) via gohcl; free-form content lands in Remain
 	cfg := &UDSBundleConfig{}
-	diags := gohcl.DecodeBody(hclFile.Body, evalContext, cfg)
+	diags := gohcl.DecodeBody(body, evalContext, cfg)
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("%w from %q: %w", ErrDecodeConfig, filePath, diags)
 	}
