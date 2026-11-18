@@ -41,10 +41,6 @@ func LoadED25519phSigner(priv ed25519.PrivateKey) (*ED25519phSigner, error) {
 		return nil, errors.New("invalid ED25519 private key specified")
 	}
 
-	if len(priv) != ed25519.PrivateKeySize {
-		return nil, errors.New("invalid size for ED25519 key")
-	}
-
 	return &ED25519phSigner{
 		priv: priv,
 	}, nil
@@ -111,10 +107,6 @@ type ED25519phVerifier struct {
 func LoadED25519phVerifier(pub ed25519.PublicKey) (*ED25519phVerifier, error) {
 	if pub == nil {
 		return nil, errors.New("invalid ED25519 public key specified")
-	}
-
-	if len(pub) != ed25519.PublicKeySize {
-		return nil, errors.New("invalid size for ED25519 key")
 	}
 
 	return &ED25519phVerifier{

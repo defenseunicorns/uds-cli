@@ -18,7 +18,6 @@ package azure
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"io"
@@ -182,24 +181,12 @@ func (a *SignerVerifier) VerifySignature(sig, message io.Reader, opts ...signatu
 			return errors.New("parsing signature")
 		}
 
-		// Azure Key Vault expects the raw signature as r||s, with each
-		// coordinate left-padded to the curve's byte size. big.Int.Bytes()
-		// strips leading zero bytes, which would produce an incorrectly sized
-		// signature (and thus a spurious verification failure) whenever r or s
-		// has a high zero byte, so pad explicitly using the key's curve size.
-		pub, err := a.client.public(a.defaultCtx)
-		if err != nil {
-			return fmt.Errorf("getting public key: %w", err)
-		}
-		ecPub, ok := pub.(*ecdsa.PublicKey)
-		if !ok {
-			return fmt.Errorf("expected ECDSA public key, got %T", pub)
-		}
-		keyBytes := (ecPub.Curve.Params().BitSize + 7) / 8
+		rBytes := r.Bytes()
+		sBytes := r.Bytes()
 
-		sigBytes = make([]byte, 2*keyBytes)
-		r.FillBytes(sigBytes[:keyBytes])
-		s.FillBytes(sigBytes[keyBytes:])
+		sigBytes = make([]byte, 0, len(rBytes)+len(sBytes))
+		sigBytes = append(sigBytes, rBytes...)
+		sigBytes = append(sigBytes, sBytes...)
 	}
 
 	return a.client.verify(a.defaultCtx, sigBytes, digest)

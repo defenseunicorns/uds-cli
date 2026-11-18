@@ -31,7 +31,6 @@ var gcpSupportedHashFuncs = []crypto.Hash{
 	crypto.SHA256,
 	crypto.SHA512,
 	crypto.SHA384,
-	crypto.Hash(0),
 }
 
 // SignerVerifier creates and verifies digital signatures over a message using GCP KMS service
