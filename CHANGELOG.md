@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.42.0](https://github.com/defenseunicorns/uds-cli/compare/v0.41.0...v0.42.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** update zarf to v1
+
+### Features
+
+* **next:** add bundle deployment timeout and Zarf retry options ([#1625](https://github.com/defenseunicorns/uds-cli/issues/1625)) ([cb093d7](https://github.com/defenseunicorns/uds-cli/commit/cb093d7b94cf362e699c4197f721c0adad61efe7))
+* **next:** add oci layer caching ([#1617](https://github.com/defenseunicorns/uds-cli/issues/1617)) ([39e635a](https://github.com/defenseunicorns/uds-cli/commit/39e635a6a16234b69a8b1819ba8d42879a1a5799))
+
+
+### Bug Fixes
+
+* broken publishing in split-host deployments ([#1639](https://github.com/defenseunicorns/uds-cli/issues/1639)) ([645429e](https://github.com/defenseunicorns/uds-cli/commit/645429e974d0df2596b645b809f62a63c1889793))
+* bump Brotli dependency to v1.2.7 ([#1633](https://github.com/defenseunicorns/uds-cli/issues/1633)) ([4f91e7a](https://github.com/defenseunicorns/uds-cli/commit/4f91e7aa68a710e601171e4e0f5ca2e7e2927608))
+* reject Next bundles in Legacy commands ([#1631](https://github.com/defenseunicorns/uds-cli/issues/1631)) ([da97fbb](https://github.com/defenseunicorns/uds-cli/commit/da97fbbf493452526333431dd9f50523a11d7378))
+
+
+### Miscellaneous
+
+* **deps:** update application deps ([#1643](https://github.com/defenseunicorns/uds-cli/issues/1643)) ([2f86656](https://github.com/defenseunicorns/uds-cli/commit/2f86656f1e81ef9adda14a3031d3b4fce87e888a))
+* **deps:** update zarf to v1 ([e9f7054](https://github.com/defenseunicorns/uds-cli/commit/e9f70540b9a69c763f7cdda8b7a151f595f0aaa1))
+
 ## [0.41.0](https://github.com/defenseunicorns/uds-cli/compare/v0.40.0...v0.41.0) (2026-11-03)
 
 
