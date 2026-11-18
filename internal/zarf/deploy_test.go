@@ -809,7 +809,7 @@ func TestApplyZarfInitOptionsInternalRegistry(t *testing.T) {
 	}
 }
 
-func TestDeployPackageDefaultsMutationPolicyForInit(t *testing.T) {
+func TestDeployPackageLeavesMutationPolicyUnsetForInit(t *testing.T) {
 	pkgDir := t.TempDir()
 	writeMinimalZarfPackage(t, pkgDir, "init")
 
@@ -835,7 +835,7 @@ func TestDeployPackageDefaultsMutationPolicyForInit(t *testing.T) {
 				BundleDir: t.TempDir(),
 				ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
 					called = true
-					assert.Equal(t, state.MutationPolicyAll, opts.AgentMutationPolicy)
+					assert.Empty(t, opts.AgentMutationPolicy)
 					return nil
 				},
 			})
