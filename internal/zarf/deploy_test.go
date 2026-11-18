@@ -26,6 +26,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/filters"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/pki"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
@@ -652,6 +653,7 @@ func TestDeployPackagePassesArchitectureOverrideToZarf(t *testing.T) {
 		called := false
 		config := newDeployTestConfig(1)
 		config.Options.SkipArchitectureCheck = skip
+		config.Options.ZarfInit = &bundleinternal.ZarfInitOptions{AgentMutationPolicy: "labeled"}
 		err := NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{Name: "app", Source: pkgDir}, DeployPackageOptions{
 			Config:    config,
 			BundleDir: t.TempDir(),
@@ -659,6 +661,9 @@ func TestDeployPackagePassesArchitectureOverrideToZarf(t *testing.T) {
 				called = true
 				assert.Equal(t, skip, opts.SkipArchitectureCheck)
 				assert.Empty(t, opts.AgentMutationPolicy)
+				assert.Empty(t, opts.RegistryInfo)
+				assert.Empty(t, opts.GitServer)
+				assert.Nil(t, opts.AgentTLS)
 				return nil
 			},
 		})
@@ -690,7 +695,67 @@ func TestDeployPackagePassesTimeoutAndRetriesToZarf(t *testing.T) {
 	assert.True(t, called)
 }
 
-func TestDeployPackageSetsAgentMutationPolicyForInit(t *testing.T) {
+func TestApplyZarfInitOptions(t *testing.T) {
+	deployOpts := &packager.DeployOptions{}
+	applyZarfInitOptions(deployOpts, &bundleinternal.ZarfInitOptions{
+		RegistryURL:          "registry.example.com",
+		RegistryMode:         "external",
+		RegistryPushUsername: "registry-push",
+		RegistryPushPassword: "registry-push-password",
+		RegistryPullUsername: "registry-pull",
+		RegistryPullPassword: "registry-pull-password",
+		GitURL:               "https://git.example.com",
+		GitPushUsername:      "git-push",
+		GitPushPassword:      "git-push-password",
+		GitPullUsername:      "git-pull",
+		GitPullPassword:      "git-pull-password",
+		AgentMutationPolicy:  "labeled",
+		AgentTLSCA:           "ca",
+		AgentTLSCert:         "cert",
+		AgentTLSKey:          "key",
+	})
+
+	assert.Equal(t, "registry.example.com", deployOpts.RegistryInfo.Address)
+	// Leaving the mode unset preserves the saved mode on re-init, while
+	// Zarf's bootstrap defaults still infer external mode from the address.
+	assert.Empty(t, deployOpts.RegistryInfo.RegistryMode)
+	bootstrapRegistry := deployOpts.RegistryInfo
+	require.NoError(t, bootstrapRegistry.FillInEmptyValues(state.IPFamilyIPv4))
+	assert.Equal(t, state.RegistryModeExternal, bootstrapRegistry.RegistryMode)
+	assert.Equal(t, "registry-push", deployOpts.RegistryInfo.PushUsername)
+	assert.Equal(t, "registry-push-password", deployOpts.RegistryInfo.PushPassword)
+	assert.Equal(t, "registry-pull", deployOpts.RegistryInfo.PullUsername)
+	assert.Equal(t, "registry-pull-password", deployOpts.RegistryInfo.PullPassword)
+	assert.Equal(t, "https://git.example.com", deployOpts.GitServer.Address)
+	assert.Equal(t, "git-push", deployOpts.GitServer.PushUsername)
+	assert.Equal(t, "git-push-password", deployOpts.GitServer.PushPassword)
+	assert.Equal(t, "git-pull", deployOpts.GitServer.PullUsername)
+	assert.Equal(t, "git-pull-password", deployOpts.GitServer.PullPassword)
+	assert.Equal(t, state.MutationPolicyLabeled, deployOpts.AgentMutationPolicy)
+	assert.Equal(t, &pki.GeneratedPKI{CA: []byte("ca"), Cert: []byte("cert"), Key: []byte("key")}, deployOpts.AgentTLS)
+}
+
+func TestApplyZarfInitOptionsInternalRegistry(t *testing.T) {
+	for _, mode := range []state.RegistryMode{state.RegistryModeNodePort, state.RegistryModeProxy} {
+		t.Run(string(mode), func(t *testing.T) {
+			var deployOpts packager.DeployOptions
+			applyZarfInitOptions(&deployOpts, &bundleinternal.ZarfInitOptions{
+				RegistryMode:   string(mode),
+				RegistryPort:   31999,
+				RegistrySecret: "registry-secret",
+				InjectorImage:  "injector:v1",
+				InjectorPort:   31998,
+			})
+			assert.Equal(t, mode, deployOpts.RegistryInfo.RegistryMode)
+			assert.Equal(t, 31999, deployOpts.RegistryInfo.Port)
+			assert.Equal(t, "registry-secret", deployOpts.RegistryInfo.Secret)
+			assert.Equal(t, "injector:v1", deployOpts.InjectorImage)
+			assert.Equal(t, 31998, deployOpts.InjectorPort)
+		})
+	}
+}
+
+func TestDeployPackageLeavesMutationPolicyUnsetForInit(t *testing.T) {
 	pkgDir := t.TempDir()
 	writeMinimalZarfPackage(t, pkgDir, "init")
 
@@ -706,7 +771,34 @@ func TestDeployPackageSetsAgentMutationPolicyForInit(t *testing.T) {
 		BundleDir: t.TempDir(),
 		ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
 			called = true
-			assert.Equal(t, state.MutationPolicyAll, opts.AgentMutationPolicy)
+			assert.Empty(t, opts.AgentMutationPolicy)
+			return nil
+		},
+	})
+
+	require.NoError(t, err)
+	assert.True(t, called)
+}
+
+func TestDeployPackageSetsConfiguredMutationPolicyForInit(t *testing.T) {
+	pkgDir := t.TempDir()
+	writeMinimalZarfPackage(t, pkgDir, "init")
+
+	zarfYAMLPath := filepath.Join(pkgDir, layout.ZarfYAML)
+	zarfYAML, err := os.ReadFile(zarfYAMLPath)
+	require.NoError(t, err)
+	//nolint:gosec // G703 treats the test-owned fixture path beneath t.TempDir as attacker-controlled.
+	require.NoError(t, os.WriteFile(zarfYAMLPath, []byte(strings.Replace(string(zarfYAML), "ZarfPackageConfig", "ZarfInitConfig", 1)), 0o600))
+
+	config := newDeployTestConfig(1)
+	config.Options.ZarfInit = &bundleinternal.ZarfInitOptions{AgentMutationPolicy: "labeled"}
+	called := false
+	err = NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), &spec.Package{Name: "init", Source: pkgDir}, DeployPackageOptions{
+		Config:    config,
+		BundleDir: t.TempDir(),
+		ClusterDeployFn: func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+			called = true
+			assert.Equal(t, state.MutationPolicyLabeled, opts.AgentMutationPolicy)
 			return nil
 		},
 	})

@@ -90,6 +90,18 @@ func TestValidateOperationOptions(t *testing.T) {
 	}
 }
 
+func TestZarfInitSemanticValidationAppliesToAllOperations(t *testing.T) {
+	config := validValidationConfig()
+	config.Options.ZarfInit = &ZarfInitOptions{RegistryMode: "invalid"}
+
+	require.ErrorIs(t, (DeployOptions{Config: config}).Validate(), ErrInvalidConfig)
+	require.ErrorIs(t, (DeployPackageOptions{Config: config, BundleDir: "/bundle"}).Validate(), ErrInvalidConfig)
+	require.ErrorIs(t, (PullOptions{Config: config}).Validate(), ErrInvalidConfig)
+	require.ErrorIs(t, (RemoveOptions{Config: config}).Validate(), ErrInvalidConfig)
+	require.ErrorIs(t, (CreateOptions{Config: config, Signing: SigningOptions{Mode: SigningModeUnsigned}}).Validate(), ErrInvalidConfig)
+	require.ErrorIs(t, (InspectOptions{Config: config, Source: "bundle.tar.zst"}).Validate(), ErrInvalidConfig)
+}
+
 func TestValidationErrorContracts(t *testing.T) {
 	t.Parallel()
 

@@ -59,14 +59,38 @@ type KeylessVerification struct {
 // ConfigOptions holds bundle-component CLI options from the options block.
 // All fields are optional; unset values use the operation defaults.
 type ConfigOptions struct {
-	LogLevel              string `hcl:"log_level,optional"`
-	Architecture          string `hcl:"architecture,optional"`
-	PlainHTTP             bool   `hcl:"plain_http,optional"`
-	SkipTLSVerify         bool   `hcl:"skip_tls_verify,optional"`
-	CacheDir              string `hcl:"uds_cache,optional"`
-	TmpDir                string `hcl:"tmp_dir,optional"`
-	Concurrency           int    `hcl:"concurrency,optional"`
-	SkipArchitectureCheck bool   `hcl:"skip_architecture_check,optional"`
+	LogLevel              string           `hcl:"log_level,optional"`
+	Architecture          string           `hcl:"architecture,optional"`
+	PlainHTTP             bool             `hcl:"plain_http,optional"`
+	SkipTLSVerify         bool             `hcl:"skip_tls_verify,optional"`
+	CacheDir              string           `hcl:"uds_cache,optional"`
+	TmpDir                string           `hcl:"tmp_dir,optional"`
+	Concurrency           int              `hcl:"concurrency,optional"`
+	SkipArchitectureCheck bool             `hcl:"skip_architecture_check,optional"`
+	ZarfInit              *ZarfInitOptions `hcl:"zarf_init,block"`
+}
+
+// ZarfInitOptions holds Zarf initialization settings supplied during deployment.
+type ZarfInitOptions struct {
+	RegistryURL          string `hcl:"registry_url,optional"`
+	RegistryMode         string `hcl:"registry_mode,optional"`
+	RegistryPort         int    `hcl:"registry_port,optional"`
+	RegistrySecret       string `hcl:"registry_secret,optional"`
+	RegistryPushUsername string `hcl:"registry_push_username,optional"`
+	RegistryPushPassword string `hcl:"registry_push_password,optional"`
+	RegistryPullUsername string `hcl:"registry_pull_username,optional"`
+	RegistryPullPassword string `hcl:"registry_pull_password,optional"`
+	GitURL               string `hcl:"git_url,optional"`
+	GitPushUsername      string `hcl:"git_push_username,optional"`
+	GitPushPassword      string `hcl:"git_push_password,optional"`
+	GitPullUsername      string `hcl:"git_pull_username,optional"`
+	GitPullPassword      string `hcl:"git_pull_password,optional"`
+	InjectorImage        string `hcl:"injector_image,optional"`
+	InjectorPort         int    `hcl:"injector_port,optional"`
+	AgentMutationPolicy  string `hcl:"agent_mutation_policy,optional"`
+	AgentTLSCA           string `hcl:"agent_tls_ca,optional"`
+	AgentTLSCert         string `hcl:"agent_tls_cert,optional"`
+	AgentTLSKey          string `hcl:"agent_tls_key,optional"`
 }
 
 // ParseBundleConfig reads and parses a config.uds.hcl file.

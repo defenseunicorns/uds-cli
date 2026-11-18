@@ -12,6 +12,8 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/pki"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 // validBaseConfig returns a fully-valid UDSBundleConfig used as the starting
@@ -147,6 +149,75 @@ func TestValidateTmpDir(t *testing.T) {
 		assert.Contains(t, err.Error(), "tmp_dir")
 		assert.Contains(t, err.Error(), "path is not a directory")
 	})
+}
+
+func TestValidateConfig_ZarfInit(t *testing.T) {
+	validTLS, err := pki.GeneratePKI(state.ZarfAgentHost)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		options *ZarfInitOptions
+		wantErr string
+	}{
+		{name: "omitted"},
+		{name: "empty block", options: &ZarfInitOptions{}},
+		{
+			name: "external services",
+			options: &ZarfInitOptions{
+				RegistryMode:         "external",
+				RegistryURL:          "registry.example.com",
+				RegistryPushUsername: "registry-user",
+				RegistryPushPassword: "registry-password",
+				GitURL:               "https://git.example.com",
+				GitPushUsername:      "git-user",
+				GitPushPassword:      "git-password",
+			},
+		},
+		{name: "proxy without injector image", options: &ZarfInitOptions{RegistryMode: "proxy"}},
+		{name: "valid port boundaries", options: &ZarfInitOptions{RegistryPort: 65535, InjectorPort: 1}},
+		{name: "negative registry port", options: &ZarfInitOptions{RegistryPort: -1}, wantErr: "registry_port"},
+		{name: "registry port overflow", options: &ZarfInitOptions{RegistryPort: 65536}, wantErr: "registry_port"},
+		{name: "negative injector port", options: &ZarfInitOptions{InjectorPort: -1}, wantErr: "injector_port"},
+		{name: "injector port overflow", options: &ZarfInitOptions{InjectorPort: 65536}, wantErr: "injector_port"},
+		{name: "invalid registry mode", options: &ZarfInitOptions{RegistryMode: "invalid"}, wantErr: "registry_mode"},
+		{name: "external mode requires URL", options: &ZarfInitOptions{RegistryMode: "external"}, wantErr: "registry_url"},
+		{name: "registry URL requires push user", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistryPushPassword: "secret"}, wantErr: "registry_push_username"},
+		{name: "registry URL requires push password", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistryPushUsername: "user"}, wantErr: "registry_push_password"},
+		{name: "registry URL conflicts with nodeport", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistryMode: "nodeport", RegistryPushUsername: "user", RegistryPushPassword: "secret"}, wantErr: "registry_mode"},
+		{name: "registry URL conflicts with port", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistryPort: 5000, RegistryPushUsername: "user", RegistryPushPassword: "secret"}, wantErr: "registry_port"},
+		{name: "registry URL conflicts with secret", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistrySecret: "secret", RegistryPushUsername: "user", RegistryPushPassword: "password"}, wantErr: "registry_secret"},
+		{name: "registry URL conflicts with injector port", options: &ZarfInitOptions{RegistryURL: "registry.example.com", InjectorPort: 5000, RegistryPushUsername: "user", RegistryPushPassword: "secret"}, wantErr: "injector_port"},
+		{name: "registry URL conflicts with injector image", options: &ZarfInitOptions{RegistryURL: "registry.example.com", InjectorImage: "injector:v1", RegistryPushUsername: "user", RegistryPushPassword: "secret"}, wantErr: "injector_image"},
+		{name: "Git URL requires push credentials", options: &ZarfInitOptions{GitURL: "https://git.example.com"}, wantErr: "git_push_username"},
+		{name: "invalid mutation policy", options: &ZarfInitOptions{AgentMutationPolicy: "invalid"}, wantErr: "agent_mutation_policy"},
+		{name: "partial agent TLS", options: &ZarfInitOptions{AgentTLSCA: string(validTLS.CA)}, wantErr: "must be provided together"},
+		{name: "invalid agent TLS", options: &ZarfInitOptions{AgentTLSCA: "ca", AgentTLSCert: "cert", AgentTLSKey: "key"}, wantErr: "certificate and key"},
+		{
+			name: "valid agent TLS",
+			options: &ZarfInitOptions{
+				AgentTLSCA:   string(validTLS.CA),
+				AgentTLSCert: string(validTLS.Cert),
+				AgentTLSKey:  string(validTLS.Key),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validBaseConfig()
+			cfg.Options.ZarfInit = tt.options
+			err := ValidateConfig(cfg)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, ErrInvalidZarfInitOptions)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.NotContains(t, err.Error(), "registry-password")
+			assert.NotContains(t, err.Error(), "git-password")
+		})
+	}
 }
 
 func TestValidateConfig_StopsOnFirstError(t *testing.T) {

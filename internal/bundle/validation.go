@@ -4,10 +4,13 @@
 package bundle
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"os"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 // ValidateConfig is the single entry point for validating a fully-resolved
@@ -55,7 +58,92 @@ func validateOptions(opts *ConfigOptions) error {
 	if err := validateConcurrency(opts.Concurrency); err != nil {
 		return err
 	}
-	return validateTmpDir(opts.TmpDir)
+	if err := validateTmpDir(opts.TmpDir); err != nil {
+		return err
+	}
+	return validateZarfInitOptions(opts.ZarfInit)
+}
+
+func validateZarfInitOptions(opts *ZarfInitOptions) error {
+	if opts == nil {
+		return nil
+	}
+
+	registryMode := state.RegistryMode(opts.RegistryMode)
+	switch registryMode {
+	case "", state.RegistryModeNodePort, state.RegistryModeProxy, state.RegistryModeExternal:
+	default:
+		return fmt.Errorf("registry_mode must be nodeport, proxy, or external: %w", ErrInvalidZarfInitOptions)
+	}
+
+	switch state.MutationPolicy(opts.AgentMutationPolicy) {
+	case "", state.MutationPolicyAll, state.MutationPolicyLabeled:
+	default:
+		return fmt.Errorf("agent_mutation_policy must be all or labeled: %w", ErrInvalidZarfInitOptions)
+	}
+
+	const maxPort = 65535
+	if opts.RegistryPort < 0 || opts.RegistryPort > maxPort {
+		return fmt.Errorf("registry_port must be between 0 and %d: %w", maxPort, ErrInvalidZarfInitOptions)
+	}
+	if opts.InjectorPort < 0 || opts.InjectorPort > maxPort {
+		return fmt.Errorf("injector_port must be between 0 and %d: %w", maxPort, ErrInvalidZarfInitOptions)
+	}
+
+	if registryMode == state.RegistryModeExternal && opts.RegistryURL == "" {
+		return fmt.Errorf("registry_url is required when registry_mode is external: %w", ErrInvalidZarfInitOptions)
+	}
+	if opts.RegistryURL != "" {
+		if opts.RegistryPushUsername == "" || opts.RegistryPushPassword == "" {
+			return fmt.Errorf("registry_push_username and registry_push_password are required with registry_url: %w", ErrInvalidZarfInitOptions)
+		}
+		if registryMode != "" && registryMode != state.RegistryModeExternal {
+			return fmt.Errorf("registry_url cannot be combined with an internal registry_mode: %w", ErrInvalidZarfInitOptions)
+		}
+		if opts.RegistryPort != 0 {
+			return fmt.Errorf("registry_url cannot be combined with registry_port: %w", ErrInvalidZarfInitOptions)
+		}
+		if opts.RegistrySecret != "" {
+			return fmt.Errorf("registry_url cannot be combined with registry_secret: %w", ErrInvalidZarfInitOptions)
+		}
+		if opts.InjectorPort != 0 {
+			return fmt.Errorf("registry_url cannot be combined with injector_port: %w", ErrInvalidZarfInitOptions)
+		}
+		if opts.InjectorImage != "" {
+			return fmt.Errorf("registry_url cannot be combined with injector_image: %w", ErrInvalidZarfInitOptions)
+		}
+	}
+
+	if opts.GitURL != "" && (opts.GitPushUsername == "" || opts.GitPushPassword == "") {
+		return fmt.Errorf("git_push_username and git_push_password are required with git_url: %w", ErrInvalidZarfInitOptions)
+	}
+
+	if opts.AgentTLSCA == "" && opts.AgentTLSCert == "" && opts.AgentTLSKey == "" {
+		return nil
+	}
+	if opts.AgentTLSCA == "" || opts.AgentTLSCert == "" || opts.AgentTLSKey == "" {
+		return fmt.Errorf("%w: agent_tls_ca, agent_tls_cert, and agent_tls_key must be provided together: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS)
+	}
+	pair, err := tls.X509KeyPair([]byte(opts.AgentTLSCert), []byte(opts.AgentTLSKey))
+	if err != nil {
+		return fmt.Errorf("%w: agent TLS certificate and key do not match: %w: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS, err)
+	}
+	if len(pair.Certificate) == 0 {
+		return fmt.Errorf("%w: agent TLS certificate is empty: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS)
+	}
+	cert, err := x509.ParseCertificate(pair.Certificate[0])
+	if err != nil {
+		return fmt.Errorf("%w: parsing agent TLS certificate: %w: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS, err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM([]byte(opts.AgentTLSCA)) {
+		return fmt.Errorf("%w: parsing agent TLS CA: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS)
+	}
+	if _, err := cert.Verify(x509.VerifyOptions{Roots: roots, DNSName: state.ZarfAgentHost}); err != nil {
+		return fmt.Errorf("%w: verifying agent TLS certificate for the Zarf agent: %w: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS, err)
+	}
+
+	return nil
 }
 
 // validateConcurrency enforces the [1, MaxConcurrency] range.

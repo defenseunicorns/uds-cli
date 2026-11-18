@@ -124,6 +124,10 @@ func (r *ConfigResolver) MergeHCL(base bundle.ConfigOptions, hcl *bundle.ConfigO
 	if hcl.SkipArchitectureCheck {
 		base.SkipArchitectureCheck = true
 	}
+	if hcl.ZarfInit != nil {
+		zarfInit := *hcl.ZarfInit
+		base.ZarfInit = &zarfInit
+	}
 	return base
 }
 
@@ -227,6 +231,10 @@ func (r *ConfigResolver) applyBundleDefaults(ctx context.Context, streams iostre
 	}
 
 	options := *base.Options
+	if base.Options.ZarfInit != nil {
+		zarfInit := *base.Options.ZarfInit
+		options.ZarfInit = &zarfInit
+	}
 	resolved := &bundle.UDSBundleConfig{Options: &options, SignatureVerification: base.SignatureVerification}
 	if defaults != nil {
 		resolved.Variables = mergeVariables(defaults.Variables, base.Variables)
@@ -377,8 +385,44 @@ func fromInternalOptions(options *bundleinternal.ConfigOptions) *bundle.ConfigOp
 	if options == nil {
 		return nil
 	}
-	converted := bundle.ConfigOptions(*options)
-	return &converted
+	var zarfInit *bundle.ZarfInitOptions
+	if options.ZarfInit != nil {
+		converted := bundle.ZarfInitOptions(*options.ZarfInit)
+		zarfInit = &converted
+	}
+	return &bundle.ConfigOptions{
+		LogLevel:              options.LogLevel,
+		Architecture:          options.Architecture,
+		PlainHTTP:             options.PlainHTTP,
+		SkipTLSVerify:         options.SkipTLSVerify,
+		CacheDir:              options.CacheDir,
+		TmpDir:                options.TmpDir,
+		Concurrency:           options.Concurrency,
+		SkipArchitectureCheck: options.SkipArchitectureCheck,
+		ZarfInit:              zarfInit,
+	}
+}
+
+func toInternalOptions(options *bundle.ConfigOptions) *bundleinternal.ConfigOptions {
+	if options == nil {
+		return nil
+	}
+	var zarfInit *bundleinternal.ZarfInitOptions
+	if options.ZarfInit != nil {
+		converted := bundleinternal.ZarfInitOptions(*options.ZarfInit)
+		zarfInit = &converted
+	}
+	return &bundleinternal.ConfigOptions{
+		LogLevel:              options.LogLevel,
+		Architecture:          options.Architecture,
+		PlainHTTP:             options.PlainHTTP,
+		SkipTLSVerify:         options.SkipTLSVerify,
+		CacheDir:              options.CacheDir,
+		TmpDir:                options.TmpDir,
+		Concurrency:           options.Concurrency,
+		SkipArchitectureCheck: options.SkipArchitectureCheck,
+		ZarfInit:              zarfInit,
+	}
 }
 
 func fromInternalVariableValue(value any) any {

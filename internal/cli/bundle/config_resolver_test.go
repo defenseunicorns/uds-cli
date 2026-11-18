@@ -271,6 +271,18 @@ func TestMergeHCL(t *testing.T) {
 			},
 		},
 		{
+			name: "HCL replaces zarf init options",
+			base: bundle.ConfigOptions{
+				ZarfInit: &bundle.ZarfInitOptions{RegistryMode: "nodeport"},
+			},
+			hcl: &bundle.ConfigOptions{
+				ZarfInit: &bundle.ZarfInitOptions{RegistryMode: "external", RegistryURL: "registry.example.com"},
+			},
+			expected: bundle.ConfigOptions{
+				ZarfInit: &bundle.ZarfInitOptions{RegistryMode: "external", RegistryURL: "registry.example.com"},
+			},
+		},
+		{
 			name: "HCL overrides log_level",
 			base: bundle.ConfigOptions{
 				LogLevel:     "info",
@@ -292,6 +304,9 @@ func TestMergeHCL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := r.MergeHCL(tt.base, tt.hcl)
 			assert.Equal(t, tt.expected, result)
+			if tt.hcl != nil && tt.hcl.ZarfInit != nil {
+				require.NotSame(t, tt.hcl.ZarfInit, result.ZarfInit)
+			}
 		})
 	}
 }

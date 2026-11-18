@@ -117,6 +117,85 @@ func (s *DeploySuite) TestDeployCommand_ConfigFlagInHelp() {
 	output, err := executeCLI(s.T(), "", "bundle", "deploy", "--help")
 	s.Require().NoError(err, "help should succeed")
 	s.Contains(output, "--config", "help output should document --config flag")
+	s.NotContains(output, "--registry-mode")
+	s.NotContains(output, "--git-url")
+	s.NotContains(output, "--agent-mutation-policy")
+}
+
+func (s *DeploySuite) TestDevDeployCommand_ValidatesZarfInitOptions() {
+	dir := s.T().TempDir()
+	configPath := filepath.Join(dir, "config.uds.hcl")
+	s.Require().NoError(os.WriteFile(configPath, []byte(`
+options {
+  zarf_init {
+    registry_mode = "invalid"
+  }
+}
+`), 0o600))
+
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
+	output, err := executeCLI(s.T(), "", "bundle", "dev", "deploy", bundlePath, "--config", configPath)
+	s.Require().Error(err)
+	s.Contains(err.Error(), "registry_mode")
+	s.NotContains(output, "starting deployment level")
+}
+
+func (s *DeploySuite) TestDeployCommand_ValidatesZarfInitOptions() {
+	dir := s.T().TempDir()
+	configPath := filepath.Join(dir, "config.uds.hcl")
+	s.Require().NoError(os.WriteFile(configPath, []byte(`
+options {
+  zarf_init {
+    agent_mutation_policy = "invalid"
+  }
+}
+`), 0o600))
+
+	artifact := testutil.TestDataPath("bundles/deploy/variables/uds-bundle-variables-test-arm64-0.1.0.tar.zst")
+	output, err := executeCLI(s.T(), "", "bundle", "deploy", artifact, "--config", configPath, "--skip-signature-verification", "--skip-architecture-check")
+	s.Require().Error(err)
+	s.Contains(err.Error(), "agent_mutation_policy")
+	s.NotContains(output, "starting deployment level")
+}
+
+func (s *DeploySuite) TestInspectCommand_ValidatesZarfInitOptions() {
+	dir := s.T().TempDir()
+	configPath := filepath.Join(dir, "config.uds.hcl")
+	s.Require().NoError(os.WriteFile(configPath, []byte(`
+options {
+  zarf_init {
+    registry_mode = "invalid"
+  }
+}
+`), 0o600))
+
+	artifact := testutil.TestDataPath("bundles/deploy/variables/uds-bundle-variables-test-arm64-0.1.0.tar.zst")
+	_, err := executeCLI(s.T(), "", "bundle", "inspect", artifact, "--config", configPath)
+	s.Require().Error(err)
+	s.Contains(err.Error(), "registry_mode")
+}
+
+func (s *DeploySuite) TestDevDeployCommand_ResolvesFileBackedZarfInitValue() {
+	dir := s.T().TempDir()
+	configPath := filepath.Join(dir, "config.uds.hcl")
+	s.Require().NoError(os.WriteFile(filepath.Join(dir, "password.txt"), []byte("registry-password"), 0o600))
+	s.Require().NoError(os.WriteFile(configPath, []byte(`
+options {
+  zarf_init {
+    registry_mode          = "external"
+    registry_url           = "registry.example.com"
+    registry_push_username = "registry-user"
+    registry_push_password = file("password.txt")
+  }
+}
+`), 0o600))
+
+	bundlePath := testutil.TestDataPath("bundles/deploy/init")
+	output, err := executeCLI(s.T(), "", "bundle", "dev", "deploy", bundlePath, "--config", configPath, "--packages", "nonexistent")
+	s.Require().Error(err)
+	s.NotContains(err.Error(), "registry_push_password")
+	s.NotContains(err.Error(), "failed to parse config")
+	s.NotContains(output, "registry-password")
 }
 
 func (s *DeploySuite) TestDevDeployCommand_InvalidConfigPath() {

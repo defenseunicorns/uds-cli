@@ -452,7 +452,7 @@ func TestDeployRejectsArchitectureOverrideForInit(t *testing.T) {
 }
 
 func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
-	config := &UDSBundleConfig{Options: &ConfigOptions{LogLevel: "info", Concurrency: 2}}
+	config := &UDSBundleConfig{Options: &ConfigOptions{LogLevel: "info", Concurrency: 2, ZarfInit: &ZarfInitOptions{AgentMutationPolicy: "all"}}}
 	internal := toZarfDeployOptions(DeployOptions{
 		Config: config,
 		BundleDeployHooks: BundleDeployHooks{
@@ -460,6 +460,7 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 				opts.Config.Options.LogLevel = "debug"
 				opts.Config.Options.Concurrency = 4
 				opts.Config.Options.SkipArchitectureCheck = true
+				opts.Config.Options.ZarfInit.AgentMutationPolicy = "labeled"
 				return nil
 			},
 		},
@@ -469,6 +470,8 @@ func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {
 	assert.Equal(t, "debug", internal.Config.Options.LogLevel)
 	assert.Equal(t, 4, internal.Config.Options.Concurrency)
 	assert.True(t, internal.Config.Options.SkipArchitectureCheck)
+	assert.Equal(t, "labeled", internal.Config.Options.ZarfInit.AgentMutationPolicy)
+	assert.Equal(t, "all", config.Options.ZarfInit.AgentMutationPolicy)
 }
 
 func TestPackagePreDeployRejectsNilConfig(t *testing.T) {
@@ -484,6 +487,40 @@ func TestPackagePreDeployRejectsNilConfig(t *testing.T) {
 	err := hooks.PreDeploy(t.Context(), &spec.Package{}, internalLayout, &packager.DeployOptions{}, &internalOpts)
 
 	assert.Error(t, err)
+}
+
+func TestPackagePreDeployPreservesZarfInitOptions(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		before, after *ZarfInitOptions
+		wantError     bool
+	}{
+		{name: "omitted"},
+		{name: "equal copy", before: &ZarfInitOptions{AgentMutationPolicy: "all"}, after: &ZarfInitOptions{AgentMutationPolicy: "all"}},
+		{name: "added", after: &ZarfInitOptions{}, wantError: true},
+		{name: "removed", before: &ZarfInitOptions{}, wantError: true},
+		{name: "changed", before: &ZarfInitOptions{AgentMutationPolicy: "all"}, after: &ZarfInitOptions{AgentMutationPolicy: "labeled"}, wantError: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			config := validValidationConfig()
+			config.Options.ZarfInit = tt.before
+			opts := toZarfDeployPackageOptions(DeployPackageOptions{Config: config})
+			hooks := toZarfPackageHooks(PackageDeployHooks{
+				PreDeploy: func(_ context.Context, _ *spec.Package, _ *ZarfPackageLayout, opts *DeployPackageOptions) error {
+					opts.Config.Options.ZarfInit = tt.after
+					return nil
+				},
+			})
+
+			err := hooks.PreDeploy(t.Context(), &spec.Package{}, &layout.PackageLayout{}, &packager.DeployOptions{}, &opts)
+			if tt.wantError {
+				require.ErrorIs(t, err, ErrInvalidConfig)
+				require.ErrorContains(t, err, "use BundleDeployHooks.PreDeploy")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestPublicPreDeployReceivesStagedDirectory(t *testing.T) {

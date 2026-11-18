@@ -65,8 +65,13 @@ type PackageDeployHooks struct {
 	// Components are copied to the loaded Zarf layout before deployment. Other
 	// definition fields, including Metadata.Version and Variables, cannot be
 	// changed through this hook. Changes to packageOpts.Config, BundleDir,
-	// IsPartial, and Streams are applied before deployment. A non-nil error
-	// aborts the deploy; the cluster deploy is not called and PostDeploy is skipped.
+	// IsPartial, and Streams are applied before deployment, except that changes to
+	// Config.Options.ZarfInit are rejected. A non-nil error aborts the package
+	// deploy; the cluster deploy is not called and PostDeploy is skipped.
+	//
+	// Zarf init options are shared by all init packages in this deployment.
+	// To change them, use the bundle-level [BundleDeployHooks.PreDeploy] hook,
+	// which runs before any per-package hooks.
 	//
 	// PreDeploy and PostDeploy are captured before PreDeploy runs, so changing
 	// packageOpts.PackageDeployHooks here has no effect. Use
@@ -85,10 +90,15 @@ type PackageDeployHooks struct {
 
 // BundleDeployHooks provides deployment process extensibility at the bundle scope.
 type BundleDeployHooks struct {
-	// PreDeploy runs once before package deployment. Only mutations to
-	// PackageDeployHooks are honored: package selection, source preparation, and
-	// bundle hooks have already been consumed. A returned error prevents package
-	// deployment and skips PostDeploy.
+	// PreDeploy runs once after the source is prepared and packages are selected,
+	// but before any package deploys. The hook can update opts.Config or install
+	// per-package hooks through opts.PackageDeployHooks. Any Zarf init options
+	// set here apply to all init packages in the deployment.
+	//
+	// Deploy validates the resulting configuration before deploying packages.
+	// The hook cannot change the prepared source, package selection, or which
+	// bundle hooks run. If PreDeploy returns an error, no packages are deployed
+	// and PostDeploy is skipped.
 	PreDeploy func(ctx context.Context, b *spec.UDSBundle, opts *DeployOptions) error
 	// PostDeploy runs once after every selected package deploys successfully.
 	PostDeploy func(ctx context.Context, b *spec.UDSBundle) error
@@ -287,7 +297,7 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 	}
 	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
-		converted := bundleinternal.ConfigOptions(*cfg.Options)
+		converted := toInternalConfigOptions(*cfg.Options)
 		options = &converted
 	}
 	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
@@ -299,7 +309,7 @@ func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
 	}
 	var options *ConfigOptions
 	if cfg.Options != nil {
-		converted := ConfigOptions(*cfg.Options)
+		converted := fromInternalConfigOptions(*cfg.Options)
 		options = &converted
 	}
 	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables)}
@@ -343,7 +353,17 @@ func toZarfPackageHooks(hooks PackageDeployHooks) internalzarf.PackageDeployHook
 					return configErr
 				}
 			}
-			internalOpts.Config = toZarfConfig(publicOpts.Config)
+			config := toZarfConfig(publicOpts.Config)
+			// verify pre-deploy hooks did not modify zarf init
+			if internalOpts.Config != nil && internalOpts.Config.Options != nil {
+				before, after := internalOpts.Config.Options.ZarfInit, config.Options.ZarfInit
+				addedOrRemoved := (before == nil) != (after == nil)
+				valuesChanged := before != nil && after != nil && *before != *after
+				if addedOrRemoved || valuesChanged {
+					return fmt.Errorf("package pre-deploy hooks cannot change ZarfInit; use BundleDeployHooks.PreDeploy: %w", ErrInvalidConfig)
+				}
+			}
+			internalOpts.Config = config
 			internalOpts.BundleDir = publicOpts.BundleDir
 			internalOpts.PackageDeployHooks = toZarfPackageHooks(publicOpts.PackageDeployHooks)
 			internalOpts.IsPartial = publicOpts.IsPartial
@@ -378,6 +398,9 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 			publicOpts.Config = fromZarfConfig(internalOpts.Config)
 			publicOpts.Packages = internalOpts.Packages
 			if err := opts.BundleDeployHooks.PreDeploy(ctx, b, &publicOpts); err != nil {
+				return err
+			}
+			if err := validateConfig(publicOpts.Config); err != nil {
 				return err
 			}
 			internalOpts.Config = toZarfConfig(publicOpts.Config)

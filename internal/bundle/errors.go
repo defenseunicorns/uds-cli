@@ -17,6 +17,8 @@ var (
 	ErrConfigOptionsRequired      = errors.New("config.Options is required")
 	ErrInvalidConcurrency         = errors.New("invalid concurrency")
 	ErrInvalidTemporaryDirectory  = errors.New("invalid temporary directory")
+	ErrInvalidZarfInitOptions     = errors.New("invalid Zarf init options")
+	ErrInvalidAgentTLS            = errors.New("invalid Zarf agent TLS")
 	ErrReadBundleFile             = errors.New("cannot read bundle file")
 	ErrParseHCL                   = errors.New("failed to parse HCL")
 	ErrDecodeBundle               = errors.New("failed to decode bundle")

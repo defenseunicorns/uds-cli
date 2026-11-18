@@ -265,13 +265,8 @@ func toInternalConfig(cfg *bundle.UDSBundleConfig) *bundleinternal.UDSBundleConf
 		return nil
 	}
 
-	var options *bundleinternal.ConfigOptions
-	if cfg.Options != nil {
-		converted := bundleinternal.ConfigOptions(*cfg.Options)
-		options = &converted
-	}
 	return &bundleinternal.UDSBundleConfig{
-		Options:               options,
+		Options:               toInternalOptions(cfg.Options),
 		SignatureVerification: toInternalVerificationPolicy(cfg.SignatureVerification),
 		Variables:             toInternalVariables(cfg.Variables),
 	}
