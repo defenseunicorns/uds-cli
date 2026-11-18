@@ -151,8 +151,8 @@ options {
 }
 `), 0o600))
 
-	artifact := testutil.TestDataPath("bundles/deploy/variables/uds-bundle-variables-test-arm64-0.1.0.tar.zst")
-	output, err := executeCLI(s.T(), "", "bundle", "deploy", artifact, "--config", configPath, "--skip-signature-verification", "--skip-architecture-check")
+	artifact := createInspectArtifact(s.T())
+	output, err := executeCLI(s.T(), "", "bundle", "deploy", artifact, "--config", configPath, "--skip-signature-verification")
 	s.Require().Error(err)
 	s.Contains(err.Error(), "agent_mutation_policy")
 	s.NotContains(output, "starting deployment level")
@@ -169,7 +169,7 @@ options {
 }
 `), 0o600))
 
-	artifact := testutil.TestDataPath("bundles/deploy/variables/uds-bundle-variables-test-arm64-0.1.0.tar.zst")
+	artifact := createInspectArtifact(s.T())
 	_, err := executeCLI(s.T(), "", "bundle", "inspect", artifact, "--config", configPath)
 	s.Require().Error(err)
 	s.Contains(err.Error(), "registry_mode")
