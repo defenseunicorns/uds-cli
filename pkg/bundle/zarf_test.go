@@ -4,10 +4,12 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,6 +27,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	helmutil "helm.sh/helm/v4/pkg/chart/common/util"
 )
 
 func newPackageLayout(t *testing.T, pkg v1alpha1.ZarfPackage) *layout.PackageLayout {
@@ -485,6 +488,44 @@ func TestSensitiveVariablesSurvivePublicAndZarfConfigConversion(t *testing.T) {
 
 	internal := internalzarf.UDSBundleConfig{SensitiveVariables: map[string]bool{"token": true}}
 	assert.Equal(t, map[string]bool{"token": true}, toInternalConfig(fromZarfConfig(&internal)).SensitiveVariables)
+}
+
+func TestDeployPackageRedactsNestedSensitiveVariables(t *testing.T) {
+	var logs bytes.Buffer
+	previousWriter := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(previousWriter) })
+
+	const canary = "nested-sensitive-canary"
+	bundleDir := t.TempDir()
+	writeMinimalZarfPackage(t, filepath.Join(bundleDir, "pkg"))
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "values.yaml"), []byte("password: {{ .vars.registry.password }}"), tmpFilePerm))
+
+	config := validValidationConfig()
+	config.Variables = Variables{"registry": Variables{"password": canary}}
+	config.SensitiveVariables = map[string]bool{"registry": true}
+	var hookRegistry any
+	opts := toZarfDeployPackageOptions(DeployPackageOptions{
+		Config:    config,
+		BundleDir: bundleDir,
+		PackageDeployHooks: PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, _ *ZarfPackageLayout, opts *DeployPackageOptions) error {
+			hookRegistry = opts.Config.Variables["registry"]
+			return nil
+		}},
+	})
+	opts.ClusterDeployFn = func(_ context.Context, _ *layout.PackageLayout, opts *packager.DeployOptions, _ bool) error {
+		assert.Equal(t, canary, opts.Values["password"])
+		helmutil.CoalesceTables(map[string]any{"password": map[string]any{}}, opts.Values)
+		return nil
+	}
+
+	pkg := &spec.Package{Name: "test", Source: "pkg", ValuesFiles: []string{"values.yaml"}}
+	err := internalzarf.NewZarfDeployer(iostreams.IOStreams{}, nil).DeployPackage(t.Context(), pkg, opts)
+
+	require.NoError(t, err)
+	assert.Equal(t, Variables{"password": canary}, hookRegistry)
+	assert.Contains(t, logs.String(), "Ignoring non-table value (***)")
+	assert.NotContains(t, logs.String(), canary)
 }
 
 func TestPackagePreDeployRejectsNilConfig(t *testing.T) {

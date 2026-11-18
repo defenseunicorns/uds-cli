@@ -172,7 +172,8 @@ items:
 			require.ErrorIs(t, err, bundle.ErrDeployBundle)
 			if missing {
 				require.NotErrorIs(t, err, stop)
-				require.ErrorContains(t, err, "map has no entry for key")
+				require.ErrorContains(t, err, `rendering values file "values.yaml"`)
+				assert.NotContains(t, err.Error(), "map has no entry for key")
 				assert.False(t, called)
 			} else {
 				require.ErrorIs(t, err, stop)

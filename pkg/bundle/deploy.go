@@ -293,7 +293,7 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 		converted := bundleinternal.ConfigOptions(*cfg.Options)
 		options = &converted
 	}
-	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
+	return &internalzarf.UDSBundleConfig{Options: options, Variables: toInternalVariables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
 }
 
 func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
@@ -305,7 +305,7 @@ func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
 		converted := ConfigOptions(*cfg.Options)
 		options = &converted
 	}
-	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
+	return &UDSBundleConfig{Options: options, Variables: fromInternalVariables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
 }
 
 func toZarfDeployPackageOptions(opts DeployPackageOptions) internalzarf.DeployPackageOptions {
