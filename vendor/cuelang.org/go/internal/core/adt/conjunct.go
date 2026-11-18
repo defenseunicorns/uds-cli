@@ -74,6 +74,10 @@ func (n *nodeContext) scheduleConjunct(c Conjunct, id CloseInfo) {
 			n.unshare()
 			n.insertValueConjunct(env, x, id)
 		} else {
+			if x.ClosedNonRecursive {
+				n.node.ClosedNonRecursive = true
+				id = n.addResolver(x, x, id, false)
+			}
 			n.scheduleVertexConjuncts(c, x, id)
 		}
 
@@ -93,8 +97,26 @@ func (n *nodeContext) scheduleConjunct(c Conjunct, id CloseInfo) {
 		// NOTE: do not unshare: a conjunction could still allow structure
 		// sharing, such as in the case of `ref & ref`.
 		if x.Op == AndOp {
-			n.scheduleConjunct(MakeConjunct(env, x.X, id), id)
-			n.scheduleConjunct(MakeConjunct(env, x.Y, id), id)
+			// For (A & B)..., mark operands as ConjunctOpened instead of
+			// Opened. This keeps each operand's close group active (for
+			// mutual constraint checking between A and B) while still
+			// suppressing closeOuter (so extra fields like d in
+			// __closeAll({(#C1 & #C2)..., d: int}) are allowed).
+			//
+			// In ExplicitOpen mode, injectEmbedNode is a no-op, so no
+			// embedding scope is created for the conjunction. We re-inject
+			// it here so the evidence mechanism can distinguish between
+			// fields from within the conjunction vs extra fields in the
+			// enclosing struct.
+			inner := id
+			if inner.Opened {
+				inner.Opened = false
+				inner.ConjunctOpened = true
+				inner.FromEmbed = true
+				inner = n.newReq(x, inner, defEmbedding)
+			}
+			n.scheduleConjunct(MakeConjunct(env, x.X, inner), inner)
+			n.scheduleConjunct(MakeConjunct(env, x.Y, inner), inner)
 			return
 		}
 
@@ -236,10 +258,18 @@ func (n *nodeContext) scheduleStruct(env *Environment,
 	// TODO: do we still need this?
 	// shouldClose := ci.cc.isDef || ci.cc.isClosedOnce
 
-	s.Init(n.ctx)
-
+	// Walk the env chain to find the comprehension firing whose body produced
+	// this struct, if any. Toposort uses this to group sibling decls inserted
+	// by the same comprehension body (see [StructInfo.CompID]).
+	var compID uint32
+	for e := env; e != nil; e = e.Up {
+		if e.CompID != 0 {
+			compID = e.CompID
+			break
+		}
+	}
 	// TODO: do we still need to AddStruct?
-	n.node.AddStruct(s)
+	n.node.AddStruct(s, compID)
 
 	// TODO(perf): precompile whether struct has embedding.
 loop1:
@@ -252,7 +282,7 @@ loop1:
 	}
 
 	// When inserting a replace that is a definition, flip the ignore.
-	if hasEmbed && !s.isComprehension { // only if more than one decl.
+	if hasEmbed { // only if more than one decl.
 		ci = n.splitStruct(s, ci)
 	}
 
@@ -344,8 +374,8 @@ func (n *nodeContext) scheduleVertexConjuncts(c Conjunct, arc *Vertex, closeInfo
 		closeInfo.enclosingEmbed != 0 {
 		closeInfo.FromDef = false
 	}
-	if arc.ClosedRecursive && c.CloseInfo.Opened {
-		n.embedsRecursivelyClosed = true
+	if c.CloseInfo.Opened || c.CloseInfo.ConjunctOpened {
+		n.setEmbedClosedness(arc)
 	}
 
 	// disjunctions, we need to dereference he underlying node.
@@ -369,8 +399,10 @@ func (n *nodeContext) scheduleVertexConjuncts(c Conjunct, arc *Vertex, closeInfo
 	// once.
 	switch isDef, _ := IsDef(c.Expr()); {
 	case isDef || arc.Label.IsDef() || closeInfo.TopDef:
-		if c.CloseInfo.Opened {
-			n.embedsRecursivelyClosed = true
+		if c.CloseInfo.Opened || c.CloseInfo.ConjunctOpened {
+			// Definitions are always recursively closed, even if arc
+			// doesn't have ClosedRecursive set yet at this point.
+			n.embedClosedness = embedRecursivelyClosed
 		}
 		n.isDef = true
 		// n.node.ClosedRecursive = true // TODO: should we set this here?
@@ -625,6 +657,14 @@ func (n *nodeContext) insertValueConjunct(env *Environment, v Value, id CloseInf
 		case EqualOp, NotEqualOp:
 			// We treat equality as an open validator.
 			n.updateConjunctInfo(TopKind, id, cHasOpenValidator|cHasTop)
+			// Mark as top-like when the bound's kind overlaps with
+			// composite types (e.g. !=null has kind TopKind &^ NullKind,
+			// which includes StructKind). Without this, validateValue
+			// prematurely marks the node as a concrete struct, causing
+			// the constraint to be consumed and lost.
+			if x.Kind()&CompositeKind != 0 {
+				n.hasTop = true
+			}
 			fallthrough
 
 		case MatchOp, NotMatchOp:

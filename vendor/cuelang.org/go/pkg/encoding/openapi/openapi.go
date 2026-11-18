@@ -42,7 +42,7 @@ var (
 //	  // version holds the OpenAPI version to use when marshaling.
 //	  // Currently only "3.0.0" is supported.
 //	  version!: "3.0.0" // currently "3.0.0" only
-
+//
 //	  // selfContained causes all non-expanded external references
 //	  // to be included//
 //	  selfContained?: bool

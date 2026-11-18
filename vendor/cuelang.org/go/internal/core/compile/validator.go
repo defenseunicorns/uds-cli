@@ -29,22 +29,30 @@ var matchNBuiltin = &adt.Builtin{
 	Params:      []adt.Param{topParam, intParam, listParam}, // varargs
 	Result:      adt.BoolKind,
 	NonConcrete: true,
-	Func: func(call adt.CallContext) adt.Expr {
+	Func: func(call adt.BuiltinCallContext) adt.Expr {
 		c := call.OpContext()
-		args := call.Args()
 
 		if !c.IsValidator {
 			return c.NewErrf("matchN is a validator and should not be used as a function")
 		}
 
-		self := finalizeSelf(c, args[0])
+		self := finalizeSelf(c, call.Value(0))
 		if err := bottom(c, self); err != nil {
 			return adt.StaticBoolFalse
 		}
 
+		// A self-referential matchN, e.g. _x: matchN(2, [_x, _x]), would loop
+		// forever; the cycle detector flags the re-entry, so report it.
+		if c.InStructuralCycle() {
+			return &adt.Bottom{
+				Code: adt.StructuralCycleError,
+				Err:  c.NewPosf(call.Pos(), "structural cycle"),
+			}
+		}
+
 		var errs []*adt.Bottom
 		var count, possibleCount int64
-		for check := range c.Elems(args[2]) {
+		for check := range c.Elems(call.Value(2)) {
 			v := adt.Unify(c, self, check)
 			if err := adt.Validate(c, v, finalCfg); err == nil {
 				// TODO: is it always true that the lack of an error signifies
@@ -58,7 +66,7 @@ var matchNBuiltin = &adt.Builtin{
 			}
 		}
 
-		bound := args[1]
+		bound := call.Value(1)
 		// TODO: consider a mode to require "all" to pass, for instance by
 		// supporting the value null or "all".
 
@@ -88,19 +96,30 @@ var matchIfBuiltin = &adt.Builtin{
 	Params:      []adt.Param{topParam, topParam, topParam, topParam},
 	Result:      adt.BoolKind,
 	NonConcrete: true,
-	Func: func(call adt.CallContext) adt.Expr {
+	Func: func(call adt.BuiltinCallContext) adt.Expr {
 		c := call.OpContext()
-		args := call.Args()
 
 		if !c.IsValidator {
 			return c.NewErrf("matchIf is a validator and should not be used as a function")
 		}
 
-		self := finalizeSelf(c, args[0])
+		self := finalizeSelf(c, call.Value(0))
 		if err := bottom(c, self); err != nil {
 			return adt.StaticBoolFalse
 		}
-		ifSchema, thenSchema, elseSchema := args[1], args[2], args[3]
+
+		// As with matchN, report a self-referential matchIf, e.g.
+		// _y: matchIf(_y, _y, _y), rather than looping forever. schemaArg keeps
+		// the references so the cycle detector flags the re-entry.
+		if c.InStructuralCycle() {
+			return &adt.Bottom{
+				Code: adt.StructuralCycleError,
+				Err:  c.NewPosf(call.Pos(), "structural cycle"),
+			}
+		}
+		ifSchema := schemaArg(c, call, 1)
+		thenSchema := schemaArg(c, call, 2)
+		elseSchema := schemaArg(c, call, 3)
 		v := adt.Unify(c, self, ifSchema)
 		var chosenSchema adt.Value
 		if err := adt.Validate(c, v, finalCfg); err == nil {
@@ -121,6 +140,16 @@ var matchIfBuiltin = &adt.Builtin{
 
 // Explicitly disallow incomplete errors.
 var finalCfg = &adt.ValidateConfig{ReportIncomplete: true, Final: true}
+
+// schemaArg returns matchIf's i-th argument as a vertex that retains the
+// argument expression, rather than its resolved value. Unifying against this
+// re-resolves references each iteration, letting the cycle detector spot a
+// self-referential matchIf just as it does for matchN's list of schemas.
+func schemaArg(c *adt.OpContext, call adt.BuiltinCallContext, i int) adt.Value {
+	v := &adt.Vertex{}
+	v.AddConjunct(adt.MakeConjunct(c.Env(0), call.Expr(i), c.CloseInfo()))
+	return v
+}
 
 // finalizeSelf ensures a value is fully evaluated and then strips it of any
 // of its validators or default values.

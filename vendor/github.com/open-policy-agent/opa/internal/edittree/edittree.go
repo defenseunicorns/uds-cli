@@ -143,11 +143,32 @@
 // This provides a substantial CPU savings in benchmarks, because the
 // "index rewriting" passes become much cheaper from not having to rehash
 // every child's index.
+//
+// # Deletion and memory reuse
+//
+// In the original design, deletion was implemented as simply unlinking
+// the node at the root of the section-to-be-deleted, and the Go GC
+// would naturally collect the dead nodes eventually. This made the
+// deletion operation extremely fast, at the expense of increasing GC
+// work down the road. For some workloads, that was fine. Others, less so.
+//
+// The new design uses a sync.Pool for recycling EditTree nodes,
+// reducing allocation overheads when there's a lot of churn and in-place
+// editing happening. (ast.Terms held inside an EditTree are not pooled:
+// most are borrowed from caller-owned data, so returning them would be
+// unsafe.)
+//
+// The reclamation now happens eagerly at Dispose time, and recursively
+// clears state and returns child nodes to the pool. Because of the Delete
+// API returning the deleted node, callers are responsible for returning
+// the node back to the pool.
+
 package edittree
 
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/open-policy-agent/opa/internal/edittree/bitvector"
@@ -178,26 +199,48 @@ func NewEditTree(term *ast.Term) *EditTree {
 	return initForTerm(&EditTree{}, term)
 }
 
+// Creates a new EditTree instance from the package-internal sync.Pool.
+// Callers should call edittree.Dispose() to return the node when done.
 func EditTreeFromPool(term *ast.Term) *EditTree {
+	if term == nil {
+		return nil
+	}
+
 	return initForTerm(editTreePool.Get(), term)
 }
 
+// Recursively reclaims the tree nodes that are part of this EditTree.
 func Dispose(e *EditTree) {
 	if e != nil {
-		editTreePool.Put(e.Reset())
+		editTreePool.Put(e.Reclaim())
 	}
 }
 
-func (e *EditTree) Reset() *EditTree {
+// Reclaim is a recursive equivalent of Reset methods
+// seen in other APIs.
+func (e *EditTree) Reclaim() *EditTree {
 	e.value = nil
 	clear(e.childKeys)
 	clear(e.childScalarValues)
+
+	e.disposeCompositeChildren()
 	clear(e.childCompositeValues)
 
 	e.eliminated = e.eliminated.Clear()
 	e.insertions = e.insertions.Clear()
 
 	return e
+}
+
+// disposeCompositeChildren returns every non-nil composite child to the
+// pool. It does not clear or nil the map itself; callers are responsible
+// for that depending on context (clear for in-place reuse, nil for tear-down).
+func (e *EditTree) disposeCompositeChildren() {
+	for _, child := range e.childCompositeValues {
+		if child != nil {
+			Dispose(child)
+		}
+	}
 }
 
 func initForTerm(tree *EditTree, term *ast.Term) *EditTree {
@@ -261,8 +304,8 @@ func (e *EditTree) getKeyHash(key *ast.Term) (int, bool) {
 }
 
 //gcassert:inline
-func isComposite(t *ast.Term) bool {
-	switch t.Value.(type) {
+func isComposite(v ast.Value) bool {
+	switch v.(type) {
 	case ast.Object, ast.Set, *ast.Array:
 		return true
 	default:
@@ -312,11 +355,12 @@ func (e *EditTree) Insert(key, value *ast.Term) (*EditTree, error) {
 			return nil, fmt.Errorf("set key %v does not equal value to be inserted %v", key, value)
 		}
 		// We only collapse this Set-typed node if a composite type is involved.
-		if isComposite(key) {
+		if isComposite(key.Value) {
 			// TODO: Investigate re-rendering *only* the immediate composite children.
 			e.value = e.Render()
 			clear(e.childKeys)
 			clear(e.childScalarValues)
+			e.disposeCompositeChildren()
 			clear(e.childCompositeValues)
 		}
 		return e.unsafeInsertSet(key, value), nil
@@ -338,12 +382,16 @@ func (e *EditTree) Insert(key, value *ast.Term) (*EditTree, error) {
 func (e *EditTree) unsafeInsertObject(key, value *ast.Term) *EditTree {
 	keyHash, found := e.getKeyHash(key)
 	if found {
+		// Reclaim child nodes if present.
+		if child, ok := e.childCompositeValues[keyHash]; ok && child != nil {
+			Dispose(child)
+		}
 		e.deleteChildValue(keyHash)
 	}
 	e.setChildKey(keyHash, key)
 
-	child := NewEditTree(value)
-	if isComposite(value) {
+	child := EditTreeFromPool(value)
+	if isComposite(value.Value) {
 		e.setChildCompositeValue(keyHash, child)
 	} else {
 		e.setChildScalarValue(keyHash, value)
@@ -352,13 +400,17 @@ func (e *EditTree) unsafeInsertObject(key, value *ast.Term) *EditTree {
 }
 
 func (e *EditTree) unsafeInsertSet(key, value *ast.Term) *EditTree {
-	child := NewEditTree(value)
+	child := EditTreeFromPool(value)
 	keyHash, found := e.getKeyHash(key)
 	if found {
+		// Reclaim child nodes if present.
+		if child, ok := e.childCompositeValues[keyHash]; ok && child != nil {
+			Dispose(child)
+		}
 		e.deleteChildValue(keyHash)
 	}
 	e.setChildKey(keyHash, key)
-	if isComposite(value) {
+	if isComposite(value.Value) {
 		e.setChildCompositeValue(keyHash, child)
 	} else {
 		e.setChildScalarValue(keyHash, value)
@@ -384,16 +436,16 @@ func (e *EditTree) unsafeInsertArray(idx int, value *ast.Term) *EditTree {
 		}
 	}
 	// Do rewrites in reverse order to make room for the newly-inserted element.
-	for i := len(rewritesScalars) - 1; i >= 0; i-- {
-		originalIdx := rewritesScalars[i]
-		rewriteIdx := rewritesScalars[i] + 1
+	for _, originalIdx := range slices.Backward(rewritesScalars) {
+
+		rewriteIdx := originalIdx + 1
 		v := e.childScalarValues[originalIdx]
 		e.deleteChildValue(originalIdx)
 		e.setChildScalarValue(rewriteIdx, v)
 	}
-	for i := len(rewritesComposites) - 1; i >= 0; i-- {
-		originalIdx := rewritesComposites[i]
-		rewriteIdx := rewritesComposites[i] + 1
+	for _, originalIdx := range slices.Backward(rewritesComposites) {
+
+		rewriteIdx := originalIdx + 1
 		v := e.childCompositeValues[originalIdx]
 		e.deleteChildValue(originalIdx)
 		e.setChildCompositeValue(rewriteIdx, v)
@@ -405,8 +457,8 @@ func (e *EditTree) unsafeInsertArray(idx int, value *ast.Term) *EditTree {
 		e.insertions.Insert(1, idx)
 	}
 
-	child := NewEditTree(value)
-	if isComposite(value) {
+	child := EditTreeFromPool(value)
+	if isComposite(value.Value) {
 		e.setChildCompositeValue(idx, child)
 	} else {
 		e.setChildScalarValue(idx, value)
@@ -435,7 +487,7 @@ func (e *EditTree) Delete(key *ast.Term) (*EditTree, error) {
 				}
 				e.setChildKey(keyHash, key)
 				e.setChildScalarValue(keyHash, nil)
-				return NewEditTree(child), nil
+				return EditTreeFromPool(child), nil
 			}
 			if child, ok := e.childCompositeValues[keyHash]; ok {
 				if child == nil {
@@ -460,12 +512,13 @@ func (e *EditTree) Delete(key *ast.Term) (*EditTree, error) {
 		return e.fallbackDelete(key)
 	case ast.Set:
 		// We only collapse this Set-typed node if a composite type is involved.
-		if isComposite(key) {
+		if isComposite(key.Value) {
 			// TODO: Investigate re-rendering *only* the immediate composite children.
 			collapsed := e.Render()
 			e.value = collapsed
 			clear(e.childKeys)
 			clear(e.childScalarValues)
+			e.disposeCompositeChildren()
 			clear(e.childCompositeValues)
 		} else {
 			keyHash, found := e.getKeyHash(key)
@@ -478,7 +531,7 @@ func (e *EditTree) Delete(key *ast.Term) (*EditTree, error) {
 					if key.Equal(child) {
 						e.setChildKey(keyHash, key)
 						e.setChildScalarValue(keyHash, nil)
-						return NewEditTree(child), nil
+						return EditTreeFromPool(child), nil
 					}
 				}
 			}
@@ -494,6 +547,12 @@ func (e *EditTree) Delete(key *ast.Term) (*EditTree, error) {
 		if idx < 0 || idx > e.insertions.Length()-1 {
 			return nil, errors.New("index for array delete out of bounds")
 		}
+
+		// Capture the deleted composite child (if any) before the maps are
+		// rewritten, so the caller can recycle it. Scalar children and
+		// "original" array elements eliminated via bleed-through have no
+		// separate EditTree node to recycle, so nil is returned in those cases.
+		deletedChild := e.childCompositeValues[idx]
 
 		// Collect insertion indexes above the delete site for rewriting.
 		rewritesScalars := []int{}
@@ -542,7 +601,7 @@ func (e *EditTree) Delete(key *ast.Term) (*EditTree, error) {
 		}
 		// Delete element from insertions array, bump bit-vec over by 1.
 		e.insertions.Delete(idx)
-		return e, nil
+		return deletedChild, nil
 	default:
 		// Catch all primitive types.
 		return nil, fmt.Errorf("expected composite type, found value: %v (type: %T)", e.value.Value, e.value.Value)
@@ -574,7 +633,10 @@ func findIndexOfNthZero(n int, bv *bitvector.BitVector) (int, bool) {
 }
 
 // Helper function for sets/objects when the key isn't present in either
-// child map.
+// child map. It unpacks the key/value pair from the stored term on
+// the EditTree node. For composite types, it then acts as if Unfold then
+// Delete were called for the key. For scalars, it skips the Unfold step,
+// and uses the scalar child value map directly to record the deletion.
 func (e *EditTree) fallbackDelete(key *ast.Term) (*EditTree, error) {
 	// get ref from pool
 	rptr := refPool.Get(1)
@@ -589,12 +651,12 @@ func (e *EditTree) fallbackDelete(key *ast.Term) (*EditTree, error) {
 	}
 	keyHash, _ := e.getKeyHash(key)
 	e.setChildKey(keyHash, key)
-	if isComposite(ast.NewTerm(value)) {
+	if isComposite(value) {
 		e.setChildCompositeValue(keyHash, nil)
 	} else {
 		e.setChildScalarValue(keyHash, nil)
 	}
-	return NewEditTree(ast.NewTerm(value)), nil
+	return EditTreeFromPool(ast.NewTerm(value)), nil
 }
 
 // Unfurls a chain of EditTree nodes down a given path, or else returns an error.
@@ -618,7 +680,7 @@ func (e *EditTree) Unfold(path ast.Ref) (*EditTree, error) {
 				if term == nil {
 					return nil, fmt.Errorf("cannot unfold the already deleted scalar node for key %v", key)
 				}
-				child := NewEditTree(term)
+				child := EditTreeFromPool(term)
 				return child.Unfold(path[1:])
 			}
 			if child, ok := e.childCompositeValues[keyHash]; ok {
@@ -652,16 +714,17 @@ func (e *EditTree) Unfold(path ast.Ref) (*EditTree, error) {
 		// traversal, we have to collapse the tree beneath this node,
 		// so that we can accurately unfold it again for an update,
 		// once we know that the key we care about is present.
-		if isComposite(key) {
+		if isComposite(key.Value) {
 			collapsed := e.Render()
 			e.value = collapsed
 			clear(e.childKeys)
 			clear(e.childScalarValues)
+			e.disposeCompositeChildren()
 			clear(e.childCompositeValues)
 		} else {
 			if keyHash, found := e.getKeyHash(key); found {
 				if term, ok := e.childScalarValues[keyHash]; ok {
-					child := NewEditTree(term)
+					child := EditTreeFromPool(term)
 					return child.Unfold(path[1:])
 				}
 			}
@@ -682,7 +745,7 @@ func (e *EditTree) Unfold(path ast.Ref) (*EditTree, error) {
 			return nil, err
 		}
 		if term, ok := e.childScalarValues[idx]; ok {
-			child := NewEditTree(term)
+			child := EditTreeFromPool(term)
 			return child.Unfold(path[1:])
 		}
 		if child, ok := e.childCompositeValues[idx]; ok {
@@ -858,6 +921,7 @@ func (e *EditTree) InsertAtPath(path ast.Ref, value *ast.Term) (*EditTree, error
 		e.value = value
 		clear(e.childKeys)
 		clear(e.childScalarValues)
+		e.disposeCompositeChildren()
 		clear(e.childCompositeValues)
 
 		if v, ok := value.Value.(*ast.Array); ok {
@@ -888,6 +952,7 @@ func (e *EditTree) DeleteAtPath(path ast.Ref) (*EditTree, error) {
 		e.value = nil
 		e.childKeys = nil
 		e.childScalarValues = nil
+		e.disposeCompositeChildren()
 		e.childCompositeValues = nil
 		e.eliminated = nil
 		e.insertions = nil
@@ -967,10 +1032,11 @@ func (e *EditTree) Exists(path ast.Ref) bool {
 			// traversal, we have to collapse the tree beneath this node,
 			// so that we can accurately unfold it again for an update,
 			// once we know that the key we care about is present.
-			if isComposite(key) {
+			if isComposite(key.Value) {
 				e.value = e.Render()
 				clear(e.childKeys)
 				clear(e.childScalarValues)
+				e.disposeCompositeChildren()
 				clear(e.childCompositeValues)
 			} else if keyHash, found := e.getKeyHash(key); found {
 				if _, ok := e.childScalarValues[keyHash]; ok {

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"golang.org/x/net/idna"
@@ -25,10 +26,11 @@ import (
 	"cuelang.org/go/cue"
 )
 
+// TODO: revert to using ValidateLabels and StrictDomainName once
+// https://go.dev/issue/74848 is fixed.
 var idnaProfile = idna.New(
-	idna.ValidateLabels(true),
+	idna.MapForLookup(),
 	idna.VerifyDNSLength(true),
-	idna.StrictDomainName(true),
 )
 
 // SplitHostPort splits a network address of the form "host:port",
@@ -55,11 +57,12 @@ func JoinHostPort(host, port cue.Value) (string, error) {
 	hostStr := ""
 	switch host.Kind() {
 	case cue.ListKind:
-		ipdata := netGetIP(host)
-		if !ipdata.IsValid() {
+		ipdata, ipErr := netGetIP(host)
+		if ipErr != nil {
 			err = fmt.Errorf("invalid host %s", host)
+		} else {
+			hostStr = ipdata.String()
 		}
-		hostStr = ipdata.String()
 	case cue.BytesKind:
 		var b []byte
 		b, err = host.Bytes()
@@ -101,6 +104,8 @@ func FQDN(s string) bool {
 			return false
 		}
 	}
+	// Strip the canonical trailing root dot; idna rejects it under VerifyDNSLength.
+	s = strings.TrimSuffix(s, ".")
 	_, err := idnaProfile.ToASCII(s)
 	return err == nil
 }

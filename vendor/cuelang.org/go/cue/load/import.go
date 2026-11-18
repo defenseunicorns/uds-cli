@@ -19,9 +19,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	pathpkg "path"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -30,7 +28,9 @@ import (
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/filetypes"
+	"cuelang.org/go/internal/mod/semver"
 	"cuelang.org/go/mod/module"
+	pkgpath "cuelang.org/go/pkg/path"
 )
 
 // importPkg returns details about the CUE package named by the import path,
@@ -93,22 +93,23 @@ func (l *loader) importPkg(pos token.Pos, p *build.Instance) []*build.Instance {
 	}
 
 	var dirs [][2]string
-	genDir := GenPath(cfg.ModuleRoot)
-	if strings.HasPrefix(p.Dir, genDir) {
-		dirs = append(dirs, [2]string{genDir, p.Dir})
+	genDir := genPath(cfg.ModuleRoot, cfg.pathOS)
+	pDir := fsDir(cfg, p)
+	if strings.HasPrefix(pDir, genDir) {
+		dirs = append(dirs, [2]string{genDir, pDir})
 		// && p.PkgName != "_"
 		for _, sub := range []string{"pkg", "usr"} {
-			rel, err := filepath.Rel(genDir, p.Dir)
+			rel, err := pkgpath.Rel(genDir, pDir, cfg.pathOS)
 			if err != nil {
 				// should not happen
 				return retErr(errors.Wrapf(err, token.NoPos, "invalid path"))
 			}
-			base := filepath.Join(cfg.ModuleRoot, modDir, sub)
-			dir := filepath.Join(base, rel)
+			base := pkgpath.Join([]string{cfg.ModuleRoot, modDir, sub}, cfg.pathOS)
+			dir := pkgpath.Join([]string{base, rel}, cfg.pathOS)
 			dirs = append(dirs, [2]string{base, dir})
 		}
 	} else {
-		dirs = append(dirs, [2]string{cfg.ModuleRoot, p.Dir})
+		dirs = append(dirs, [2]string{cfg.ModuleRoot, pDir})
 	}
 
 	found := false
@@ -141,7 +142,7 @@ func (l *loader) importPkg(pos token.Pos, p *build.Instance) []*build.Instance {
 	// since a package foo/bar/baz inherits from parent packages foo/bar and foo.
 	// See https://cuelang.org/docs/concept/modules-packages-instances/#instances.
 	for _, d := range dirs {
-		dir := filepath.Clean(d[1])
+		dir := pkgpath.Clean(d[1], cfg.pathOS)
 		// firstDir keeps track of whether we're still looking at the initial
 		// directory rather than one of its parents. If there are no CUE files
 		// in the initial directory, we shouldn't walk to its parents because
@@ -179,8 +180,7 @@ func (l *loader) importPkg(pos token.Pos, p *build.Instance) []*build.Instance {
 			// package.
 			fp.ignoreOther = true
 
-			parent, _ := filepath.Split(dir)
-			parent = filepath.Clean(parent)
+			parent := pkgpath.Dir(dir, cfg.pathOS)
 
 			if parent == dir || len(parent) < len(d[0]) {
 				break
@@ -210,13 +210,15 @@ func (l *loader) importPkg(pos token.Pos, p *build.Instance) []*build.Instance {
 			continue
 		}
 		all = append(all, p)
-		rewriteFiles(p, cfg.ModuleRoot, false)
+		rewriteFiles(p, cfg.ModuleRoot, false, cfg.pathOS)
+		setFSLoc(cfg, p)
 		if errs := fp.finalize(p); errs != nil {
 			p.ReportError(errs)
 			return all
 		}
 
 		l.addFiles(p)
+		l.setCanonicalImportPath(p)
 		_ = p.Complete()
 	}
 	slices.SortFunc(all, func(a, b *build.Instance) int {
@@ -263,18 +265,7 @@ func setFileSource(cfg *Config, f *build.File) error {
 	if f.Source != nil {
 		return nil
 	}
-	fullPath := f.Filename
-
-	// If the input file is stdin or a non-regular file,
-	// such as a named pipe or a device file, we can only read it once.
-	// Given that later on we may consume the source multiple times,
-	// such as first to only parse the imports and later to parse the whole file,
-	// read the whole file here upfront and buffer the bytes.
-	//
-	// TODO(perf): this causes an upfront "stat" syscall for every input file,
-	// which is wasteful given that in the majority of cases we deal with regular files.
-	// Consider doing the buffering the first time we open the file later on.
-	if fullPath == "-" {
+	if f.Filename == "-" {
 		b, err := io.ReadAll(cfg.stdin())
 		if err != nil {
 			return errors.Newf(token.NoPos, "read stdin: %v", err)
@@ -282,36 +273,12 @@ func setFileSource(cfg *Config, f *build.File) error {
 		f.Source = b
 		return nil
 	}
-
-	if !filepath.IsAbs(fullPath) {
-		fullPath = filepath.Join(cfg.Dir, fullPath)
-		// Ensure that encoding.NewDecoder will work correctly.
-		f.Filename = fullPath
-	}
-	if fi := cfg.fileSystem.getOverlay(fullPath); fi != nil {
-		if fi.file != nil {
-			f.Source = fi.file
-		} else {
-			f.Source = fi.contents
-		}
-		return nil
-	}
-
-	// Note that we do this after ensuring fullPath is absolute, and after checking
-	// whether the overlay provides the source.
-	info, err := os.Stat(fullPath)
+	f.Filename = cfg.fileSystem.makeAbs(f.Filename)
+	src, err := cfg.fileSystem.getSource(cfg, f.Filename)
 	if err != nil {
 		return err
 	}
-	if !info.Mode().IsRegular() {
-		b, err := os.ReadFile(fullPath)
-		if err != nil {
-			return err
-		}
-		f.Source = b
-		return nil
-	}
-
+	f.Source = src
 	return nil
 }
 
@@ -347,10 +314,13 @@ func (l *loader) newRelInstance(pos token.Pos, path, pkgName string) *build.Inst
 
 	p := l.cfg.Context.NewInstance(path, nil)
 	p.PkgName = pkgName
-	p.DisplayPath = filepath.ToSlash(path)
+	p.DisplayPath = pkgpath.ToSlash(path, l.cfg.pathOS)
 	// p.ImportPath = string(dir) // compute unique ID.
 	p.Root = l.cfg.ModuleRoot
 	p.Module = l.cfg.Module
+	if l.cfg.Module != "" {
+		p.ModuleVersion, _ = module.NewVersion(l.cfg.Module, "")
+	}
 	p.ModuleFile = l.cfg.modFile
 
 	var err errors.Error
@@ -359,7 +329,7 @@ func (l *loader) newRelInstance(pos token.Pos, path, pkgName string) *build.Inst
 			"non-canonical import path: %q should be %q", path, pathpkg.Clean(path)))
 	}
 
-	dir := filepath.Join(l.cfg.Dir, filepath.FromSlash(path))
+	dir := pkgpath.Join([]string{l.cfg.Dir, pkgpath.FromSlash(path, l.cfg.pathOS)}, l.cfg.pathOS)
 	if pkgPath, e := importPathFromAbsDir(l.cfg, dir, path); e != nil {
 		// Detect later to keep error messages consistent.
 	} else {
@@ -378,8 +348,9 @@ func (l *loader) newRelInstance(pos token.Pos, path, pkgName string) *build.Inst
 	}
 
 	p.Dir = dir
+	setFSLoc(l.cfg, p)
 
-	if filepath.IsAbs(path) || strings.HasPrefix(path, "/") {
+	if pkgpath.IsAbs(path, l.cfg.pathOS) {
 		err = errors.Append(err, errors.Newf(pos,
 			"absolute import path %q not allowed", path))
 	}
@@ -395,12 +366,13 @@ func importPathFromAbsDir(c *Config, absDir string, origPath string) (importPath
 		return "", fmt.Errorf("cannot determine import path for %q (root undefined)", origPath)
 	}
 
-	subdir, ok := strings.CutPrefix(filepath.Clean(absDir), c.ModuleRoot)
+	absDir = pkgpath.Clean(absDir, c.pathOS)
+	subdir, ok := strings.CutPrefix(absDir, c.ModuleRoot)
 	if !ok {
 		return "", fmt.Errorf("cannot determine import path for %q (dir outside of root)", origPath)
 	}
 
-	pkg := filepath.ToSlash(subdir)
+	pkg := pkgpath.ToSlash(subdir, c.pathOS)
 	if pkg != "" && !strings.HasPrefix(pkg, "/") {
 		// [Config.ModuleRoot] was the root of the filesystem,
 		// and it had a trailing slash which got removed as a prefix; add it back.
@@ -416,6 +388,16 @@ func importPathFromAbsDir(c *Config, absDir string, origPath string) (importPath
 	case c.Module == "":
 		return "", fmt.Errorf("cannot determine import path for %q (no module)", origPath)
 	default:
+		// Reject directories that are inside a nested module (a subdirectory
+		// containing its own cue.mod/module.cue). Such a directory belongs to
+		// a different module and is not part of c.Module.
+		root := pkgpath.Clean(c.ModuleRoot, c.pathOS)
+		for dir := absDir; dir != root; dir = pkgpath.Dir(dir, c.pathOS) {
+			modCue := pkgpath.Join([]string{dir, modDir, moduleFile}, c.pathOS)
+			if _, err := c.fileSystem.stat(modCue); err == nil {
+				return "", fmt.Errorf("cannot determine import path for %q (directory is in a nested module)", origPath)
+			}
+		}
 		impPath := ast.ParseImportPath(c.Module)
 		impPath.Path += pkg
 		impPath.Qualifier = ""
@@ -445,14 +427,21 @@ func (l *loader) newInstance(pos token.Pos, p importPath) *build.Instance {
 	if err1 != nil {
 		i.Err = errors.Append(i.Err, errors.Promote(err1, ""))
 	}
-	root, err1 := absPathForSourceLoc(modRoot)
+	root, err1 := l.absPathForSourceLoc(modRoot, l.cfg.pathOS, mv)
 	if err1 != nil {
 		i.Err = errors.Append(i.Err, errors.Promote(err1, ""))
 	} else {
 		i.Root = root
 	}
 	i.Module = mv.Path()
+	i.ModuleVersion = mv
 	i.ModuleFile = mf
+	setFSLoc(l.cfg, i)
+
+	if parts.Version == "" && !mv.IsLocal() {
+		parts.Version = semver.Major(mv.Version())
+	}
+	i.CanonicalID = parts.Canonical().String()
 
 	return i
 }
@@ -485,6 +474,11 @@ func (l *loader) absDirFromImportPath1(pos token.Pos, p importPath) (absDir stri
 		return failf("standard library import path %q cannot be imported as a CUE package", p)
 	}
 	if l.pkgs == nil {
+		// Validate import paths before reporting "no module" so that
+		// malformed paths get a clear error rather than a confusing one.
+		if err := module.CheckImportPath(string(p)); err != nil {
+			return failf("%s", err)
+		}
 		return failf("imports are unavailable because there is no cue.mod/module.cue file")
 	}
 	// Extract the package name.
@@ -510,7 +504,7 @@ func (l *loader) absDirFromImportPath1(pos token.Pos, p importPath) (absDir stri
 		// directories. Even though modpkgload tells us exactly what those directories
 		// are, the rest of the cue/load logic expects only a single directory for now,
 		// so just use that.
-		absDir = filepath.Join(GenPath(l.cfg.ModuleRoot), parts.Path)
+		absDir = pkgpath.Join([]string{genPath(l.cfg.ModuleRoot, l.cfg.pathOS), parts.Path}, l.cfg.pathOS)
 	} else {
 		locs := pkg.Locations()
 		if len(locs) > 1 {
@@ -520,7 +514,7 @@ func (l *loader) absDirFromImportPath1(pos token.Pos, p importPath) (absDir stri
 			return failf("no location found for package %q", unqualified)
 		}
 		var err error
-		absDir, err = absPathForSourceLoc(locs[0])
+		absDir, err = l.absPathForSourceLoc(locs[0], l.cfg.pathOS, mv)
 		if err != nil {
 			return failf("cannot determine source directory for package %q: %v", unqualified, err)
 		}
@@ -528,7 +522,21 @@ func (l *loader) absDirFromImportPath1(pos token.Pos, p importPath) (absDir stri
 	return absDir, pkg.Mod(), pkg.ModRoot(), nil
 }
 
-func absPathForSourceLoc(loc module.SourceLoc) (string, error) {
+func (l *loader) absPathForSourceLoc(loc module.SourceLoc, os pkgpath.OS, fromModule module.Version) (string, error) {
+	if l.cfg.FS != nil {
+		if l.cfg.modFile != nil && fromModule.Path() == l.cfg.modFile.QualifiedModule() {
+			// It's a path in the main module and files are coming from [Config.FS].
+			// Join with ModuleRoot to make the path absolute within the FS namespace.
+			// Note: FromFSPath is not applied here because this path is used for
+			// FS lookups, not for display purposes.
+			return pkgpath.Join([]string{l.cfg.ModuleRoot, loc.Dir}, os), nil
+		}
+		if repl, ok := l.cfg.replacements.Lookup(fromModule.Path()); ok && repl.Dir != "" {
+			// It's a directory replacement within [Config.FS].
+			// The replacement directory path is absolute within the FS namespace.
+			return pkgpath.Join([]string{repl.Dir, loc.Dir}, os), nil
+		}
+	}
 	osfs, ok := loc.FS.(module.OSRootFS)
 	if !ok {
 		return "", fmt.Errorf("cannot get absolute path for FS of type %T", loc.FS)
@@ -537,7 +545,45 @@ func absPathForSourceLoc(loc module.SourceLoc) (string, error) {
 	if osPath == "" {
 		return "", fmt.Errorf("cannot get absolute path for FS of type %T", loc.FS)
 	}
-	return filepath.Join(osPath, loc.Dir), nil
+	return pkgpath.Join([]string{osPath, loc.Dir}, os), nil
+}
+
+// setCanonicalImportPath sets a CanonicalImportPath function on the build instance.
+// This handles two kinds of canonicalization:
+//   - For external module packages, rewriting unversioned imports to include
+//     the correct major version based on the importing module's defaults.
+//   - For all packages, rewriting imports that reference a replacement module's
+//     namespace back to the original module's namespace.
+func (l *loader) setCanonicalImportPath(p *build.Instance) {
+	if l.pkgs == nil {
+		return
+	}
+	parts := ast.ParseImportPath(p.ImportPath)
+	mpkg := l.pkgs.Pkg(parts.Canonical().String())
+
+	var externalCanonical func(string) string
+	if mpkg != nil && mpkg.FromExternalModule() {
+		externalCanonical = mpkg.CanonicalImportPath
+	}
+	repls := l.cfg.replacements
+
+	if externalCanonical == nil && repls == nil {
+		return
+	}
+	p.CanonicalImportPath = func(importPath string) string {
+		if repls != nil {
+			importPath = repls.CanonicalImportPath(importPath)
+		}
+		if externalCanonical != nil {
+			importPath = externalCanonical(importPath)
+		}
+		return importPath
+	}
+}
+
+// genPath returns the directory for generated files within a module root.
+func genPath(root string, os pkgpath.OS) string {
+	return pkgpath.Join([]string{root, "cue.mod", "gen"}, os)
 }
 
 // isStdlibPackage reports whether pkgPath looks like

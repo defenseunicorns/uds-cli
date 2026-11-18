@@ -18,6 +18,8 @@ import (
 	"bytes"
 	"fmt"
 	"math/big"
+	"slices"
+	"strings"
 
 	"github.com/cockroachdb/apd/v3"
 
@@ -43,15 +45,6 @@ type StructLit struct {
 	Decls []Decl
 
 	// TODO: record the merge order somewhere.
-
-	// IsOpen is kept as it's used by ListMarker and some validations
-	IsOpen bool // has a ...
-
-	// initialized is kept as it's used in the Init method and unify.go
-	initialized bool
-
-	// isComprehension is kept as it's used in comprehension.go and conjunct.go
-	isComprehension bool
 }
 
 func (o *StructLit) IsFile() bool {
@@ -92,13 +85,6 @@ func (x *StructLit) evaluate(c *OpContext, state Flags) Value {
 
 	v.CompleteArcsOnly(c)
 	return v
-}
-
-func (o *StructLit) Init(ctx *OpContext) {
-	if o.initialized {
-		return
-	}
-	o.initialized = true
 }
 
 // FIELDS
@@ -599,10 +585,32 @@ func (c *OpContext) checkSkipTry(optional bool, arc *Vertex) *Vertex {
 	}
 
 	if optional && c.errs != nil && c.errs.IsIncomplete() {
-		c.skipTry = true
+		c.markSkipTry()
 	}
 
 	return nil
+}
+
+// markSkipTry records that a ?-marked reference failed to resolve because its
+// optional field is not present. The failure is attributed to the nearest
+// enclosing try clause body by walking up the parent chain from the vertex
+// currently being evaluated until it reaches a body whose [nodeContext.trySkip]
+// is set (see [TryClause.yield]).
+//
+// A single shared flag cannot distinguish which try a failed reference belongs
+// to when try bodies nest or their finalizations interleave: an inner body's
+// finalization may be in progress on the call stack while a sibling reference
+// belonging to an outer body fails (e.g. `foo? & { try {...} }`). The vertex
+// owning the failing reference, tracked by the scheduler in c.vertex, is not
+// affected by this interleaving, so resolving the owner by structural ancestry
+// rather than by stack order attributes the failure correctly (issue #4347).
+func (c *OpContext) markSkipTry() {
+	for v := c.vertex; v != nil; v = v.Parent {
+		if v.state != nil && v.state.trySkip != nil {
+			*v.state.trySkip = true
+			return
+		}
+	}
 }
 
 // A ValueReference represents a lexical reference to a value.
@@ -743,6 +751,9 @@ func (x *ImportReference) resolve(ctx *OpContext, state Flags) *Vertex {
 	var v *Vertex
 	if x.Instance != nil {
 		v = ctx.Runtime.LoadInstance(x.Instance)
+		// Resolve to a per-evaluation instance rather than the runtime's
+		// shared cached root, which would race when evaluated in place.
+		v = ctx.importInstance(v)
 	} else {
 		v = ctx.Runtime.LoadBuiltin(x.ImportPath.StringValue(ctx))
 	}
@@ -750,6 +761,49 @@ func (x *ImportReference) resolve(ctx *OpContext, state Flags) *Vertex {
 		ctx.addErrf(EvalError, x.Src.Pos(), "cannot find package %q",
 			x.ImportPath.StringValue(ctx))
 	}
+	return v
+}
+
+// importInstance returns a private, per-evaluation instance of an imported
+// package root. The runtime caches one shared, immutable compiled template per
+// package; evaluating it in place would race across goroutines, so each
+// evaluation gets its own instance sharing only the template's conjuncts.
+//
+// No environment rewriting is needed: a package root's conjuncts bind
+// references to the vertex being evaluated (see [nodeContext.scheduleStruct]),
+// not to a pointer stored in the template, so a fresh root reusing those
+// conjuncts resolves its internal references against itself.
+func (c *OpContext) importInstance(template *Vertex) *Vertex {
+	if template == nil {
+		return nil
+	}
+	if v, ok := c.importInstances[template]; ok {
+		return v
+	}
+	v := &Vertex{
+		Parent:             template.Parent,
+		importTemplate:     template,
+		Label:              template.Label,
+		ClosedRecursive:    template.ClosedRecursive,
+		ClosedNonRecursive: template.ClosedNonRecursive,
+		HasEllipsis:        template.HasEllipsis,
+		ArcType:            template.ArcType,
+		// Clip so appends during evaluation do not write into the shared
+		// template's backing array.
+		Conjuncts: slices.Clip(template.Conjuncts),
+	}
+	// A failed-to-compile instance is cached as a bottom vertex with no
+	// conjuncts; carry the error over.
+	if len(template.Conjuncts) == 0 {
+		if b, ok := template.BaseValue.(*Bottom); ok {
+			v.BaseValue = b
+			v.status = finalized
+		}
+	}
+	if c.importInstances == nil {
+		c.importInstances = map[*Vertex]*Vertex{}
+	}
+	c.importInstances[template] = v
 	return v
 }
 
@@ -829,7 +883,25 @@ func (x *LetReference) resolve(ctx *OpContext, state Flags) *Vertex {
 
 	// TODO(mem): add counter for let cache usage.
 	key := cacheKey{expr, arc}
-	v, ok := e.cache[key]
+	entry, ok := e.cache[key]
+	if ok {
+		// A cached cycle placeholder is provisional: it was computed before a
+		// dependency had settled. Recompute it in case the dependency now has a
+		// concrete value, but only while the let arc has not finalized: once it
+		// has, the value is settled and recomputing would loop on the same
+		// placeholder forever.
+		//
+		// Only the original computation may be discarded this way. A recompute
+		// that again results in a placeholder gained nothing, and evaluating
+		// the recomputed entry can itself re-run resolve for the same key (for
+		// example when a try body referencing the let is dry-run as part of
+		// the evaluation), so discarding recomputed entries as well spawns
+		// fresh computations without bound.
+		if isCyclePlaceholder(entry.v.BaseValue) && arc.status != finalized &&
+			!entry.fromRecompute {
+			ok = false
+		}
+	}
 	if !ok {
 		// Link in the right environment to ensure comprehension context is not
 		// lost. Use a Vertex to piggyback on cycle processing.
@@ -837,16 +909,25 @@ func (x *LetReference) resolve(ctx *OpContext, state Flags) *Vertex {
 		c.x = expr
 
 		if e.cache == nil {
-			e.cache = map[cacheKey]Value{}
+			e.cache = map[cacheKey]letCacheEntry{}
 		}
-		n := &Vertex{
+		// Allocate a vertex with space for one conjunct.
+		var alloc struct {
+			v Vertex
+			c [1]Conjunct
+		}
+		alloc.c[0] = c
+		alloc.v = Vertex{
 			Parent:    arc.Parent,
 			Label:     x.Label,
 			IsDynamic: b != nil && b.Code == StructuralCycleError,
-			Conjuncts: []Conjunct{c},
+			Conjuncts: alloc.c[:],
 		}
-		v = n
-		e.cache[key] = n
+		n := &alloc.v
+		// A non-nil entry.v means this computation replaces a discarded
+		// placeholder.
+		entry = letCacheEntry{v: n, fromRecompute: entry.v != nil}
+		e.cache[key] = entry
 		// TODO(mem): enable again once we implement memory management.
 		// nc := n.getState(ctx)
 		// TODO: unlike with the old evaluator, we do not allow the first
@@ -870,7 +951,7 @@ func (x *LetReference) resolve(ctx *OpContext, state Flags) *Vertex {
 		// location where this is triggered.
 		n.setParentDone()
 	}
-	return v.(*Vertex)
+	return entry.v
 }
 
 // A SelectorExpr looks up a fixed field in an expression.
@@ -1116,7 +1197,7 @@ func (x *Interpolation) Source() ast.Node {
 }
 
 func (x *Interpolation) evaluate(c *OpContext, state Flags) Value {
-	buf := bytes.Buffer{}
+	var sb strings.Builder
 	for _, e := range x.Parts {
 		v := c.value(e, Flags{
 			status:    partial,
@@ -1124,9 +1205,9 @@ func (x *Interpolation) evaluate(c *OpContext, state Flags) Value {
 			mode:      yield,
 		})
 		if x.K == BytesKind {
-			buf.Write(c.ToBytes(v))
+			sb.Write(c.ToBytes(v))
 		} else {
-			buf.WriteString(c.ToString(v))
+			sb.WriteString(c.ToString(v))
 		}
 	}
 	if err := c.Err(); err != nil {
@@ -1140,9 +1221,11 @@ func (x *Interpolation) evaluate(c *OpContext, state Flags) Value {
 		return err
 	}
 	if x.K == BytesKind {
-		return &Bytes{x.Src, buf.Bytes()}
+		// Interpolations in bytes literals are not very common;
+		// it's okay that we allocate twice in this case.
+		return &Bytes{x.Src, []byte(sb.String())}
 	}
-	return &String{x.Src, buf.String()}
+	return &String{x.Src, sb.String()}
 }
 
 // UnaryExpr is a unary expression.
@@ -1249,6 +1332,29 @@ func (x *BinaryExpr) evaluate(c *OpContext, state Flags) Value {
 		return v
 	}
 
+	// Short-circuit evaluation for && and ||: when the left operand alone
+	// determines the result, skip evaluating the right operand. This matches
+	// the spec ("The right operand is evaluated conditionally") and suppresses
+	// any error or incomplete value on the right when not needed.
+	if Pos(x).Experiment().ShortCircuit {
+		switch x.Op {
+		case BoolAndOp:
+			if c.concreteIsPossible(x.Op, x.X) {
+				left, _ := c.concrete(env, x.X, x.Op)
+				if b, ok := left.(*Bool); ok && !b.B {
+					return c.NewBool(false)
+				}
+			}
+		case BoolOrOp:
+			if c.concreteIsPossible(x.Op, x.X) {
+				left, _ := c.concrete(env, x.X, x.Op)
+				if b, ok := left.(*Bool); ok && b.B {
+					return c.NewBool(true)
+				}
+			}
+		}
+	}
+
 	if !c.concreteIsPossible(x.Op, x.X) || !c.concreteIsPossible(x.Op, x.Y) {
 		return nil
 	}
@@ -1340,6 +1446,29 @@ func (c *OpContext) validate(env *Environment, src ast.Node, x Expr, op Op, flag
 			return nil
 
 		case IncompleteError:
+			// The referenced node is actively being computed and still has
+			// value-producing tasks pending; yield until valueKnown is met.
+			// schedRUNNING (not schedREADY) avoids deadlocking on a task that
+			// nobody else will trigger — a genuine cycle. The same yield
+			// serves both ArcPending (load-bearing: the comp body will fire
+			// and materialize the arc) and ArcOptional (usually a no-op, but
+			// the arc may still be upgraded to a member by sibling decls
+			// before valueKnown).
+			if v.Node != nil {
+				ns := v.Node.state
+				if ns != nil && ns.state == schedRUNNING &&
+					!ns.meets(valueKnown) &&
+					ns.provided&valueKnown != 0 {
+					if t := c.current(); t != nil {
+						c.PopState(s)
+						sched := &ns.scheduler
+						t.waitFor(sched, valueKnown)
+						sched.yield()
+						panic("unreachable")
+					}
+				}
+			}
+
 			c.evalState(x, Flags{
 				status:    finalized,
 				condition: allKnown,
@@ -1446,11 +1575,6 @@ func (x *CallExpr) Source() ast.Node {
 }
 
 func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
-	call := CallContext{
-		ctx:  c,
-		call: x,
-	}
-
 	fun := c.value(x.Fun, Flags{
 		status:    partial,
 		condition: concreteKnown,
@@ -1458,13 +1582,7 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 	})
 	switch f := fun.(type) {
 	case *Builtin:
-		call.builtin = f
-		if f.RawFunc != nil {
-			if !call.builtin.checkArgs(c, Pos(x), len(x.Args)) {
-				return nil
-			}
-			return f.RawFunc(call)
-		}
+		return f.rawCall(c, x, state)
 
 	case *BuiltinValidator:
 		// We allow a validator that takes no arguments except the validated
@@ -1472,6 +1590,7 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 		switch {
 		case f.Src != nil:
 			c.AddErrf("cannot call previously called validator %s", x.Fun)
+			return nil
 
 		case f.Builtin.IsValidator(len(x.Args)):
 			v := *f
@@ -1479,9 +1598,8 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 			return &v
 
 		default:
-			call.builtin = f.Builtin
+			return f.Builtin.rawCall(c, x, state)
 		}
-
 	default:
 		if !IsConcrete(fun) && fun.Kind()&FuncKind != 0 {
 			c.addErrf(IncompleteError, Pos(x.Fun), "cannot call non-concrete value %s (type %s)", x.Fun, kind(fun))
@@ -1490,7 +1608,20 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 		}
 		return nil
 	}
+}
 
+func (builtin *Builtin) rawCall(c *OpContext, call *CallExpr, state Flags) Value {
+	callCtx := BuiltinCallContext{
+		ctx:     c,
+		call:    call,
+		builtin: builtin,
+	}
+	if builtin.RawFunc != nil {
+		if !builtin.checkArgs(c, Pos(call), len(call.Args)) {
+			return nil
+		}
+		return builtin.RawFunc(callCtx)
+	}
 	// Arguments to functions are open. This mostly matters for NonConcrete
 	// builtins.
 	saved := c.ci
@@ -1501,38 +1632,25 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 		c.ci.FromEmbed = saved.FromEmbed
 	}()
 
-	args := make([]Value, 0, len(x.Args))
-	for i, a := range x.Args {
+	args := make([]Value, 0, len(call.Args))
+	for i, a := range call.Args {
 		saved := c.errs
 		c.errs = nil
 		// XXX: XXX: clear id.closeContext per argument and remove from runTask?
 
-		runMode := state.mode
-		cond := state.condition
 		var expr Value
-		if call.builtin.NonConcrete {
-			state = Flags{
+		if builtin.NonConcrete {
+			expr = c.evalState(a, Flags{
 				status:    state.status,
-				condition: cond,
-				mode:      runMode,
-			}
-			expr = c.evalState(a, state)
+				condition: state.condition,
+				mode:      state.mode,
+			})
 		} else {
-			cond |= fieldSetKnown | concreteKnown
-			// Be sure to process disjunctions at the very least when
-			// finalizing. Requiring disjunctions earlier may lead to too eager
-			// evaluation.
-			//
-			// TODO: Ideally we would always add this flag regardless of mode.
-			if runMode == finalize {
-				cond |= disjunctionTask
-			}
-			state = Flags{
+			expr = c.value(a, Flags{
 				status:    state.status,
-				condition: cond,
-				mode:      runMode,
-			}
-			expr = c.value(a, state)
+				condition: state.condition | fieldSetKnown | concreteKnown | disjunctionTask,
+				mode:      state.mode,
+			})
 		}
 
 		switch v := expr.(type) {
@@ -1540,11 +1658,28 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 			if c.errs == nil {
 				// There SHOULD be an error in the context. If not, we generate
 				// one.
-				c.Assertf(Pos(x.Fun), c.HasErr(),
-					"argument %d to function %s is incomplete", i, x.Fun)
+				c.Assertf(Pos(call.Fun), c.HasErr(),
+					"argument %d to function %s is incomplete", i, call.Fun)
 			}
 
 		case *Bottom:
+			// HACK / workaround: if we pass a cycle placeholder as error,
+			// the function may yield _. This is incorrect, but works when the
+			// value is a scalar, as the postCheck mechanism will catch and
+			// reevaluate the cycle.
+			// This, however, does not work for composite values. The right fix
+			// would be to "freeze" the composite struct and simply see if the
+			// returned value subsumes the result. For now, we simply error
+			// in these cases.
+			if v.IsIncomplete() && isCyclePlaceholder(v) &&
+				(builtin.Result == StructKind || builtin.Result == ListKind) {
+				v = &Bottom{
+					Src:  v.Src,
+					Err:  v.Err,
+					Code: v.Code,
+					Node: v.Node,
+				}
+			}
 			// TODO(errors): consider adding an argument index for this errors.
 			c.errs = CombineErrors(a.Source(), c.errs, v)
 
@@ -1556,13 +1691,21 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 	if c.HasErr() {
 		return nil
 	}
-	if call.builtin.IsValidator(len(args)) {
-		return &BuiltinValidator{x, call.builtin, args}
+	if builtin.IsValidator(len(args)) {
+		return &BuiltinValidator{call, builtin, args}
 	}
-	call.args = args
-	result := call.builtin.call(call)
-	if result == nil {
+	callCtx.args = args
+	result := builtin.call(callCtx)
+	switch result := result.(type) {
+	case nil:
 		return nil
+	case *Bottom:
+		vErr := c.NewPosf(Pos(call), "error in call to %s", builtin.qualifiedName(c))
+		return &Bottom{
+			Code: result.Code,
+			Err:  errors.Wrap(vErr, result.Err),
+			Node: c.vertex,
+		}
 	}
 	v, ci := c.evalStateCI(result, Flags{status: partial, condition: state.condition, mode: state.mode})
 	c.ci = ci
@@ -1579,7 +1722,7 @@ type Builtin struct {
 	// arguments. By default, all arguments are checked to be concrete.
 	NonConcrete bool
 
-	Func func(call CallContext) Expr
+	Func func(call BuiltinCallContext) Expr
 
 	// RawFunc gives low-level control to CUE's internals for builtins.
 	// It should be used when fine control over the evaluation process is
@@ -1589,7 +1732,7 @@ type Builtin struct {
 	// the Context.
 	//
 	// TODO: consider merging Func and RawFunc into a single field again.
-	RawFunc func(call CallContext) Value
+	RawFunc func(call BuiltinCallContext) Value
 
 	// Added indicates as of which language version this builtin can be used.
 	Added string
@@ -1599,8 +1742,7 @@ type Builtin struct {
 }
 
 type Param struct {
-	Name  Feature // name of the argument; mostly for documentation
-	Value Value   // Could become Value later, using disjunctions for defaults.
+	Value Value
 }
 
 // Kind returns the kind mask of this parameter.
@@ -1673,7 +1815,7 @@ func (x *Builtin) checkArgs(c *OpContext, p token.Pos, numArgs int) bool {
 	return true
 }
 
-func (x *Builtin) call(call CallContext) Expr {
+func (x *Builtin) call(call BuiltinCallContext) Expr {
 	c := call.ctx
 	p := call.Pos()
 
@@ -1685,9 +1827,6 @@ func (x *Builtin) call(call CallContext) Expr {
 		call.args = append(call.args, x.Params[i].Default())
 	}
 	for i, a := range call.args {
-		if x.Params[i].Kind() == BottomKind {
-			continue
-		}
 		if b := bottom(a); b != nil {
 			return b
 		}
@@ -1765,18 +1904,16 @@ func (x *BuiltinValidator) validate(c *OpContext, v Value) *Bottom {
 	args[0] = v
 	copy(args[1:], x.Args)
 
-	call := CallContext{
+	return validateWithBuiltin(BuiltinCallContext{
 		ctx:         c,
 		call:        x.Src,
 		builtin:     x.Builtin,
 		args:        args,
 		isValidator: true,
-	}
-
-	return validateWithBuiltin(call)
+	})
 }
 
-func validateWithBuiltin(call CallContext) *Bottom {
+func validateWithBuiltin(call BuiltinCallContext) *Bottom {
 	var severeness ErrorCode
 	var err errors.Error
 
@@ -1921,51 +2058,16 @@ type Comprehension struct {
 	// not including the yielded value (in curly braces).
 	Clauses []Yielder
 
-	// Value can be either a StructLit if this is a compiled expression or
-	// a Field if this is a computed Comprehension. Value holds a Field,
-	// rather than an Expr, in the latter case to preserve as much position
-	// information as possible.
-	Value Node
+	// Value is the body struct yielded once per evaluation of the
+	// comprehension's clauses. With dependency-tracking pushdown, the
+	// compiler always lowers the body to a *StructLit (Fields and other
+	// declarations live inside it as decls), so this is no longer the
+	// polymorphic Node it once was.
+	Value *StructLit
 
 	// Fallback is the optional else clause that is yielded when the comprehension
 	// produces zero values.
 	Fallback *StructLit
-
-	// The type of field as which the comprehension is added.
-	arcType ArcType
-
-	// Kind indicates the possible kind of Value.
-	kind Kind
-
-	// Only used for partial comprehensions.
-	comp   *envComprehension
-	parent *Comprehension // comprehension from which this one was derived, if any
-	arc    *Vertex        // arc to which this comprehension was added.
-}
-
-// Nest returns the nesting level of void arcs of this comprehension.
-func (c *Comprehension) Nest() int {
-	count := 0
-	for ; c.parent != nil; c = c.parent {
-		count++
-	}
-	return count
-}
-
-// Envs returns all Environments yielded from an evaluated comprehension.
-// Together with the Comprehension value, each Environment represents a
-// result value of the comprehension.
-func (c *Comprehension) Envs() []*Environment {
-	if c.comp == nil {
-		return nil
-	}
-	return c.comp.envs
-}
-
-// DidResolve reports whether a comprehension was processed and resulted in at
-// least one yielded value.
-func (x *Comprehension) DidResolve() bool {
-	return x.comp.done && len(x.comp.envs) > 0
 }
 
 func (x *Comprehension) Source() ast.Node {
@@ -2165,6 +2267,7 @@ func (x *ForClause) yield(s *compState) {
 		*sub = Environment{
 			Up:     env,
 			Vertex: n,
+			CompID: s.compID,
 		}
 		if !s.yield(sub) {
 			break
@@ -2226,7 +2329,7 @@ func (x *LetClause) yield(s *compState) {
 		},
 	}}
 
-	s.yield(c.spawn(n))
+	s.yield(s.spawn(n))
 }
 
 // A TryClause represents a try clause in a comprehension.
@@ -2265,11 +2368,6 @@ func (x *TryClause) yield(s *compState) {
 	// Final (non-incomplete) errors are reported immediately as an optimization,
 	// since they would be encountered during re-evaluation anyway.
 
-	// Save state
-	savedSkipTry := c.skipTry
-	c.skipTry = false
-	defer func() { c.skipTry = savedSkipTry }()
-
 	// TODO(perf): we could capture "final" errors and bail out processing of
 	// the try expression early.
 
@@ -2278,15 +2376,20 @@ func (x *TryClause) yield(s *compState) {
 		expr = x.Expr
 	} else {
 		// Struct form: body is in Comprehension.Value
-		expr = s.comp.Value.(Expr)
+		expr = s.comp.Value
 	}
 
 	v := c.newInlineVertex(env.DerefVertex(c), nil, Conjunct{env, expr, c.ci})
+
+	// Mark this body so a failed ?-marked reference is attributed to this try
+	// rather than an enclosing or interleaving one. See markSkipTry.
+	var skip bool
+	v.getState(c).trySkip = &skip
 	v.Finalize(c)
 
-	// If any ?-marked reference failed, don't yield - else clause runs.
-	// Check for OptionalUndefined - set by ?-marked references that fail.
-	if c.skipTry {
+	// If any ?-marked reference belonging to this body failed, don't yield -
+	// the else clause (if present) runs instead.
+	if skip {
 		return
 	}
 
@@ -2298,7 +2401,7 @@ func (x *TryClause) yield(s *compState) {
 			anonymous: true,
 			Conjuncts: []Conjunct{{c.Env(0), x.Expr, c.ci}},
 		}}}
-		s.yield(c.spawn(n))
+		s.yield(s.spawn(n))
 	} else {
 		s.yield(env)
 	}

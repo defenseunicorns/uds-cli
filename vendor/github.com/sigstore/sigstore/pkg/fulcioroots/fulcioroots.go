@@ -14,6 +14,8 @@
 // limitations under the License.
 
 // Package fulcioroots fetches Fulcio root and intermediate certificates from TUF metadata
+//
+// Deprecated: Use https://pkg.go.dev/github.com/sigstore/sigstore-go@main/pkg/tuf
 package fulcioroots
 
 import (
@@ -25,7 +27,7 @@ import (
 	"sync"
 
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
-	"github.com/sigstore/sigstore/pkg/tuf"
+	"github.com/sigstore/sigstore/pkg/tuf" //nolint:staticcheck
 )
 
 var (

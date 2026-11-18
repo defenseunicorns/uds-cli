@@ -16,6 +16,7 @@ package literal
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -23,7 +24,6 @@ import (
 
 var (
 	errSyntax                = errors.New("invalid syntax")
-	errInvalidWhitespace     = errors.New("invalid string: invalid whitespace")
 	errMissingOpeningNewline = errors.New(
 		"invalid string: opening quote of multiline string must be followed by newline")
 	errMissingClosingNewline = errors.New(
@@ -32,8 +32,14 @@ var (
 	// TODO: making this an error is optional according to RFC 4627. But we
 	// could make it not an error if this ever results in an issue.
 	errSurrogate          = errors.New("unmatched surrogate pair")
+	errInvalidUTF8        = errors.New("invalid UTF-8 encoding")
 	errEscapedLastNewline = errors.New("last newline of multiline string cannot be escaped")
 )
+
+func invalidWhitespaceError(expected, actual string) error {
+	return fmt.Errorf("invalid string: non-matching whitespace for multiline string (expected %q, got %q)",
+		expected, actual)
+}
 
 // Unquote interprets s as a single- or double-quoted, single- or multi-line
 // string, possibly with custom escape delimiters, returning the string value
@@ -83,6 +89,9 @@ func ParseQuotes(start, end string) (q QuoteInfo, nStart, nEnd int, err error) {
 		q.numHash = i + 1
 	}
 	s := start[q.numHash:]
+	if len(s) == 0 {
+		return QuoteInfo{}, 0, 0, errSyntax
+	}
 	switch s[0] {
 	case '"', '\'':
 		q.char = s[0]
@@ -134,7 +143,10 @@ func ParseQuotes(start, end string) (q QuoteInfo, nStart, nEnd int, err error) {
 
 		if len(start) > nStart && start[nStart] != '\n' {
 			if !strings.HasPrefix(start[nStart:], q.whitespace) {
-				return q, 0, 0, errInvalidWhitespace
+				actual := start[nStart:]
+				// Trim to only the whitespace prefix of the first line.
+				actual = actual[:len(actual)-len(strings.TrimLeft(actual, " \t"))]
+				return q, 0, 0, invalidWhitespaceError(q.whitespace, actual)
 			}
 			nStart += len(q.whitespace)
 		}
@@ -149,7 +161,7 @@ func ParseQuotes(start, end string) (q QuoteInfo, nStart, nEnd int, err error) {
 // are replaced with the corresponding non-surrogate code points.
 func (q QuoteInfo) Unquote(s string) (string, error) {
 	if len(s) > 0 && !q.multiline {
-		if strings.ContainsAny(s, "\n\r") {
+		if strings.ContainsRune(s, '\n') {
 			return "", errSyntax
 		}
 
@@ -162,6 +174,10 @@ func (q QuoteInfo) Unquote(s string) (string, error) {
 	}
 
 	buf := make([]byte, 0, 3*len(s)/2) // Try to avoid more allocations.
+	// Reject a closing delimiter at line start followed by more content.
+	if q.multiline && hasClosingDelimPrefix(s, q) && len(s) > int(q.numChar)+q.numHash {
+		return "", errSyntax
+	}
 	stripNL := false
 	wasEscapedNewline := false
 	for len(s) > 0 {
@@ -175,6 +191,10 @@ func (q QuoteInfo) Unquote(s string) (string, error) {
 			s, err = skipWhitespaceAfterNewline(s[1:], q)
 			if err != nil {
 				return "", err
+			}
+			// Reject a closing delimiter at line start followed by more content.
+			if q.multiline && hasClosingDelimPrefix(s, q) && len(s) > int(q.numChar)+q.numHash {
+				return "", errSyntax
 			}
 			stripNL = true
 			wasEscapedNewline = false
@@ -236,6 +256,25 @@ func (q QuoteInfo) Unquote(s string) (string, error) {
 	return "", errUnmatchedQuote
 }
 
+// hasClosingDelimPrefix reports whether s begins with the closing delimiter
+// for the given quote info (e.g. “”” or “””## for a ##”””-quoted string).
+func hasClosingDelimPrefix(s string, q QuoteInfo) bool {
+	if len(s) < int(q.numChar)+q.numHash {
+		return false
+	}
+	for i := range int(q.numChar) {
+		if s[i] != q.char {
+			return false
+		}
+	}
+	for i := range q.numHash {
+		if s[int(q.numChar)+i] != '#' {
+			return false
+		}
+	}
+	return true
+}
+
 func skipWhitespaceAfterNewline(s string, q QuoteInfo) (string, error) {
 	switch {
 	case !q.multiline:
@@ -243,7 +282,10 @@ func skipWhitespaceAfterNewline(s string, q QuoteInfo) (string, error) {
 		// in the non-multiline case, but be defensive.
 		fallthrough
 	default:
-		return "", errInvalidWhitespace
+		actual, _, _ := strings.Cut(s, "\n")
+		// Trim to only the whitespace prefix.
+		actual = actual[:len(actual)-len(strings.TrimLeft(actual, " \t"))]
+		return "", invalidWhitespaceError(q.whitespace, actual)
 	case strings.HasPrefix(s, q.whitespace):
 		s = s[len(q.whitespace):]
 	case strings.HasPrefix(s, "\n"):
@@ -263,7 +305,7 @@ func isSimple(s string, quote rune) bool {
 	// faster than converting to code points. At the very least there should
 	// be an ASCII fast path.
 	for _, r := range s {
-		if r == quote || r == '\\' {
+		if r == quote || r == '\\' || r == 0 || r == utf8.RuneError {
 			return false
 		}
 		if surHigh <= r && r < surEnd {
@@ -313,17 +355,25 @@ func unquoteChar(s string, info QuoteInfo) (value rune, multibyte bool, tail str
 			}
 		}
 		if ln := int(info.numChar) + info.numHash; len(s) != ln {
-			// TODO: terminating quote in middle of string
+			// For multiline strings, three quotes in the middle of a line
+			// are literal quote characters, not a closing delimiter.
+			// The closing delimiter must be on its own line per the spec.
+			if info.numChar == 3 {
+				return rune(info.char), false, s[1:], nil
+			}
 			return 0, false, s[ln:], errSyntax
 		}
 		return terminatedByQuote, false, "", nil
 	case c >= utf8.RuneSelf:
-		// TODO: consider handling surrogate values. These are discarded by
-		// DecodeRuneInString. It is technically correct to disallow it, but
-		// some JSON parsers allow this anyway.
 		r, size := utf8.DecodeRuneInString(s)
+		if r == utf8.RuneError && size == 1 {
+			return 0, false, s, errInvalidUTF8
+		}
 		return r, true, s[size:], nil
 	case c != '\\':
+		if c == 0 {
+			return 0, false, s, errSyntax
+		}
 		return rune(s[0]), false, s[1:], nil
 	}
 

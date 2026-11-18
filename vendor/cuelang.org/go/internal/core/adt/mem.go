@@ -121,6 +121,11 @@ func (c *OpContext) reclaimTempBuffers(v *Vertex) {
 		if n == nil || n.refCount > 0 {
 			continue
 		}
+		if n.isDisjunct {
+			// As with the root above, defer to freeDisjunct: mergeCloseInfo
+			// may still need the closedness information.
+			continue
+		}
 
 		if w := arc.DerefDisjunct(); arc != w {
 			// Reclaim the fields that were already added before starting the
@@ -141,6 +146,14 @@ func (c *OpContext) reclaimTempBuffers(v *Vertex) {
 func (r reclaimer) reclaim(v *Vertex) bool {
 	n := v.state
 	if n != nil {
+		// Skip in-flight nodes (refCount > 0): freeing one mid-unify
+		// would null n.node under a live stack frame. Applies on both
+		// r.guard paths because n.toFree subtrees can carry in-progress
+		// descendants on cyclic inline vertices.
+		if n.refCount > 0 {
+			goto skipRoot
+		}
+
 		for _, v := range n.toFree {
 			r.ctx.reclaimRecursive(v)
 		}
@@ -153,17 +166,16 @@ func (r reclaimer) reclaim(v *Vertex) bool {
 			// of a disjunct it is reclaimed later as part of [freeDisjunct].
 			return false
 		} else {
-			if n.refCount > 0 {
-				goto skipRoot
-			}
-
 			r.reclaimBaseValueBuffers(v)
 
 			if v.Parent != nil && !v.Label.IsLet() {
 				goto skipRoot
 			}
 		}
-		if n.node != nil && n.ctx == r.ctx {
+		// Never free a nodeContext that is still actively being processed,
+		// even when forced. The processListLit closure (and others) capture
+		// the nodeContext via Go closure and would crash on a nil n.node.
+		if n.node != nil && n.ctx == r.ctx && n.refCount == 0 {
 			// TODO(mem): it should be fine to just release the nodeContext into
 			// c unconditionally. But the result is that it can result in
 			// negative values for 'Leaks'. This is because loading imports

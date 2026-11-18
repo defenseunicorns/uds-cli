@@ -341,12 +341,16 @@ type nodeContextState struct {
 	// node after a corresponding task has been completed.
 	toComplete bool
 
-	// embedsRecursivelyClosed is used to implement __reclose. It must be set
-	// when a vertex that is recursively closed is embedded through a spread
-	// operator. It is okay to set it if it is just unified with a vertex that
-	// is recursively closed, but not added through a spread operator. The
-	// result will just be an unnecessary call to __reclose.
-	embedsRecursivelyClosed bool
+	// trySkip, when non-nil, marks this node as a try clause body currently
+	// being finalized; a failed ?-marked reference sets *trySkip via
+	// [OpContext.markSkipTry]. See [TryClause.yield].
+	trySkip *bool
+
+	// embedClosedness tracks the strongest closedness level among vertices
+	// embedded through a spread operator. It is used to determine whether
+	// __reclose or __closeAll wrapping is needed. Higher values take
+	// precedence; use setEmbedClosedness to update.
+	embedClosedness embedClosedness
 
 	// isCompleting > 0 indicates whether a call to completeNodeTasks is in
 	// progress.
@@ -374,9 +378,8 @@ type nodeContextState struct {
 	hasNonCyclic         bool // has non-cyclic conjuncts at start of field processing
 
 	// These simulate the old closeContext logic. TODO: perhaps remove.
-	hasStruct        bool // this node has a struct conjunct
-	hasOpenValidator bool // this node has an open validator
-	isDef            bool // this node is a definition
+	hasStruct bool // this node has a struct conjunct
+	isDef     bool // this node is a definition
 
 	dropParentRequirements bool // used for typo checking
 	computedCloseInfo      bool // used for typo checking
@@ -571,10 +574,21 @@ func (c *OpContext) freeNodeContext(n *nodeContext) {
 func (n *nodeContext) reportConflict(v1, v2 Node, k1, k2 Kind, ids ...posInfo) {
 	ctx := n.ctx
 
-	// Collect all positions from the nodes, including their leaf conjuncts
-	var auxpos []token.Pos
-	auxpos = appendNodePositions(auxpos, v1)
-	auxpos = appendNodePositions(auxpos, v2)
+	// Create a ConflictError that defers formatting until needed.
+	err := &ConflictError{
+		baseError: baseError{
+			r:       ctx.Runtime,
+			format:  ctx.Format,
+			v:       ctx.errNode(),
+			pos:     token.NoPos,
+			altPath: ctx.makeAltPath(),
+		},
+	}
+	err.auxpos = err.auxposBootstrap[:0]
+
+	// Collect all positions from the nodes, including their leaf conjuncts.
+	err.auxpos = appendNodePositions(err.auxpos, v1)
+	err.auxpos = appendNodePositions(err.auxpos, v2)
 
 	// Make shallow copies of Vertex nodes to avoid endless recursion when
 	// the error is set as the BaseValue. This matches the behavior in [OpContext.NewPosf].
@@ -586,22 +600,10 @@ func (n *nodeContext) reportConflict(v1, v2 Node, k1, k2 Kind, ids ...posInfo) {
 		vcopy := *v
 		v2 = &vcopy
 	}
-
-	// Create a ConflictError that defers formatting until needed
-	err := &ConflictError{
-		baseError: baseError{
-			r:       ctx.Runtime,
-			v:       ctx.errNode(),
-			pos:     token.NoPos,
-			auxpos:  auxpos,
-			altPath: ctx.makeAltPath(),
-		},
-		format: ctx.Format,
-		v1:     v1,
-		v2:     v2,
-		k1:     k1,
-		k2:     k2,
-	}
+	err.v1 = v1
+	err.v2 = v2
+	err.k1 = k1
+	err.k2 = k2
 
 	for _, id := range ids {
 		err.AddClosedPositions(ctx, id)

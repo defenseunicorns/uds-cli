@@ -2,6 +2,7 @@ package acr
 
 import (
 	"fmt"
+	"github.com/aliyun/credentials-go/credentials"
 	"github.com/sirupsen/logrus"
 	"time"
 
@@ -9,22 +10,25 @@ import (
 	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
-	"github.com/mozillazg/docker-credential-acr-helper/pkg/version"
 )
 
 type personClient struct {
 	client *cr2016.Client
 }
 
-func newPersonClient(region string, logger *logrus.Logger) (*personClient, error) {
-	cred, err := getOpenapiAuth(logger)
-	if err != nil {
-		return nil, err
+func newPersonClient(region string, ramCred credentials.Credential, logger *logrus.Logger) (*personClient, error) {
+	var err error
+	if ramCred == nil {
+		ramCred, err = getOpenapiAuth(logger)
+		if err != nil {
+			return nil, fmt.Errorf("get openapi auth err: %w", err)
+		}
 	}
+
 	c := &openapi.Config{
 		RegionId:   tea.String(region),
-		Credential: cred,
-		UserAgent:  tea.String(version.UserAgent()),
+		Credential: ramCred,
+		UserAgent:  tea.String(UserAgent),
 	}
 	client, err := cr2016.NewClient(c)
 	if err != nil {
@@ -33,10 +37,10 @@ func newPersonClient(region string, logger *logrus.Logger) (*personClient, error
 	return &personClient{client: client}, nil
 }
 
-func (c *personClient) getCredentials() (*Credentials, error) {
+func (c *personClient) getCredentials(registry Registry) (*Credentials, error) {
 	resp, err := c.GetAuthorizationToken()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get credentials failed: %w", err)
 	}
 	if resp.Body == nil || resp.Body.Data == nil {
 		return nil, fmt.Errorf("get credentials failed: %s", resp.String())
@@ -48,8 +52,13 @@ func (c *personClient) getCredentials() (*Credentials, error) {
 		UserName:   tea.StringValue(resp.Body.Data.TempUsername),
 		Password:   tea.StringValue(resp.Body.Data.AuthorizationToken),
 		ExpireTime: expTime,
+		Domain:     registry.Domain,
 	}
 	return cred, nil
+}
+
+func (c *personClient) getInstanceId(registry Registry) (string, error) {
+	return "", nil
 }
 
 func (c *personClient) GetAuthorizationToken() (_result *getPersonAuthorizationTokenResponse, _err error) {

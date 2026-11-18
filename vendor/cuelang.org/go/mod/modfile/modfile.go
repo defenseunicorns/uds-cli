@@ -93,7 +93,10 @@ func Format(f *File) ([]byte, error) {
 	// Sanity check that it can be parsed.
 	// TODO this could be more efficient by checking all the file fields
 	// before formatting the output.
-	_, actualSchemaVersion, err := parse(data, "-", false)
+	rt, actualSchemaVersion, err := parse(data, "-", "")
+	if err == nil {
+		err = rt.InitNonStrict()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse result: %v", strings.TrimSuffix(errors.Details(err, nil), "\n"))
 	}
@@ -108,15 +111,75 @@ func Format(f *File) ([]byte, error) {
 	return data, err
 }
 
+// FormatLocal formats f as a cue.mod/local-module.cue file: a deps-only
+// document that omits the module path and language version, which a
+// local-module.cue file inherits from the accompanying module.cue file.
+//
+// base is the accompanying cue.mod/module.cue file (the published view). Its
+// language version is used to validate the formatted result via [ParseLocal].
+// A dependency's version is omitted from the output whenever it is identical to
+// that module's version in base, and its default field is omitted whenever base
+// already marks the same module as the default; [ParseLocal] restores both from
+// base when reading the file back.
+func FormatLocal(f, base *File) ([]byte, error) {
+	// A deps-only representation whose version and default fields are omitted
+	// when empty, so that information redundant with module.cue need not be
+	// written.
+	type localDep struct {
+		Version     string `json:"v,omitempty"`
+		Default     bool   `json:"default,omitempty"`
+		ReplaceWith string `json:"replaceWith,omitempty"`
+	}
+	deps := make(map[string]localDep, len(f.Deps))
+	for mpath, dep := range f.Deps {
+		version := dep.Version
+		def := dep.Default
+		if bdep, ok := base.Deps[mpath]; ok {
+			if bdep.Version == version {
+				version = ""
+			}
+			if bdep.Default {
+				def = false
+			}
+		}
+		deps[mpath] = localDep{
+			Version:     version,
+			Default:     def,
+			ReplaceWith: dep.ReplaceWith,
+		}
+	}
+	// Encode only the deps so that the module path and language version
+	// are not written; those belong exclusively to module.cue.
+	depsOnly := struct {
+		Deps map[string]localDep `json:"deps,omitempty"`
+	}{
+		Deps: deps,
+	}
+	v := cuecontext.New().Encode(depsOnly)
+	if err := v.Validate(cue.Concrete(true)); err != nil {
+		return nil, err
+	}
+	n := v.Syntax(cue.Concrete(true)).(*ast.StructLit)
+	data, err := format.Node(&ast.File{
+		Decls: n.Elts,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot format: %v", err)
+	}
+	// Sanity check that the result parses against base's identity.
+	if _, err := ParseLocal(data, "-", base); err != nil {
+		return nil, fmt.Errorf("cannot parse result: %v", strings.TrimSuffix(errors.Details(err, nil), "\n"))
+	}
+	return data, nil
+}
+
 type noDepsFile struct {
 	Module string `json:"module"`
 }
 
 var (
-	moduleSchemaOnce sync.Once // guards the creation of _moduleSchema
-	// TODO remove this mutex when https://cuelang.org/issue/2733 is fixed.
-	moduleSchemaMutex sync.Mutex // guards any use of _moduleSchema
-	_schemas          schemaInfo
+	moduleSchemaOnce sync.Once // guards the creation of _modules
+	_schemas         schemaInfo
 )
 
 type schemaInfo struct {
@@ -127,29 +190,18 @@ type schemaInfo struct {
 // moduleSchemaDo runs f with information about all the schema versions
 // present in schema.cue. It does this within a mutex because it is
 // not currently allowed to use cue.Value concurrently.
-// TODO remove the mutex when https://cuelang.org/issue/2733 is fixed.
 func moduleSchemaDo[T any](f func(*schemaInfo) (T, error)) (T, error) {
 	moduleSchemaOnce.Do(func() {
 		// It is important that this cue.Context not be used for building any other cue.Value,
 		// such as in [Parse] or [ParseLegacy].
 		// A value holds memory as long as the context it was built with is kept alive for,
 		// and this context is alive forever via the _schemas global.
-		//
-		// TODO(mvdan): this violates the documented API rules in the cue package:
-		//
-		//    Only values created from the same Context can be involved in the same operation.
-		//
-		// However, this appears to work in practice, and all alternatives right now would be
-		// either too costly or awkward. We want to lift that API restriction, and this works OK,
-		// so leave it as-is for the time being.
 		ctx := cuecontext.New()
 		schemav := ctx.CompileString(moduleSchemaData, cue.Filename(schemaFile))
 		if err := schemav.Decode(&_schemas); err != nil {
 			panic(fmt.Errorf("internal error: invalid CUE module.cue schema: %v", errors.Details(err, nil)))
 		}
 	})
-	moduleSchemaMutex.Lock()
-	defer moduleSchemaMutex.Unlock()
 	return f(&_schemas)
 }
 
@@ -184,8 +236,14 @@ var earliestClosedSchemaVersion = sync.OnceValue(func() string {
 // All dependencies must be specified correctly: with major
 // versions in the module paths and canonical dependency versions.
 func Parse(modfile []byte, filename string) (*File, error) {
-	f, _, err := parse(modfile, filename, true)
-	return f, err
+	f, _, err := parse(modfile, filename, "")
+	if err != nil {
+		return nil, err
+	}
+	if err := f.Init(); err != nil {
+		return nil, fmt.Errorf("invalid module file %s: %v", filename, err)
+	}
+	return f, nil
 }
 
 // ParseLegacy parses the legacy version of the module file
@@ -217,8 +275,77 @@ func ParseLegacy(modfile []byte, filename string) (*File, error) {
 //
 // The file name is used for error messages.
 func ParseNonStrict(modfile []byte, filename string) (*File, error) {
-	file, _, err := parse(modfile, filename, false)
-	return file, err
+	f, _, err := parse(modfile, filename, "")
+	if err != nil {
+		return nil, err
+	}
+	if err := f.InitNonStrict(); err != nil {
+		return nil, fmt.Errorf("invalid module file %s: %v", filename, err)
+	}
+	return f, nil
+}
+
+// ParseLocal parses a cue.mod/local-module.cue file, which holds the
+// main-module view of dependencies, including any module replaces.
+//
+// A local-module.cue file does not declare a module path or language
+// version of its own; these are inherited from base, the already-parsed
+// cue.mod/module.cue file. (The parameter is named base rather than main
+// because "main module" denotes the mode that local-module.cue applies
+// to.)
+//
+// ParseLocal returns the effective main-module file: its identity (module,
+// language, source and custom data) is taken from base, while its
+// dependencies are taken from the local file. If the local file declares a
+// module path that differs from base's, an error is returned.
+//
+// The file name is used for error messages.
+func ParseLocal(data []byte, filename string, base *File) (*File, error) {
+	var langVersion string
+	if base.Language != nil {
+		langVersion = base.Language.Version
+	}
+	local, _, err := parse(data, filename, langVersion)
+	if err != nil {
+		return nil, err
+	}
+	if local.QualifiedModule() != "" && local.QualifiedModule() != base.QualifiedModule() {
+		return nil, fmt.Errorf("module path %q in %s does not match module path %q in module.cue", local.QualifiedModule(), filename, base.QualifiedModule())
+	}
+	// A dependency in local-module.cue may omit its version when the same
+	// module is also present in module.cue; in that case the version is
+	// taken from module.cue. A dependency that omits its version and is not
+	// in module.cue is only allowed as a replace-only placeholder.
+	//
+	// Similarly, the default field is taken from module.cue when the same
+	// module is marked as the default there; local-module.cue omits it for
+	// any dependency it shares with module.cue.
+	for mpath, dep := range local.Deps {
+		if bdep, ok := base.Deps[mpath]; ok && bdep.Default {
+			dep.Default = true
+		}
+		if dep.Version != "" {
+			continue
+		}
+		if bdep, ok := base.Deps[mpath]; ok && bdep.Version != "" {
+			dep.Version = bdep.Version
+			continue
+		}
+		if dep.ReplaceWith == "" {
+			return nil, fmt.Errorf("dependency %q in %s has no version and is not present in module.cue", mpath, filename)
+		}
+	}
+	eff := &File{
+		Module:   base.Module,
+		Language: base.Language,
+		Source:   base.Source,
+		Custom:   base.Custom,
+		Deps:     local.Deps,
+	}
+	if err := eff.InitNonStrict(); err != nil {
+		return nil, fmt.Errorf("invalid module file %s: %v", filename, err)
+	}
+	return eff, nil
 }
 
 // FixLegacy converts a legacy module.cue file as parsed by [ParseLegacy]
@@ -295,7 +422,13 @@ func FixLegacy(modfile []byte, filename string) (*File, error) {
 	return f, nil
 }
 
-func parse(modfile []byte, filename string, strict bool) (file *File, actualSchemaVersion string, err error) {
+// parse parses and schema-validates a module file but does not call
+// [File.Init] or [File.InitNonStrict] on the result; that is left to the
+// caller. If the file does not declare a language.version field and
+// defaultLangVersion is non-empty, that version is used instead; this
+// supports parsing a local-module.cue file, which inherits its language
+// version from the accompanying module.cue file.
+func parse(modfile []byte, filename string, defaultLangVersion string) (file *File, actualSchemaVersion string, err error) {
 	// Unfortunately we need a new context. See the note inside [moduleSchemaDo].
 	ctx := cuecontext.New()
 	astFile, err := parseDataOnlyCUE(ctx, modfile, filename)
@@ -313,7 +446,17 @@ func parse(modfile []byte, filename string, strict bool) (file *File, actualSche
 		return nil, "", errors.Wrapf(err, token.NoPos, "cannot determine language version")
 	}
 	if base.Language.Version == "" {
-		return nil, "", ErrNoLanguageVersion
+		if defaultLangVersion == "" {
+			return nil, "", ErrNoLanguageVersion
+		}
+		// Inherit the language version from the accompanying module.cue
+		// file so that schema selection and #File validation (which both
+		// require language.version) succeed.
+		base.Language.Version = defaultLangVersion
+		v = v.Unify(ctx.CompileString(fmt.Sprintf("language: version: %q", defaultLangVersion)))
+		if err := v.Validate(cue.Concrete(true)); err != nil {
+			return nil, "", errors.Wrapf(err, token.NoPos, "invalid module file value")
+		}
 	}
 	if !semver.IsValid(base.Language.Version) {
 		return nil, "", fmt.Errorf("language version %q in module.cue is not valid semantic version", base.Language.Version)
@@ -378,14 +521,11 @@ func parse(modfile []byte, filename string, strict bool) (file *File, actualSche
 	if err != nil {
 		return nil, "", err
 	}
-	if strict {
-		err = r.file.Init()
-	} else {
-		err = r.file.InitNonStrict()
-	}
-	if err != nil {
-		return nil, "", fmt.Errorf("invalid module file %s: %v", filename, err)
-	}
+	// Note: the caller is responsible for calling [File.Init] or
+	// [File.InitNonStrict] on the returned file. This allows
+	// [ParseLocal] to defer initialization until it has merged in the
+	// identity (including the module path) of the accompanying module.cue
+	// file, which a local-module.cue file does not declare itself.
 	return r.file, r.actualSchemaVersion, nil
 }
 

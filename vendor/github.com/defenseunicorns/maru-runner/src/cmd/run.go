@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present the Maru Authors
 
-// Package cmd contains the CLI commands for maru.
 package cmd
 
 import (
@@ -158,7 +157,7 @@ func ListAutoCompleteTasks(_ *cobra.Command, _ []string, _ string) ([]string, co
 		return []string{}, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	var taskNames []string
+	taskNames := make([]string, 0, len(tasksFile.Tasks))
 	for _, task := range tasksFile.Tasks {
 		taskNames = append(taskNames, task.Name)
 	}

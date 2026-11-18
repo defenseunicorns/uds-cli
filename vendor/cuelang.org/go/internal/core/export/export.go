@@ -310,6 +310,13 @@ func Value(r adt.Runtime, pkgID string, n adt.Value) (ast.Expr, errors.Error) {
 func (p *Profile) Value(r adt.Runtime, pkgID string, n adt.Value) (ast.Expr, errors.Error) {
 	e := newExporter(p, r, pkgID, n)
 	v := e.value(n)
+	// finalize runs astutil.Sanitize, which edits v in place via the shared
+	// StructLit Elts.
+	if vx, ok := n.(*adt.Vertex); ok {
+		if _, err := e.finalize(vx, v); err != nil {
+			return v, errors.Append(e.errs, err)
+		}
+	}
 	return v, e.errs
 }
 
@@ -821,10 +828,13 @@ func (e *exporter) node() *adt.Vertex {
 	return n
 }
 
-func (e *exporter) frame(upCount int32) *frame {
+// frame returns the frame at the given upCount. If needField is true,
+// it skips frames that don't have field set, to resolve LabelReferences
+// past intermediate frames created by nested field processing.
+func (e *exporter) frame(upCount int32, needField bool) *frame {
 	for i := len(e.stack) - 1; i >= 0; i-- {
 		f := &(e.stack[i])
-		if upCount <= (f.upCount - 1) {
+		if upCount <= (f.upCount-1) && (!needField || f.field != nil) {
 			return f
 		}
 		upCount -= f.upCount

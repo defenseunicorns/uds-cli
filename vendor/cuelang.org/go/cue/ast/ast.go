@@ -230,16 +230,6 @@ func (g *CommentGroup) Comments() []*CommentGroup { return nil }
 func (g *CommentGroup) AddComment(*CommentGroup)  {}
 func (g *CommentGroup) commentInfo() *comments    { return nil }
 
-func isWhitespace(ch byte) bool { return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' }
-
-func stripTrailingWhitespace(s string) string {
-	i := len(s)
-	for i > 0 && isWhitespace(s[i-1]) {
-		i--
-	}
-	return s[0:i]
-}
-
 // Text returns the text of the comment.
 // Comment markers ("//"), the first space of a line comment, and
 // leading and trailing empty lines are removed. Multiple empty lines are
@@ -269,7 +259,7 @@ func (g *CommentGroup) Text() string {
 
 		// Walk lines, stripping trailing white space and adding to list.
 		for l := range cl {
-			lines = append(lines, stripTrailingWhitespace(l))
+			lines = append(lines, strings.TrimRight(l, " \t\n\r"))
 		}
 	}
 
@@ -303,13 +293,18 @@ func (a *Attribute) Pos() token.Pos  { return a.At }
 func (a *Attribute) pos() *token.Pos { return &a.At }
 func (a *Attribute) End() token.Pos  { return a.At.Add(len(a.Text)) }
 
-func (a *Attribute) Split() (key, body string) {
+func (a *Attribute) Name() string {
+	name, _ := a.Split()
+	return name
+}
+
+func (a *Attribute) Split() (name, body string) {
 	s := a.Text
-	p := strings.IndexByte(s, '(')
-	if p < 0 || !strings.HasPrefix(s, "@") || !strings.HasSuffix(s, ")") {
+	name, body, ok := strings.Cut(s, "(")
+	if !ok || !strings.HasPrefix(s, "@") || !strings.HasSuffix(s, ")") {
 		return "", ""
 	}
-	return a.Text[1:p], a.Text[p+1 : len(s)-1]
+	return name[1:], body[:len(body)-1]
 }
 
 // A Field represents a field declaration in a struct.
@@ -555,6 +550,23 @@ type Interpolation struct {
 	comments
 	expr
 	label
+}
+
+// Quotes returns the opening and closing string fragments of x.
+// A well-formed Interpolation has an odd number of elements whose first
+// and last are [*BasicLit]s; when there is only one element, it is
+// returned as both first and last. Quotes panics if x is empty or if
+// either boundary element is not a [*BasicLit].
+func (x *Interpolation) Quotes() (first, last *BasicLit) {
+	if len(x.Elts) == 0 {
+		panic("ast.Interpolation has no elements")
+	}
+	first, ok1 := x.Elts[0].(*BasicLit)
+	last, ok2 := x.Elts[len(x.Elts)-1].(*BasicLit)
+	if !ok1 || !ok2 {
+		panic("ast.Interpolation boundary element is not a *BasicLit")
+	}
+	return first, last
 }
 
 // A Func node represents a function type.
@@ -1088,10 +1100,6 @@ type File struct {
 	Filename string
 	Decls    []Decl // top-level declarations; or nil
 
-	// Deprecated: use [File.ImportSpecs].
-	// TODO(mvdan): remove in mid 2026.
-	Imports []*ImportSpec // imports in this file
-
 	Unresolved []*Ident // unresolved identifiers in this file
 
 	// TODO remove this field: it's here as a temporary
@@ -1104,7 +1112,8 @@ type File struct {
 	comments
 }
 
-// Preamble returns the declarations of the preamble.
+// Preamble returns the declarations of the preamble at the top of the file,
+// including any package clause or import declaration found in it.
 func (f *File) Preamble() []Decl {
 	p := 0
 outer:

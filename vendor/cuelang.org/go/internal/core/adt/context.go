@@ -50,12 +50,12 @@ type Runtime interface {
 	// instance. It returns nil if no such instance has been compiled.
 	LoadInstance(inst *build.Instance) *Vertex
 
-	// StoreType associates a CUE expression with a Go type.
-	StoreType(t reflect.Type, src ast.Expr, expr Expr)
+	// StoreType associates a finalized CUE Vertex with a Go type.
+	StoreType(t reflect.Type, v *Vertex)
 
-	// LoadType retrieves a previously stored CUE expression for a given Go
+	// LoadType retrieves a previously stored CUE Vertex for a given Go
 	// type if available.
-	LoadType(t reflect.Type) (src ast.Expr, expr Expr, ok bool)
+	LoadType(t reflect.Type) (*Vertex, bool)
 
 	// ConfigureOpCtx configures the [*OpContext] with details such as
 	// evaluator version, debug options etc.
@@ -108,9 +108,8 @@ func (c *OpContext) isDevVersion() bool {
 // An OpContext is not goroutine safe and only one goroutine may use an
 // OpContext at a time.
 //
-// An OpContext is typically used for an entire operation involving CUE
-// values that are derived from the same [cue.Context], such as any call
-// to exported Go APIs like methods on [cue.Value].
+// An OpContext is typically used for an entire operation with CUE values,
+// such as any call to exported Go APIs like methods on [cue.Value].
 //
 // An OpContext stores:
 // - errors encountered during the evaluation
@@ -166,12 +165,18 @@ type OpContext struct {
 
 	errs      *Bottom
 	positions []Node // keep track of error positions
-	skipTry   bool   // set when an option reference is not present
 
 	// vertex is used to determine the path location in case of error. Turning
 	// this into a stack could also allow determining the cyclic path for
 	// structural cycle errors.
 	vertex *Vertex
+
+	// lookupPendingParent is set by [Vertex.lookup] in attemptOnly mode when
+	// a field was not found but a parent task may still produce it.
+	// [processResolver] clears it before resolving and uses it to requeue,
+	// saving and restoring the previous value as resolving may recursively
+	// run other resolver tasks.
+	lookupPendingParent bool
 
 	// list of vertices that need to be finalized.
 	// TODO: remove this again once we have a proper way of detecting references
@@ -207,6 +212,12 @@ type OpContext struct {
 	// disjunct to be made when processing disjunctions.
 	holeID int
 
+	// nextCompID counts per-firing comprehension identifiers. Each call to
+	// [nodeContext.processComprehension] allocates one ID and stamps it on
+	// every per-yield Environment so toposort can group sibling body decls
+	// (see [Environment.CompID]). 0 is reserved for "not from a comprehension".
+	nextCompID uint32
+
 	// inDetached indicates that inline structs evaluated in the current context
 	// should never be shared. This is the case, for instance, with the source
 	// for the for clause in a comprehension.
@@ -240,6 +251,12 @@ type OpContext struct {
 	// necessary to get the right path for incomplete errors in the presence of
 	// structure sharing.
 	altPath []*Vertex // stack of selectors
+
+	// importInstances memoizes a private, per-evaluation instance of each
+	// imported package root this context references, so concurrent evaluations
+	// do not share the runtime's mutable cached template.
+	// See [OpContext.importInstance].
+	importInstances map[*Vertex]*Vertex
 }
 
 func (c *OpContext) CloseInfo() CloseInfo         { return c.ci }
@@ -760,16 +777,11 @@ func (c *OpContext) evalStateCI(v Expr, state Flags) (result Value, ci CloseInfo
 		// DerefValue seems to work too.
 		arc = arc.DerefNonShared()
 
-		// TODO: consider moving this after markCycle, depending on how we
-		// implement markCycle, or whether we need it at all.
 		// TODO: is this indirect necessary?
 		// arc = arc.Indirect()
-
-		if n := arc.getState(c); n != nil {
-			c.ci, _ = n.detectCycle(arc, nil, x, c.ci)
-		}
-
 		if s := arc.getState(c); s != nil {
+			c.ci, _ = s.detectCycle(arc, nil, x, c.ci)
+
 			defer s.retainProcess().releaseProcess()
 
 			origNeeds := state.condition
@@ -809,6 +821,22 @@ func (c *OpContext) evalStateCI(v Expr, state Flags) (result Value, ci CloseInfo
 				hasCycleBreakingValue := s.hasFieldValue ||
 					!isCyclePlaceholder(arc.BaseValue)
 
+				// The arc's scheduler may have FROZEN scalarKnown
+				// (meaning its value transition completed at the scheduler
+				// level) yet arc.BaseValue is still the cycle sentinel.
+				// That happens for the inline vertex created by
+				// cross-package import unification of a definition whose
+				// body has a comprehension reading a sibling field: the
+				// scheduler is done with the arc but the BaseValue
+				// transition did not propagate. A real cycle leaves
+				// scalarKnown un-frozen because evaluation never settled,
+				// so this is a safe distinguisher.
+				if evaluating && !hasCycleBreakingValue &&
+					s.frozen&scalarKnown != 0 && allTasksFinished(s) {
+					arc.Finalize(c)
+					hasCycleBreakingValue = !isCyclePlaceholder(arc.BaseValue)
+				}
+
 				if evaluating && !hasCycleBreakingValue {
 					err := c.Newf("cycle with field: %v", x)
 					b := &Bottom{Code: CycleError, Err: err}
@@ -817,6 +845,12 @@ func (c *OpContext) evalStateCI(v Expr, state Flags) (result Value, ci CloseInfo
 				}
 
 				v := c.evaluate(arc, x, state)
+
+				if arc.nonRooted && !allTasksFinished(s) {
+					if t := c.current(); t != nil {
+						t.node.deferred = append(t.node.deferred, s)
+					}
+				}
 
 				return v, c.ci
 			}
@@ -906,8 +940,6 @@ func (c *OpContext) unifyNode(expr Expr, state Flags) (result Value) {
 	}
 	v = v.DerefValue()
 
-	// TODO: consider moving this after markCycle, depending on how we
-	// implement markCycle, or whether we need it at all.
 	// TODO: is this indirect necessary?
 	// v = v.Indirect()
 
@@ -916,22 +948,18 @@ func (c *OpContext) unifyNode(expr Expr, state Flags) (result Value) {
 
 		// A lookup counts as new structure. See the commend in Section
 		// "Lookups in inline cycles" in cycle.go.
-		if !c.ci.IsCyclic() || v.Label.IsLet() {
-			// TODO: fix! Setting this when we are not structure sharing can
-			// cause some hangs. We are conservative and not set this in
-			// this case, with the potential that some configurations will
-			// break. It is probably related to let.
+		if !c.ci.IsCyclic() {
 			n.hasNonCycle = true
 		}
 
 		// Always yield to not get spurious errors.
-		n.process(arcTypeKnown, yield)
+		n.process(arcTypeKnown|fieldSetKnown, yield)
 		// It is possible that the node is only midway through
 		// evaluating a disjunction. In this case, we want to ensure
 		// that disjunctions are finalized, so that disjunction shows
 		// up in BaseValue.
 		if len(n.disjuncts) > 0 {
-			n.node.unify(c, Flags{condition: arcTypeKnown, mode: yield, checkTypos: false})
+			n.node.unify(c, Flags{condition: arcTypeKnown | fieldSetKnown, mode: yield, checkTypos: false})
 		}
 	}
 
@@ -955,7 +983,7 @@ func (c *OpContext) typeError(v Value, k Kind) {
 	if isError(v) {
 		return
 	}
-	if !IsConcrete(v) && v.Kind()&k != 0 {
+	if (!IsConcrete(v) && v.Kind()&k != 0) || c.hasUnresolvedAncestorCycle(v) {
 		c.addErrf(IncompleteError, Pos(v), "incomplete %s: %s", k, v)
 	} else {
 		c.AddErrf("cannot use %s (type %s) as type %s", v, v.Kind(), k)
@@ -970,12 +998,27 @@ func (c *OpContext) typeErrorAs(v Value, k Kind, as interface{}) {
 	if isError(v) {
 		return
 	}
-	if !IsConcrete(v) && v.Kind()&k != 0 {
+	if (!IsConcrete(v) && v.Kind()&k != 0) || c.hasUnresolvedAncestorCycle(v) {
 		c.addErrf(IncompleteError, Pos(v),
 			"incomplete %s in %v: %s", k, as, v)
 	} else {
 		c.AddErrf("cannot use %s (type %s) as type %s in %v", v, v.Kind(), k, as)
 	}
+}
+
+// hasUnresolvedAncestorCycle reports whether v is a Vertex that only appears
+// concrete because it is an under-resolved copy of an ancestor reached
+// through a structural cycle, such as the vertex bound by `let X = self`;
+// scalar conversion must then report an incomplete error, not a permanent
+// one. See https://cuelang.org/issue/4420.
+//
+// TODO(cycle): this compensates for conjuncts parked by the CallExpr
+// deferment in [nodeContext.scheduleConjunct]; better would be to not
+// propagate the cyclic marking onto fresh inline vertices at all.
+func (c *OpContext) hasUnresolvedAncestorCycle(v Value) bool {
+	x, ok := v.(*Vertex)
+	return ok && x.state != nil && x.state.ctx.opID == c.opID &&
+		x.state.hasOnlyCyclicConjuncts()
 }
 
 var emptyNode = &Vertex{status: finalized}
@@ -1242,10 +1285,6 @@ var regexpCache = newMemoizer(func(pattern string) (*regexp.Regexp, error) {
 	// foo bar share the same entry.
 	return regexp.Compile(pattern)
 })
-
-// cachedRegexp returns a compiled regexp for the given pattern, using a shared
-// cache to avoid recompilation and enable thread-safe access.
-//
 
 func (c *OpContext) regexp(v Value) *regexp.Regexp {
 	v = Unwrap(v)
