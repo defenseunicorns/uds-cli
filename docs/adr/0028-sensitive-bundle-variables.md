@@ -8,21 +8,13 @@ Accepted. Adds a narrow exception to [ADR-0012](0012-library-logging-via-iostrea
 
 ## Context
 
-Bundle variables can contain credentials and other values that should not
-appear in CLI-managed output or errors. The CLI needs sensitivity metadata
-without changing the values passed to package values templates or Zarf.
+Bundle variables can contain credentials and other values that should not appear in CLI-managed output or errors. The CLI needs sensitivity metadata without changing the values passed to package values templates or Zarf.
 
 ## Decision
 
-Use `sensitive(value)` on values in the `variables` object in `config.uds.hcl`
-or `defaults.uds.hcl`. A marked nested value marks its whole top-level
-variable. The mark remains when defaults, config values, and `--set` overrides
-are merged. Values keep their existing template and Zarf behavior.
-Use reduced backend logging and sanitized errors for all variables.
-Redacted errors preserve standard cancellation and deadline identities without
-retaining backend messages.
+Use `sensitive(value)` on values in the `variables` object in `config.uds.hcl` or `defaults.uds.hcl`. A marked nested value marks its whole top-level variable. The mark remains when defaults, config values, and `--set` overrides are merged. Values keep their existing template and Zarf behavior. Use reduced backend logging and sanitized errors for all variables. Redacted errors preserve standard cancellation and deadline identities without retaining backend messages.
 
-Helm's value-conflict warnings use Go's process-global standard logger and bypass IOStreams and the logger supplied through Zarf. Around sensitive Zarf backend deployment, replace exact known sensitive values in those logs with `***`. This is the closest available boundary without changing Helm or Zarf. Keep context-log suppression and error redaction unchanged.
+Helm's value-conflict warnings use Go's process-global standard logger and bypass IOStreams and the logger supplied through Zarf. Around sensitive Zarf backend deployment, replace exact known sensitive values in those logs with `***`. This is the closest available boundary without changing Helm or Zarf.
 
 ## Consequences
 
@@ -41,10 +33,7 @@ variables = { registry = { password = "secret" } }
 sensitive_variables = ["registry.password"]
 ```
 
-Rejected. This keeps variable values as plain data and avoids per-value wrapper
-handling in Go, but the parallel path list duplicates variable paths and can
-drift from the values object. The implementation still carries separate
-sensitivity metadata internally, but authors mark values at their source.
+Rejected. This keeps variable values as plain data and avoids per-value wrapper handling in Go, but the parallel path list duplicates variable paths and can drift from the values object. The implementation still carries separate sensitivity metadata internally, but authors mark values at their source.
 
 ### Use per-value syntax with separate runtime metadata
 
@@ -55,12 +44,7 @@ variables = {
 }
 ```
 
-Select `sensitive(value)` as the HCL authoring syntax because it marks values where they are
-defined. It extends the function-registration mechanism used by `file()` and
-uses HCL marks to carry sensitivity. Keeping wrappers in runtime Go values
-would require changes across merging, package values templates, and Zarf.
-Instead, values keep their existing Go forms and sensitivity travels separately
-at the top-level variable boundary.
+Select `sensitive(value)` as the HCL authoring syntax because it marks values where they are defined. It extends the function-registration mechanism used by `file()` and uses HCL marks to carry sensitivity. Keeping wrappers in runtime Go values would require changes across merging, package values templates, and Zarf. Instead, values keep their existing Go forms and sensitivity travels separately at the top-level variable boundary.
 
 ### Track secret strings and replace exact matches in output
 
@@ -84,11 +68,7 @@ Rejected because registration must coordinate the saved writer, combined secrets
 
 ## Implementation details
 
-Keeping `Variables` as plain data preserves public Go map literals and indexing,
-and compatibility with Go templates, `Flatten`, and Zarf. Sensitivity metadata
-travels alongside values and through merges, avoiding wrappers and unwrapping
-across runtime layers. Wrapping `Variables` alone cannot prevent leaks after
-plain values reach the backend, so safe output boundaries are still required.
+Keeping `Variables` as plain data preserves public Go map literals and indexing, and compatibility with Go templates, `Flatten`, and Zarf. Sensitivity metadata travels alongside values and through merges, avoiding wrappers and unwrapping across runtime layers. Convert nested maps recursively in both directions at the Zarf boundary. Wrapping `Variables` alone cannot prevent leaks after plain values reach the backend, so safe output boundaries are still required.
 
 `backendLogRedactor` owns collection and filtering behind its constructor and `Run` method. Snapshot marked values before deployment hooks can change them. Collect scalar leaves of marked top-level variables, skip empty strings to avoid matching every position, and match longer values first so a shorter secret cannot leave a longer secret's suffix exposed.
 

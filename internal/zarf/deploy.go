@@ -275,9 +275,10 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	log := logger.Bind(d.streams, opts.Config.Options.LogLevel)
 	log.Debug("preparing package deployment", "name", pkg.Name, "source", pkg.Source)
 
-	redactor := newBackendLogRedactor(opts.Config)
-	// Zarf cannot mask Package Values, so discard its context logs to avoid exposing them.
+	// Zarf cannot mask Package Values; redact Helm's global logs and discard Zarf's context logs.
+	// Remove these workarounds once the upstream fix covers both paths and the canary tests pass without them.
 	// https://github.com/zarf-dev/zarf/issues/5658
+	redactor := newBackendLogRedactor(opts.Config)
 	backendLog := logger.Bind(iostreams.New(nil, nil, io.Discard), opts.Config.Options.LogLevel)
 	ctx = newZarfLoggerContext(ctx, backendLog)
 
