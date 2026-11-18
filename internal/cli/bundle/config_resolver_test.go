@@ -1009,9 +1009,8 @@ options {
 	cmd.Flags().String("config", "", "config path")
 
 	_, _, err := r.Resolve(t.Context(), iostreams.IOStreams{}, SnapshotFlags(cmd), bundleDir)
-	require.Error(t, err)
+	require.ErrorIs(t, err, bundleinternal.ErrInvalidDefaults)
 	assert.Contains(t, err.Error(), bundleDefaultsFileName)
-	assert.Contains(t, err.Error(), "block")
 }
 
 func TestResolve_DefaultsFile_InvalidHCL(t *testing.T) {

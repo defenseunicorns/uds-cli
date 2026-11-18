@@ -360,7 +360,7 @@ func TestTemplateValuesFiles(t *testing.T) {
 				inputPaths = append(inputPaths, writeTempYAML(t, content))
 			}
 
-			outPaths, err := templateValuesFiles(t.Context(), inputPaths, tt.vars, t.TempDir(), false)
+			outPaths, err := templateValuesFiles(t.Context(), inputPaths, tt.vars, t.TempDir())
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -748,7 +748,7 @@ func TestDeployPackageSensitiveVariablesSuppressBackendOutput(t *testing.T) {
 	assert.Contains(t, callerLogs.String(), "deploying zarf package to cluster")
 }
 
-func TestDeployPackageUnmarkedVariablesKeepBackendOutput(t *testing.T) {
+func TestDeployPackageUnmarkedVariablesSuppressBackendOutput(t *testing.T) {
 	const canary = "unmarked-canary-value"
 	transformedCanary := strings.ToUpper(canary)
 	pkgDir := t.TempDir()
@@ -770,9 +770,9 @@ func TestDeployPackageUnmarkedVariablesKeepBackendOutput(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, ErrDeployPackage)
-	assert.Contains(t, err.Error(), transformedCanary)
-	assert.Contains(t, callerLogs.String(), transformedCanary)
-	assert.Contains(t, callerLogs.String(), "backend diagnostic")
+	assert.NotContains(t, err.Error(), transformedCanary)
+	assert.NotContains(t, callerLogs.String(), transformedCanary)
+	assert.NotContains(t, callerLogs.String(), "backend diagnostic")
 }
 
 func TestPrepareValuesAndVariablesSanitizesFileErrors(t *testing.T) {
@@ -814,15 +814,10 @@ func TestPrepareValuesAndVariablesSanitizesFileErrors(t *testing.T) {
 				_, _, err := NewZarfDeployer(iostreams.IOStreams{}, nil).prepareValuesAndVariables(t.Context(), iostreams.IOStreams{}, pkg, opts)
 				require.ErrorIs(t, err, tt.wantError)
 				assert.Contains(t, err.Error(), `package "app"`)
-				assert.Contains(t, err.Error(), filepath.Base(valuesPath))
-				shouldExpose := !sensitive && !errors.Is(tt.wantError, ErrParseValues)
-				if shouldExpose {
-					assert.Contains(t, err.Error(), tt.canary)
-				} else {
-					for cause := err; cause != nil; cause = errors.Unwrap(cause) {
-						assert.NotContains(t, cause.Error(), tt.canary)
-					}
+				if !errors.Is(tt.wantError, ErrParseValues) {
+					assert.Contains(t, err.Error(), filepath.Base(valuesPath))
 				}
+				assertRedactedErrorTree(t, err, tt.canary)
 				entries, readErr := os.ReadDir(tmpDir)
 				require.NoError(t, readErr)
 				assert.Empty(t, entries)
@@ -979,12 +974,8 @@ func TestDeployPackagePreservesContextErrors(t *testing.T) {
 				for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
 					assert.Equal(t, errors.Is(backendErr, cause), errors.Is(err, cause))
 				}
-				if sensitive {
-					assertRedactedErrorTree(t, err, canary)
-					assert.NotErrorIs(t, err, backendErr)
-				} else {
-					assert.ErrorIs(t, err, backendErr)
-				}
+				assertRedactedErrorTree(t, err, canary)
+				assert.NotErrorIs(t, err, backendErr)
 			})
 		}
 	}
@@ -1005,7 +996,7 @@ func assertRedactedErrorTree(t *testing.T, err error, canary string) {
 	}
 }
 
-func TestSensitiveTemplatePreservesContextErrors(t *testing.T) {
+func TestTemplatePreservesContextErrors(t *testing.T) {
 	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
 		t.Run(cause.Error(), func(t *testing.T) {
 			const canary = "template-secret-canary"
@@ -1013,7 +1004,7 @@ func TestSensitiveTemplatePreservesContextErrors(t *testing.T) {
 			vars := bundleinternal.Variables{"value": func() (string, error) {
 				return "", fmt.Errorf("%s: %w", canary, cause)
 			}}
-			_, err := templateValuesFiles(t.Context(), []string{valuesPath}, vars, t.TempDir(), true)
+			_, err := templateValuesFiles(t.Context(), []string{valuesPath}, vars, t.TempDir())
 			require.ErrorIs(t, err, ErrRenderValues)
 			require.ErrorIs(t, err, cause)
 			assertRedactedErrorTree(t, err, canary)

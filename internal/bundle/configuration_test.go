@@ -93,8 +93,8 @@ func TestVariableSourcesRejectFloat64Overflow(t *testing.T) {
 		},
 		{
 			name:    "defaults HCL",
-			want:    ErrInvalidVariables,
-			wantErr: "outside the supported float64 range",
+			want:    ErrConvertVariables,
+			wantErr: ErrConvertVariables.Error(),
 			parse: func(t *testing.T, value string) error {
 				t.Helper()
 				_, err := ParseDefaultsBytes(t.Context(), fmt.Appendf(nil, "variables = { replicas = %s }", value))

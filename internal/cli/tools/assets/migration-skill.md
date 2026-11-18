@@ -593,7 +593,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 58244798a506d2f53ba7beca9af1ab56aad60251a54440889551ea4b04ead4c0 -->
+<!-- Source SHA256: 40cca119e4a78a687fc3a9613d8e010c3c0f4aaee36c22aa7b8466f0ba661394 -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -760,7 +760,7 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-UDS masks known sensitive values in standard logs with `***`. Deployments stay parallel and share redaction until all sensitive backend calls finish. Matching may miss transformed values or mask unrelated logs. Do not reconfigure global logging during deployment. Artifact defaults remain plaintext.
+UDS uses reduced backend logging and sanitized errors for all variables. UDS masks known sensitive values in standard logs with `***`. Deployments stay parallel and share redaction until all sensitive backend calls finish. Matching may miss transformed values or mask unrelated logs. Do not reconfigure global logging during deployment. Artifact defaults remain plaintext.
 
 ## Precedence and timing
 

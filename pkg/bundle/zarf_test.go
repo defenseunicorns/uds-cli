@@ -448,7 +448,7 @@ func TestDeployRejectsArchitectureOverrideForInit(t *testing.T) {
 	}, DeployOptions{Config: config})
 
 	require.ErrorIs(t, err, ErrDeployBundle)
-	require.ErrorContains(t, err, "architecture checks is not supported for init packages")
+	require.ErrorIs(t, err, internalzarf.ErrDeployPackage)
 }
 
 func TestBundlePreDeployCopiesConfigMutations(t *testing.T) {

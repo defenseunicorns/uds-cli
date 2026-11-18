@@ -17,10 +17,10 @@ without changing the values passed to package values templates or Zarf.
 Use `sensitive(value)` on values in the `variables` object in `config.uds.hcl`
 or `defaults.uds.hcl`. A marked nested value marks its whole top-level
 variable. The mark remains when defaults, config values, and `--set` overrides
-are merged. Values keep their existing template and Zarf behavior. The CLI
-omits marked values from deployment diagnostics and errors when it controls
-those outputs. Redacted errors preserve standard cancellation and deadline
-identities without retaining backend messages.
+are merged. Values keep their existing template and Zarf behavior.
+Use reduced backend logging and sanitized errors for all variables.
+Redacted errors preserve standard cancellation and deadline identities without
+retaining backend messages.
 
 Helm's value-conflict warnings use Go's process-global standard logger and bypass IOStreams and the logger supplied through Zarf. Around sensitive Zarf backend deployment, replace exact known sensitive values in those logs with `***`. This is the closest available boundary without changing Helm or Zarf. Keep context-log suppression and error redaction unchanged.
 

@@ -88,7 +88,7 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 
 	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filePath, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
-		return nil, safeHCLParseError(ErrParseConfig, filePath, hclDiagnostics)
+		return nil, fmt.Errorf("%w %q: invalid HCL at %s", ErrParseConfig, filePath, hclDiagnosticLocation(hclDiagnostics))
 	}
 	evalContext := configEvalContext(filePath)
 
@@ -96,10 +96,7 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 	cfg := &UDSBundleConfig{}
 	diags := gohcl.DecodeBody(hclFile.Body, evalContext, cfg)
 	if diags.HasErrors() {
-		if bodyContainsFunction(hclFile.Body, "sensitive") {
-			return nil, fmt.Errorf("%w from %q: invalid structured field at %s", ErrDecodeConfig, filePath, hclDiagnosticLocation(diags))
-		}
-		return nil, fmt.Errorf("%w from %q: %w", ErrDecodeConfig, filePath, diags)
+		return nil, fmt.Errorf("%w from %q: invalid structured field at %s", ErrDecodeConfig, filePath, hclDiagnosticLocation(diags))
 	}
 
 	// Extract the free-form variables attribute from Remain
@@ -127,10 +124,7 @@ func extractVariablesFromRemain(body hcl.Body, evalContext *hcl.EvalContext, sou
 
 	content, _, diags := body.PartialContent(schema)
 	if diags.HasErrors() {
-		if bodyContainsFunction(body, "sensitive") {
-			return nil, nil, fmt.Errorf("%w from %q: invalid variable body at %s", ErrReadVariables, source, hclDiagnosticLocation(diags))
-		}
-		return nil, nil, fmt.Errorf("%w from %q: %w", ErrReadVariables, source, diags)
+		return nil, nil, fmt.Errorf("%w from %q: invalid variable body at %s", ErrReadVariables, source, hclDiagnosticLocation(diags))
 	}
 
 	attr, ok := content.Attributes["variables"]
@@ -140,10 +134,7 @@ func extractVariablesFromRemain(body hcl.Body, evalContext *hcl.EvalContext, sou
 
 	val, diags := attr.Expr.Value(evalContext)
 	if diags.HasErrors() {
-		if expressionContainsFunction(attr.Expr, "sensitive") {
-			return nil, nil, fmt.Errorf("evaluating sensitive variables in %q: %w", source, ErrEvaluateVariables)
-		}
-		return nil, nil, fmt.Errorf("%w from %q: %w", ErrEvaluateVariables, source, diags)
+		return nil, nil, fmt.Errorf("%w from %q", ErrEvaluateVariables, source)
 	}
 	sensitive := markedTopLevelVariables(val)
 	val, _ = val.UnmarkDeep()
@@ -178,10 +169,6 @@ func markedTopLevelVariables(val cty.Value) map[string]bool {
 	return sensitive
 }
 
-func safeHCLParseError(kind error, path string, diags hcl.Diagnostics) error {
-	return fmt.Errorf("%w %q: invalid HCL at %s", kind, path, hclDiagnosticLocation(diags))
-}
-
 func hclDiagnosticLocation(diags hcl.Diagnostics) string {
 	for _, diag := range diags {
 		if diag.Subject != nil {
@@ -189,22 +176,6 @@ func hclDiagnosticLocation(diags hcl.Diagnostics) string {
 		}
 	}
 	return "an unknown location"
-}
-
-func bodyContainsFunction(body hcl.Body, name string) bool {
-	syntaxBody, ok := body.(*hclsyntax.Body)
-	if !ok {
-		return false
-	}
-	found := false
-	_ = hclsyntax.VisitAll(syntaxBody, func(node hclsyntax.Node) hcl.Diagnostics {
-		call, ok := node.(*hclsyntax.FunctionCallExpr)
-		if ok && call.Name == name {
-			found = true
-		}
-		return nil
-	})
-	return found
 }
 
 // ctyValueToGo recursively converts a cty.Value to a Go value.
@@ -220,7 +191,6 @@ func bodyContainsFunction(body hcl.Body, name string) bool {
 // surfacing here is therefore a contract violation, and we let the loud-fail
 // default branch report it as an unsupported variable type.
 func ctyValueToGo(val cty.Value) (any, error) {
-	val, _ = val.Unmark()
 	if val.IsNull() {
 		return nil, fmt.Errorf("null values are not supported in config: %w", ErrInvalidVariables)
 	}
@@ -368,7 +338,7 @@ func parseDefaultsContent(src []byte, path string) (Variables, error) {
 func parseDefaultsContentWithSensitivity(src []byte, path string, allowFile bool) (Variables, map[string]bool, error) {
 	hclFile, diags := hclsyntax.ParseConfig(src, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, nil, safeHCLParseError(ErrParseDefaults, path, diags)
+		return nil, nil, fmt.Errorf("%w %q: invalid HCL at %s", ErrParseDefaults, path, hclDiagnosticLocation(diags))
 	}
 	if !allowFile {
 		if err := rejectFileFunctionWithoutSourcePath(hclFile, "defaults.uds.hcl"); err != nil {
@@ -379,10 +349,7 @@ func parseDefaultsContentWithSensitivity(src []byte, path string, allowFile bool
 	// JustAttributes rejects any blocks (e.g. options {}).
 	attrs, diags := hclFile.Body.JustAttributes()
 	if diags.HasErrors() {
-		if bodyContainsFunction(hclFile.Body, "sensitive") {
-			return nil, nil, fmt.Errorf("%w %q at %s", ErrInvalidDefaults, path, hclDiagnosticLocation(diags))
-		}
-		return nil, nil, fmt.Errorf("%w %q: %w", ErrInvalidDefaults, path, diags)
+		return nil, nil, fmt.Errorf("%w %q at %s", ErrInvalidDefaults, path, hclDiagnosticLocation(diags))
 	}
 
 	// Only "variables" is allowed at the top level.
@@ -403,21 +370,14 @@ func parseDefaultsContentWithSensitivity(src []byte, path string, allowFile bool
 	}
 	val, diags := attr.Expr.Value(evalContext)
 	if diags.HasErrors() {
-		if expressionContainsFunction(attr.Expr, "sensitive") {
-			return nil, nil, fmt.Errorf("evaluating sensitive variables in %q: %w", path, ErrEvaluateVariables)
-		}
-		return nil, nil, fmt.Errorf("%w in %q: %w", ErrEvaluateVariables, path, diags)
+		return nil, nil, fmt.Errorf("%w in %q", ErrEvaluateVariables, path)
 	}
 	sensitive := markedTopLevelVariables(val)
-	hasSensitive := val.ContainsMarked()
 	val, _ = val.UnmarkDeep()
 
 	goVal, err := ctyValueToGo(val)
 	if err != nil {
-		if hasSensitive {
-			return nil, nil, fmt.Errorf("converting sensitive variables from %q: %w", path, ErrConvertVariables)
-		}
-		return nil, nil, fmt.Errorf("%w from %q: %w", ErrConvertVariables, path, err)
+		return nil, nil, fmt.Errorf("%w from %q", ErrConvertVariables, path)
 	}
 
 	m, ok := goVal.(Variables)

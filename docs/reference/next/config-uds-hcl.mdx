@@ -170,7 +170,7 @@ password: {{ printf "%q" .vars.password }}
 exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
 ```
 
-UDS masks known sensitive values in standard logs with `***`. Deployments stay parallel and share redaction until all sensitive backend calls finish. Matching may miss transformed values or mask unrelated logs. Do not reconfigure global logging during deployment. Artifact defaults remain plaintext.
+UDS uses reduced backend logging and sanitized errors for all variables. UDS masks known sensitive values in standard logs with `***`. Deployments stay parallel and share redaction until all sensitive backend calls finish. Matching may miss transformed values or mask unrelated logs. Do not reconfigure global logging during deployment. Artifact defaults remain plaintext.
 
 ## Precedence and timing
 
