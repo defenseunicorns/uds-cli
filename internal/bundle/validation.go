@@ -139,7 +139,15 @@ func validateZarfInitOptions(opts *ZarfInitOptions) error {
 	if !roots.AppendCertsFromPEM([]byte(opts.AgentTLSCA)) {
 		return fmt.Errorf("%w: parsing agent TLS CA: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS)
 	}
-	if _, err := cert.Verify(x509.VerifyOptions{Roots: roots, DNSName: state.ZarfAgentHost}); err != nil {
+	intermediates := x509.NewCertPool()
+	for _, cert := range pair.Certificate[1:] {
+		intermediate, err := x509.ParseCertificate(cert)
+		if err != nil {
+			return fmt.Errorf("%w: parsing agent TLS intermediate certificate: %w: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS, err)
+		}
+		intermediates.AddCert(intermediate)
+	}
+	if _, err := cert.Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, DNSName: state.ZarfAgentHost}); err != nil {
 		return fmt.Errorf("%w: verifying agent TLS certificate for the Zarf agent: %w: %w", ErrInvalidZarfInitOptions, ErrInvalidAgentTLS, err)
 	}
 

@@ -93,8 +93,8 @@ options {
   zarf_init {
     registry_mode          = "external"
     registry_url           = "registry.example.com:5000"
-    registry_push_username = "zarf-push"
-    registry_push_password = file("secrets/registry-password.txt")
+    registry_pull_username = "zarf-pull"
+    registry_pull_password = file("secrets/registry-password.txt")
   }
 }
 ```

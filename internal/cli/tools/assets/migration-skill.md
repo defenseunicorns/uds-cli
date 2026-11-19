@@ -594,7 +594,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: a61619749c6c2cdac2ba13ce6daba32623bf8875f9a664928865622030c4ba18 -->
+<!-- Source SHA256: 5e42540934b5d90b188208cf6fd937d0259376328471baf4e645e3bccfc6a7af -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -684,8 +684,8 @@ options {
   zarf_init {
     registry_mode          = "external"
     registry_url           = "registry.example.com:5000"
-    registry_push_username = "zarf-push"
-    registry_push_password = file("secrets/registry-password.txt")
+    registry_pull_username = "zarf-pull"
+    registry_pull_password = file("secrets/registry-password.txt")
   }
 }
 ```

@@ -4,10 +4,17 @@
 package bundle
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
@@ -218,6 +225,60 @@ func TestValidateConfig_ZarfInit(t *testing.T) {
 			assert.NotContains(t, err.Error(), "git-password")
 		})
 	}
+}
+
+func TestValidateConfig_ZarfInitAgentTLSChain(t *testing.T) {
+	now := time.Now()
+	issue := func(serial int64, name string, isCA bool, parent *x509.Certificate, signer ed25519.PrivateKey) (*x509.Certificate, ed25519.PrivateKey, string) {
+		t.Helper()
+		pub, key, err := ed25519.GenerateKey(rand.Reader)
+		require.NoError(t, err)
+		template := &x509.Certificate{
+			SerialNumber:          big.NewInt(serial),
+			Subject:               pkix.Name{CommonName: name},
+			NotBefore:             now.Add(-time.Hour),
+			NotAfter:              now.Add(time.Hour),
+			BasicConstraintsValid: true,
+			IsCA:                  isCA,
+		}
+		if isCA {
+			template.KeyUsage = x509.KeyUsageCertSign
+		} else {
+			template.DNSNames = []string{name}
+			template.KeyUsage = x509.KeyUsageDigitalSignature
+			template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+		}
+		if parent == nil {
+			parent, signer = template, key
+		}
+		der, err := x509.CreateCertificate(rand.Reader, template, parent, pub, signer)
+		require.NoError(t, err)
+		cert, err := x509.ParseCertificate(der)
+		require.NoError(t, err)
+		return cert, key, string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	}
+
+	root, rootKey, rootPEM := issue(1, "test root", true, nil, nil)
+	issuer, issuerKey, issuerPEM := issue(2, "test intermediate", true, root, rootKey)
+	_, leafKey, leafPEM := issue(3, state.ZarfAgentHost, false, issuer, issuerKey)
+	_, _, otherRootPEM := issue(4, "unrelated test root", true, nil, nil)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(leafKey)
+	require.NoError(t, err)
+
+	cfg := validBaseConfig()
+	cfg.Options.ZarfInit = &ZarfInitOptions{
+		AgentTLSCA:   rootPEM,
+		AgentTLSCert: leafPEM + issuerPEM,
+		AgentTLSKey:  string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})),
+	}
+	require.NoError(t, ValidateConfig(cfg))
+
+	cfg.Options.ZarfInit.AgentTLSCert = leafPEM
+	require.ErrorIs(t, ValidateConfig(cfg), ErrInvalidAgentTLS)
+
+	cfg.Options.ZarfInit.AgentTLSCert = leafPEM + issuerPEM + rootPEM
+	cfg.Options.ZarfInit.AgentTLSCA = otherRootPEM
+	require.ErrorIs(t, ValidateConfig(cfg), ErrInvalidAgentTLS)
 }
 
 func TestValidateConfig_StopsOnFirstError(t *testing.T) {

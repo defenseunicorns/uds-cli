@@ -96,6 +96,7 @@ func TestPackagePreDeployCannotChangeBundleWideZarfInit(t *testing.T) {
 		}},
 	})
 
+	require.ErrorIs(t, err, bundle.ErrPackageHookChangedZarfInit)
 	require.ErrorIs(t, err, bundle.ErrInvalidConfig)
 	require.ErrorContains(t, err, "use BundleDeployHooks.PreDeploy")
 	assert.Equal(t, "all", config.Options.ZarfInit.AgentMutationPolicy)

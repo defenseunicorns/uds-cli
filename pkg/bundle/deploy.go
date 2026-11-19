@@ -360,7 +360,7 @@ func toZarfPackageHooks(hooks PackageDeployHooks) internalzarf.PackageDeployHook
 				addedOrRemoved := (before == nil) != (after == nil)
 				valuesChanged := before != nil && after != nil && *before != *after
 				if addedOrRemoved || valuesChanged {
-					return fmt.Errorf("package pre-deploy hooks cannot change ZarfInit; use BundleDeployHooks.PreDeploy: %w", ErrInvalidConfig)
+					return fmt.Errorf("%w; use BundleDeployHooks.PreDeploy: %w", ErrPackageHookChangedZarfInit, ErrInvalidConfig)
 				}
 			}
 			internalOpts.Config = config

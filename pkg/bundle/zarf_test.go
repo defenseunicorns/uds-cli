@@ -581,6 +581,7 @@ func TestPackagePreDeployPreservesZarfInitOptions(t *testing.T) {
 
 			err := hooks.PreDeploy(t.Context(), &spec.Package{}, &layout.PackageLayout{}, &packager.DeployOptions{}, &opts)
 			if tt.wantError {
+				require.ErrorIs(t, err, ErrPackageHookChangedZarfInit)
 				require.ErrorIs(t, err, ErrInvalidConfig)
 				require.ErrorContains(t, err, "use BundleDeployHooks.PreDeploy")
 				return
