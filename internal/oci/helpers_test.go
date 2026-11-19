@@ -59,39 +59,6 @@ func writeTestBlob(t *testing.T, blobDir string, data []byte) string {
 	return hexDigest
 }
 
-// writeMinimalOCILayout creates a valid minimal OCI layout for tests.
-func writeMinimalOCILayout(t *testing.T, ociDir string) {
-	t.Helper()
-	blobDir := filepath.Join(ociDir, "blobs", "sha256")
-	require.NoError(t, os.MkdirAll(blobDir, filesystem.PrivateDirectoryMode))
-	require.NoError(t, os.WriteFile(filepath.Join(ociDir, "oci-layout"), []byte("{\"imageLayoutVersion\":\"1.0.0\"}\n"), filesystem.PrivateFileMode))
-
-	config := []byte("{}")
-	configHex := writeTestBlob(t, blobDir, config)
-	manifest := ocispec.Manifest{
-		Versioned: specs.Versioned{SchemaVersion: 2},
-		MediaType: ocispec.MediaTypeImageManifest,
-		Config: ocispec.Descriptor{
-			MediaType: "application/vnd.oci.empty.v1+json",
-			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, configHex),
-			Size:      int64(len(config)),
-		},
-		Layers: []ocispec.Descriptor{},
-	}
-	manifestBytes, err := json.Marshal(manifest)
-	require.NoError(t, err)
-	manifestHex := writeTestBlob(t, blobDir, manifestBytes)
-	require.NoError(t, WriteIndex(filepath.Join(ociDir, "index.json"), &ocispec.Index{
-		Versioned: specs.Versioned{SchemaVersion: 2},
-		MediaType: ocispec.MediaTypeImageIndex,
-		Manifests: []ocispec.Descriptor{{
-			MediaType: ocispec.MediaTypeImageManifest,
-			Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, manifestHex),
-			Size:      int64(len(manifestBytes)),
-		}},
-	}))
-}
-
 func writeMinimalZarfPackage(t *testing.T, dir string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(dir, filesystem.PrivateDirectoryMode))

@@ -12,10 +12,6 @@ import (
 
 var defaultProfilePath = filepath.Join("~", ".alibabacloud", "credentials")
 
-type credentialForV2SDK struct {
-	*provider.CredentialForV2SDK
-}
-
 type logWrapper struct {
 	logger *logrus.Logger
 }
@@ -25,8 +21,7 @@ func getOpenapiAuth(logger *logrus.Logger) (credentials.Credential, error) {
 	if os.Getenv(credentials.ENVCredentialFile) != "" {
 		profilePath = os.Getenv(credentials.ENVCredentialFile)
 	}
-	path, err := expandPath(profilePath)
-	if err == nil {
+	if path, err := expandPath(profilePath); err == nil && path != "" {
 		if _, err := os.Stat(path); err == nil {
 			_ = os.Setenv(credentials.ENVCredentialFile, path)
 			return credentials.NewCredential(nil)
@@ -36,36 +31,12 @@ func getOpenapiAuth(logger *logrus.Logger) (credentials.Credential, error) {
 	cp := provider.NewDefaultChainProvider(provider.DefaultChainProviderOptions{
 		Logger: &logWrapper{logger: logger},
 	})
-	cred := &credentialForV2SDK{
-		CredentialForV2SDK: provider.NewCredentialForV2SDK(cp, provider.CredentialForV2SDKOptions{
-			CredentialRetrievalTimeout: time.Second * 30,
-			Logger:                     &logWrapper{logger: logger},
-		}),
-	}
+	cred := provider.NewCredentialForV2SDK(cp, provider.CredentialForV2SDKOptions{
+		CredentialRetrievalTimeout: time.Second * 30,
+		Logger:                     &logWrapper{logger: logger},
+	})
 
-	return cred, err
-}
-
-func (c *credentialForV2SDK) GetCredential() (*credentials.CredentialModel, error) {
-	ak, err := c.GetAccessKeyId()
-	if err != nil {
-		return nil, err
-	}
-	sk, err := c.GetAccessKeySecret()
-	if err != nil {
-		return nil, err
-	}
-	token, err := c.GetSecurityToken()
-	if err != nil {
-		return nil, err
-	}
-	return &credentials.CredentialModel{
-		AccessKeyId:     ak,
-		AccessKeySecret: sk,
-		SecurityToken:   token,
-		BearerToken:     nil,
-		Type:            c.GetType(),
-	}, err
+	return cred, nil
 }
 
 func (l *logWrapper) Info(msg string) {

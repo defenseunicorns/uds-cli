@@ -236,77 +236,18 @@ package "pkg1" {
 	require.NoError(t, statErr, "pulled tarball should exist on disk")
 }
 
-func TestPullPackage_RoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Build a minimal OCI layout in a source store and tag it.
-	srcDir := t.TempDir()
-	writeMinimalOCILayout(t, srcDir)
-
-	srcStore, err := oraci.New(srcDir)
-	require.NoError(t, err)
-
-	// Read the root descriptor from index.json and tag it so oras.Copy can resolve it.
-	root, err := packageRootDescriptor(srcDir)
-	require.NoError(t, err)
-	require.NoError(t, srcStore.Tag(t.Context(), root, "1.0.0"))
-
-	targetDir := t.TempDir()
-	cfg := newTestConfig()
-	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPuller().PullPackage(t.Context(), "example.com/test/pkg:1.0.0", targetDir, PullOptions{
-		Config:    cfg,
-		PullHooks: pullFrom(srcStore),
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "example.com/test/pkg:1.0.0", result.OCIReference)
-	assert.Equal(t, filepath.Join(targetDir, "oci"), result.OutputPath)
-
-	_, statErr := os.Stat(filepath.Join(result.OutputPath, "index.json"))
-	require.NoError(t, statErr, "index.json should exist in pulled OCI dir")
-}
-
-func TestPullPackage_EmptyOCIReference(t *testing.T) {
-	t.Parallel()
-
-	cfg := newTestConfig()
-	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPuller().PullPackage(t.Context(), "", t.TempDir(), PullOptions{
-		Config: cfg,
-	})
-	require.ErrorContains(t, err, "ociReference must not be empty")
-	assert.Nil(t, result)
-}
-
-func TestPullPackage_EmptyTargetDir(t *testing.T) {
-	t.Parallel()
-
-	cfg := newTestConfig()
-	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPuller().PullPackage(t.Context(), "example.com/test/pkg:1.0.0", "", PullOptions{
-		Config: cfg,
-	})
-	require.ErrorContains(t, err, "targetDir must not be empty")
-	assert.Nil(t, result)
-}
-
 func TestPullHooks_ModifyOrasSettings(t *testing.T) {
 	t.Parallel()
 
-	srcDir := t.TempDir()
-	writeMinimalOCILayout(t, srcDir)
-
-	srcStore, err := oraci.New(srcDir)
+	srcStore, err := oraci.New(t.TempDir())
 	require.NoError(t, err)
-
-	root, err := packageRootDescriptor(srcDir)
-	require.NoError(t, err)
-	require.NoError(t, srcStore.Tag(t.Context(), root, "1.0.0"))
+	ref := "example.com/test/pull-hooks:1.0.0"
+	pushArchTestBundle(t, srcStore, ref, createArchTestBundle(t, "pull-hooks", "1.0.0", runtime.GOARCH))
 
 	hookCalled := false
 	cfg := newTestConfig()
 	cfg.Options.TmpDir = t.TempDir()
-	result, err := NewDefaultPuller().PullPackage(t.Context(), "example.com/test/pkg:1.0.0", t.TempDir(), PullOptions{
+	result, err := Pull(t.Context(), ref, t.TempDir(), PullOptions{
 		Config: cfg,
 		PullHooks: PullHooks{
 			ToOrasTarget: func(context.Context, string, *PullOptions) (oras.Target, error) { return srcStore, nil },

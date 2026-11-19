@@ -105,7 +105,7 @@ func TestPrepareDeploySourceFromReadOnlyTarget(t *testing.T) {
 		Target: target, Reference: "v1.0.0", Loader: loader, TmpDir: failureWorkspace, Architecture: otherArchitecture,
 	})
 	require.ErrorIs(t, err, bundle.ErrPrepareDeploySource)
-	assert.ErrorContains(t, err, "no bundle for architecture")
+	require.ErrorContains(t, err, "no bundle for architecture")
 	failureEntries, err := os.ReadDir(failureWorkspace)
 	require.NoError(t, err)
 	assert.Empty(t, failureEntries)
@@ -193,7 +193,7 @@ func TestPrepareDeploySourceFromTargetAcceptsLargeValuesLayer(t *testing.T) {
 	valuesPath := filepath.Join(filepath.Dir(source.BundlePath), source.Bundle.Packages[1].ValuesFiles[0])
 	got, err := os.ReadFile(valuesPath)
 	require.NoError(t, err)
-	assert.Equal(t, len(values), len(got))
+	assert.Len(t, got, len(values))
 	assert.Equal(t, sha256.Sum256(values), sha256.Sum256(got))
 }
 

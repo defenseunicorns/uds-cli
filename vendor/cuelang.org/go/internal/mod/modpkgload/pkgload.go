@@ -12,8 +12,10 @@ import (
 	"sync/atomic"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/internal/mod/modimports"
 	"cuelang.org/go/internal/mod/modrequirements"
+	"cuelang.org/go/internal/mod/semver"
 	"cuelang.org/go/internal/par"
 	"cuelang.org/go/mod/module"
 )
@@ -27,9 +29,11 @@ type Registry interface {
 	Fetch(ctx context.Context, m module.Version) (module.SourceLoc, error)
 }
 
-// CachedRegistry is optionally implemented by a registry that
+// CachedRegistry is optionally implemented by a [Registry] that
 // implements a cache.
 type CachedRegistry interface {
+	Registry
+
 	// FetchFromCache looks up the given module in the cache.
 	// It returns an error that satisfies [errors.Is]([modregistry.ErrNotFound]) if the
 	// module is not present in the cache at this version or if there
@@ -100,6 +104,7 @@ type Packages struct {
 	work                 *par.Queue
 	requirements         *modrequirements.Requirements
 	registry             Registry
+	replacements         *Replacements
 }
 
 type Package struct {
@@ -110,14 +115,15 @@ type Package struct {
 	flags atomicLoadPkgFlags
 
 	// Populated by [loader.load].
-	mod          module.Version   // module providing package
-	modRoot      module.SourceLoc // root location of module
-	files        []modimports.ModuleFile
-	locs         []module.SourceLoc // location of source code directories
-	err          error              // error loading package
-	imports      []*Package         // packages imported by this one
-	inStd        bool
-	fromExternal bool
+	mod             module.Version   // module providing package
+	modRoot         module.SourceLoc // root location of module
+	files           []modimports.ModuleFile
+	locs            []module.SourceLoc // location of source code directories
+	err             error              // error loading package
+	imports         []*Package         // packages imported by this one
+	inStd           bool
+	fromExternal    bool
+	resolvedImports map[string]string // raw import path → canonical versioned path
 
 	// Populated by postprocessing in [Packages.buildStacks]:
 	stack *Package // package importing this one in minimal import stack for this pkg
@@ -167,6 +173,17 @@ func (pkg *Package) Mod() module.Version {
 	return pkg.mod
 }
 
+// CanonicalImportPath returns the canonical versioned import path for the
+// given raw import path.
+// This is used for external module packages where the importing module's
+// default major versions differ from the main module's.
+func (pkg *Package) CanonicalImportPath(rawPath string) string {
+	if p, ok := pkg.resolvedImports[rawPath]; ok {
+		return p
+	}
+	return rawPath
+}
+
 func (pkg *Package) ModRoot() module.SourceLoc {
 	return pkg.modRoot
 }
@@ -189,6 +206,7 @@ func LoadPackages(
 	mainModuleLoc module.SourceLoc,
 	rs *modrequirements.Requirements,
 	reg Registry,
+	replacements *Replacements,
 	rootPkgPaths []string,
 	shouldIncludePkgFile func(pkgPath string, mod module.Version, fsys fs.FS, mf modimports.ModuleFile) bool,
 ) *Packages {
@@ -201,6 +219,7 @@ func LoadPackages(
 		shouldIncludePkgFile: shouldIncludePkgFile,
 		requirements:         rs,
 		registry:             reg,
+		replacements:         replacements,
 		work:                 par.NewQueue(runtime.GOMAXPROCS(0)),
 	}
 	inRoots := map[*Package]bool{}
@@ -261,7 +280,8 @@ func (pkgs *Packages) Pkg(canonicalPkgPath string) *Package {
 func (pkgs *Packages) addPkg(ctx context.Context, pkgPath string, flags Flags) *Package {
 	pkg := pkgs.pkgCache.Do(pkgPath, func() *Package {
 		pkg := &Package{
-			path: pkgPath,
+			path:            pkgPath,
+			resolvedImports: make(map[string]string),
 		}
 		pkgs.applyPkgFlags(pkg, flags)
 
@@ -279,7 +299,10 @@ func (pkgs *Packages) load(ctx context.Context, pkg *Package) {
 		pkg.inStd = true
 		return
 	}
-	pkg.mod, pkg.modRoot, pkg.locs, pkg.err = pkgs.importFromModules(ctx, pkg.path)
+	pkg.mod, pkg.modRoot, pkg.locs, pkg.err = pkgs.importFromModules(ctx, pkg.path, func(prefix string) (string, modrequirements.MajorVersionDefaultStatus, error) {
+		v, status := pkgs.requirements.DefaultMajorVersion(prefix)
+		return v, status, nil
+	})
 	if pkg.err != nil {
 		return
 	}
@@ -346,6 +369,52 @@ func (pkgs *Packages) load(ctx context.Context, pkg *Package) {
 	pkg.files = files
 	// Make the algorithm deterministic for tests.
 	imports := slices.Sorted(maps.Keys(importsMap))
+
+	// When this package is itself served via a module replacement (its
+	// module path is that of a replaced/original module), rewrite imports
+	// that reference the replacement module's own namespace back to the
+	// original module's namespace. This keeps the replacement module's
+	// internal self-references unified with the original's identity, which
+	// is critical for hidden-field namespace correctness. We deliberately do
+	// not rewrite imports in other modules (or the main module): a third
+	// party that depends on the replacement module directly should see it
+	// under its own path, not the original's.
+	if pkgs.replacements != nil {
+		if _, replaced := pkgs.replacements.Lookup(pkg.mod.Path()); replaced {
+			for i, imp := range imports {
+				if resolved := pkgs.replacements.CanonicalImportPath(imp); resolved != imp {
+					pkg.resolvedImports[imp] = resolved
+					imports[i] = resolved
+				}
+			}
+		}
+	}
+
+	if pkg.fromExternal {
+		// This package is from an external module: resolve unversioned
+		// imports using the importing module's own default major versions.
+		for i, imp := range imports {
+			ip := ast.ParseImportPath(imp)
+			if ip.Version != "" {
+				// Explicit major version in the import path.
+				continue
+			}
+			m, _, _, err := pkgs.importFromModules(ctx, imp, func(prefix string) (string, modrequirements.MajorVersionDefaultStatus, error) {
+				return pkgs.requirements.DependencyDefaultMajorVersion(ctx, pkg.mod, prefix)
+			})
+			if err != nil || !m.IsValid() {
+				if err != nil && !errors.As(err, new(*ImportMissingError)) {
+					pkg.err = err
+				}
+				continue
+			}
+			ip.Version = semver.Major(m.Version())
+			if resolved := ip.Canonical().String(); resolved != imp {
+				pkg.resolvedImports[imp] = resolved
+				imports[i] = resolved
+			}
+		}
+	}
 
 	pkg.imports = make([]*Package, 0, len(imports))
 	var importFlags Flags

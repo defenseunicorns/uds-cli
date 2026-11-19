@@ -69,11 +69,9 @@ func Parse(version string) (v Version, err error) {
 		return v, err
 	}
 
-	if v.Patch, err = strconv.ParseInt(after, 10, 64); err != nil {
-		return v, err
-	}
+	v.Patch, err = strconv.ParseInt(after, 10, 64)
 
-	return v, nil
+	return v, err
 }
 
 // MustParse is like Parse but panics if the version string is invalid instead of returning an error.
@@ -101,10 +99,10 @@ func Compare(a, b string) int {
 	return aV.Compare(bV)
 }
 
-// AppendText appends the textual representation of the version to b and returns the extended buffer.
+// AppendString appends the textual representation of the version to b and returns the extended buffer.
 // This method conforms to the encoding.TextAppender interface, and is useful for serializing the Version
 // without allocating, provided the caller has pre-allocated sufficient space in b.
-func (v Version) AppendText(b []byte) ([]byte, error) {
+func (v Version) AppendString(b []byte) ([]byte, error) {
 	if b == nil {
 		b = make([]byte, 0, length(v))
 	}
@@ -126,7 +124,7 @@ func (v Version) AppendText(b []byte) ([]byte, error) {
 // String returns the string representation of the version.
 func (v Version) String() string {
 	bs := make([]byte, 0, length(v))
-	bs, _ = v.AppendText(bs)
+	bs, _ = v.AppendString(bs)
 
 	return string(bs)
 }

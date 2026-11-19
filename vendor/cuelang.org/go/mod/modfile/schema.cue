@@ -51,6 +51,22 @@ versions: "v0.8.0-alpha.0": {
 }
 
 versions: "v0.9.0-alpha.0": {
+	// Define this version in terms of the later version
+	// rather than the other way around, so that
+	// the latest version is clearest.
+	versions["v0.17.0"]
+
+	// The replaceWith field was added in v0.17.0, so "remove"
+	// it here by marking it as an error when used.
+	#File: #Dep: {
+		replaceWith?: _errorReplaceFieldRequiredVersion
+		// versions were mandatory until v0.17.0 allowed
+		// them to be omitted within local-module.cue.
+		v!: _
+	}
+}
+
+versions: "v0.17.0": {
 	#File: {
 		// module indicates the module's path.
 		module?: #Module | ""
@@ -81,8 +97,10 @@ versions: "v0.9.0-alpha.0": {
 		#Dep: {
 			// v indicates the minimum required version of the module. This can
 			// be null if the version is unknown and the module entry is only
-			// present to be replaced.
-			v!: #Semver | null
+			// present to be replaced. In a cue.mod/local-module.cue file it may
+			// also be omitted entirely for a dependency that is also present in
+			// cue.mod/module.cue, in which case the version is taken from there.
+			v?: #Semver | null
 
 			// default indicates this module is used as a default in case more
 			// than one major version is specified for the same module path.
@@ -90,6 +108,18 @@ versions: "v0.9.0-alpha.0": {
 			// there is more than one major version for that path and default is
 			// not set for exactly one of them.
 			default?: bool
+
+			// replaceWith specifies a replacement for this dependency
+			// Directory replacements use a relative path starting "./"
+			// or "../" or an absolute path.
+			// Any other value is a module path with a major version
+			// (e.g. "example.com/bar@v0"); the concrete version is taken
+			// from the replacement module's own dependency entry, so the
+			// replacement is subject to minimum-version selection like any
+			// other dependency. A full version (e.g. "example.com/bar@v0.1.0")
+			// is accepted for convenience but is normalized to a bare major
+			// version by cue mod tidy.
+			replaceWith?: string
 		}
 
 		// #Module constrains a module path. The major version indicator is
@@ -112,8 +142,13 @@ versions: "v0.9.0-alpha.0": {
 		// The module declaration is required.
 		module!: #Module
 
-		// No null versions, because no replacements yet.
-		#Dep: v!: #Semver
+		// No null versions in strict mode.
+		#Dep: {
+			v!: #Semver
+
+			// Replacements are not permitted in published modules.
+			replaceWith?: _errorReplaceNotPermittedInStrict
+		}
 	}
 
 	// #Source describes a source of truth for a module's content.
@@ -145,3 +180,9 @@ versions: "v0.9.0-alpha.0": {
 
 //error: source field is not allowed at this language version; need at least v0.9.0-alpha.0
 let _errorSourceFieldRequiredVersion = 1 & 2
+
+//error: module replace is not allowed at this language version; need at least v0.17.0
+let _errorReplaceFieldRequiredVersion = 1 & 2
+
+//error: module replace is not allowed in published modules
+let _errorReplaceNotPermittedInStrict = 1 & 2

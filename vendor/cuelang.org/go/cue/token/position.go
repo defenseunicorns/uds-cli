@@ -199,7 +199,19 @@ const (
 	NewSection // section
 
 	relMask  = 0xf
-	relShift = 4
+	relShift = 6
+
+	// commaBit is set in the position offset when the token was preceded
+	// by an explicit comma in the source. This allows the formatter to
+	// distinguish between explicit commas and auto-inserted (newline)
+	// commas without needing extra AST fields.
+	commaBit = 0x10
+
+	// scannedBit marks a token as having been produced by the CUE scanner
+	// (as opposed to being part of a programmatically constructed AST).
+	// This allows the formatter to distinguish scanned lists from
+	// programmatic ones when deciding comma style.
+	scannedBit = 0x20
 )
 
 func (p RelPos) Pos() Pos {
@@ -270,6 +282,35 @@ func (p Pos) RelPos() RelPos {
 	return RelPos(p.offset & relMask)
 }
 
+// HasComma reports whether this token was preceded by an explicit comma
+// in the source text. This is set by the scanner and used by the formatter
+// to preserve comma style in lists.
+func (p Pos) HasComma() bool {
+	return p.offset&commaBit != 0
+}
+
+// WithComma returns a position with the comma bit set or cleared.
+func (p Pos) WithComma(hasComma bool) Pos {
+	if hasComma {
+		return Pos{p.file, p.offset | commaBit}
+	}
+	return Pos{p.file, p.offset &^ commaBit}
+}
+
+// Scanned reports whether this token was produced by the CUE scanner.
+// Programmatically constructed AST nodes will not have this bit set.
+func (p Pos) Scanned() bool {
+	return p.offset&scannedBit != 0
+}
+
+// WithScanned returns a position with the scanned bit set or cleared.
+func (p Pos) WithScanned(scanned bool) Pos {
+	if scanned {
+		return Pos{p.file, p.offset | scannedBit}
+	}
+	return Pos{p.file, p.offset &^ scannedBit}
+}
+
 func (p Pos) index() index {
 	return index(p.offset) >> relShift
 }
@@ -313,6 +354,7 @@ type File struct {
 	experiments *cueexperiment.File
 	priority    layer.Priority
 	isData      bool
+	fsLoc       FSLoc
 }
 
 // NewFile returns a new file with the given OS file name. The size provides the
@@ -363,9 +405,19 @@ func (f *hiddenFile) SetLayer(priority int8, isData bool) {
 	f.isData = isData
 }
 
+// NOTE: this is an internal API and may change at any time without notice.
+func (f *hiddenFile) SetFSLoc(loc FSLoc) {
+	f.fsLoc = loc
+}
+
 // Name returns the file name of file f as registered with AddFile.
 func (f *File) Name() string {
 	return f.name
+}
+
+// FSLoc returns the FS location information for file f.
+func (f *File) FSLoc() FSLoc {
+	return f.fsLoc
 }
 
 // Base returns the base offset of file f as passed to NewFile.

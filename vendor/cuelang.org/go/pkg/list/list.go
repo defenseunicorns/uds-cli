@@ -141,6 +141,9 @@ func Repeat(x []cue.Value, count int) ([]cue.Value, error) {
 	if count < 0 {
 		return nil, fmt.Errorf("negative count")
 	}
+	if count > adt.MaxRepeatCount {
+		return nil, fmt.Errorf("count %d exceeds limit of %d", count, adt.MaxRepeatCount)
+	}
 	return slices.Repeat(x, count), nil
 }
 
@@ -312,7 +315,8 @@ outer:
 }
 
 // Contains reports whether v is contained in a. The value must be a
-// comparable value.
+// comparable and concrete value.
+// For non-concrete values, you can use [MatchN] with >0.
 func Contains(a []cue.Value, v cue.Value) bool {
 	return slices.ContainsFunc(a, v.Equals)
 }
@@ -328,9 +332,10 @@ func MatchN(list []cue.Value, n pkg.Schema, matchValue pkg.Schema) (bool, error)
 
 // matchN is the actual implementation of MatchN.
 func matchN(c *adt.OpContext, list []cue.Value, n pkg.Schema, matchValue pkg.Schema) (bool, error) {
+	matchVertex := value.Vertex(matchValue)
 	var nmatch int64
 	for _, w := range list {
-		vx := adt.Unify(c, value.Vertex(matchValue), value.Vertex(w))
+		vx := adt.Unify(c, matchVertex, value.Vertex(w))
 		x := value.Make(c, vx)
 		if x.Validate(cue.Final()) == nil {
 			nmatch++
@@ -342,9 +347,10 @@ func matchN(c *adt.OpContext, list []cue.Value, n pkg.Schema, matchValue pkg.Sch
 	if err := n.Unify(ctx.Encode(nmatch)).Err(); err != nil {
 		return false, pkg.ValidationError{B: &adt.Bottom{
 			Code: adt.EvalError,
-			Err: errors.Newf(
+			Err: c.NewPosf(
 				token.NoPos,
-				"number of matched elements is %d: does not satisfy %v",
+				"%v matches %d list items, want %d",
+				matchVertex,
 				nmatch,
 				n,
 			),

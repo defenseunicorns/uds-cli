@@ -24,8 +24,6 @@ import (
 type Puller interface {
 	// PullBundle pulls a bundle from the given OCI reference and writes it to targetDir.
 	PullBundle(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
-	// PullPackage pulls a single Zarf package from the given OCI reference to targetDir.
-	PullPackage(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error)
 }
 
 // PullOptions configures an OCI pull operation.
@@ -104,7 +102,7 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 	// We write index.json ourselves below; prevent ORAS from clobbering it.
 	store.AutoSaveIndex = false
 
-	src, err := resolvePullTarget(ctx, ociReference, &opts)
+	src, err := resolveBundlePullSource(ctx, ociReference, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("resolving pull source %s: %w: %w", ociReference, ErrResolveReference, err)
 	}
@@ -196,36 +194,4 @@ func (p *defaultPuller) PullBundle(ctx context.Context, ociReference, targetDir 
 		OCIReference: ociReference,
 		OutputPath:   outPath,
 	}, nil
-}
-
-// PullPackage pulls a single Zarf package from an OCI registry into an OCI layout
-// directory at <targetDir>/oci. The layout is left on disk for cross-mount use.
-func (p *defaultPuller) PullPackage(ctx context.Context, ociReference, targetDir string, opts PullOptions) (*PullResult, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	if ociReference == "" {
-		return nil, EmptyParameterError{Name: "ociReference"}
-	}
-	if targetDir == "" {
-		return nil, EmptyParameterError{Name: "targetDir"}
-	}
-
-	log := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
-
-	ociDir := filepath.Join(targetDir, "oci")
-	if err := os.MkdirAll(ociDir, filesystem.PrivateDirectoryMode); err != nil {
-		return nil, fmt.Errorf("creating OCI dir: %w: %w", ErrCreateOCIDirectory, err)
-	}
-	store, err := oraci.New(ociDir)
-	if err != nil {
-		return nil, fmt.Errorf("creating OCI store: %w: %w", ErrCreateStore, err)
-	}
-
-	if _, err := pullToStore(ctx, ociReference, store, &opts); err != nil {
-		return nil, fmt.Errorf("pulling package from %s: %w: %w", ociReference, ErrPullContent, err)
-	}
-
-	log.Info("package pulled", "output", ociDir)
-	return &PullResult{OCIReference: ociReference, OutputPath: ociDir}, nil
 }

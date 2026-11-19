@@ -1,6 +1,7 @@
 package modload
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -27,46 +28,113 @@ const logging = false // TODO hook this up to CUE_DEBUG
 
 // Registry is modload's view of a module registry.
 type Registry interface {
-	modrequirements.Registry
-	modpkgload.Registry
-	// ModuleVersions returns all the versions for the module with the given path
-	// sorted in semver order.
-	// If mpath has a major version suffix, only versions with that major version will
-	// be returned.
-	ModuleVersions(ctx context.Context, mpath string) ([]string, error)
+	modpkgload.FullRegistry
 }
 
 type loader struct {
 	mainModule    module.Version
 	mainModuleLoc module.SourceLoc
 	registry      Registry
-	checkTidy     bool
+	// replacements holds the replacements to apply when loading
+	// packages, or nil when resolving the published (un-replaced) view.
+	replacements *modpkgload.Replacements
+	checkTidy    bool
 }
 
-// CheckTidy checks that the module file in the given main module is considered tidy.
-// A module file is considered tidy when:
-// - it can be parsed OK by [modfile.ParseStrict].
-// - it contains a language version in canonical semver form
+// TidyOptions configures two-file tidying with module replaces. When it
+// is nil, only cue.mod/module.cue (the published view) is considered, and
+// any cue.mod/local-module.cue file is ignored.
+type TidyOptions struct {
+	// LocForPath returns the location of a directory replacement,
+	// where path is exactly the replaceWith field's value, which
+	// may be relative to the module's root directory.
+	// If nil, directory replacements are not supported.
+	LocForPath func(path string) (module.SourceLoc, error)
+
+	// LocalOnly restricts tidying to cue.mod/local-module.cue, leaving
+	// cue.mod/module.cue unchanged. This is useful when a replaced module
+	// is not available in any registry, so resolving the published view
+	// would fail.
+	LocalOnly bool
+}
+
+// TidyResult holds the tidied module files.
+type TidyResult struct {
+	// Module is the tidied cue.mod/module.cue (the published view), or nil
+	// if it should be left unchanged (for example with LocalOnly).
+	Module *modfile.File
+
+	// Local is the tidied cue.mod/local-module.cue (the main-module view),
+	// or nil if the file should not exist because no module replaces
+	// remain.
+	Local *modfile.File
+}
+
+// CheckTidy checks that the module files in the given main module are
+// considered tidy. A module is considered tidy when:
+// - its module.cue can be parsed OK and has a canonical language version
 // - it includes valid modules for all of its dependencies
 // - it does not include any unnecessary dependencies.
-func CheckTidy(ctx context.Context, fsys fs.FS, modRoot string, reg Registry) error {
-	_, err := tidy(ctx, fsys, modRoot, reg, true)
+//
+// See [Tidy] for the meaning of opts.
+func CheckTidy(ctx context.Context, fsys fs.FS, modRoot string, reg Registry, opts *TidyOptions) error {
+	_, err := tidy(ctx, fsys, modRoot, reg, opts, true)
 	return err
 }
 
-// Tidy evaluates all the requirements of the given main module, using the given
-// registry to download requirements and returns a resolved and tidied module file.
-func Tidy(ctx context.Context, fsys fs.FS, modRoot string, reg Registry) (*modfile.File, error) {
-	return tidy(ctx, fsys, modRoot, reg, false)
+// Tidy evaluates all the requirements of the given main module, using the
+// given registry to download requirements, and returns the resolved and
+// tidied module files.
+//
+// When opts is nil, only cue.mod/module.cue is considered (the published
+// view), exactly as if module replaces did not exist; any
+// cue.mod/local-module.cue file is ignored.
+//
+// When opts is non-nil and a cue.mod/local-module.cue file with replaceWith
+// fields is present, Tidy additionally resolves the main-module view
+// with replaces applied (returned in [TidyResult.Local]) and keeps the two
+// files in sync, taking the maximum version for any module present in both.
+func Tidy(ctx context.Context, fsys fs.FS, modRoot string, reg Registry, opts *TidyOptions) (*TidyResult, error) {
+	return tidy(ctx, fsys, modRoot, reg, opts, false)
 }
 
-func tidy(ctx context.Context, fsys fs.FS, modRoot string, reg Registry, checkTidy bool) (*modfile.File, error) {
-	mainModuleVersion, mf, err := readModuleFile(fsys, modRoot)
+func tidy(ctx context.Context, fsys fs.FS, modRoot string, reg Registry, opts *TidyOptions, checkTidy bool) (*TidyResult, error) {
+	// A nil opts selects the published view alone: cue.mod/local-module.cue
+	// is ignored entirely, exactly as if module replaces did not exist.
+	ignoreLocal := opts == nil
+	if opts == nil {
+		opts = &TidyOptions{}
+	}
+	baseMF, err := readPublishedModuleFile(fsys, modRoot)
 	if err != nil {
 		return nil, err
 	}
 	// TODO check that module path is well formed etc
-	origRs := modrequirements.NewRequirements(mf.QualifiedModule(), reg, mf.DepVersions(), mf.DefaultMajorVersions())
+	mainModuleVersion, err := module.NewVersion(baseMF.QualifiedModule(), "")
+	if err != nil {
+		return nil, fmt.Errorf("cue.mod/module.cue: invalid module path: %v", err)
+	}
+	mainModuleLoc := module.SourceLoc{FS: fsys, Dir: modRoot}
+
+	// Read the optional local-module.cue file and fold in any replaceWith
+	// fields from module.cue to form the effective main-module view.
+	// tidy tolerates a replaceWith field in module.cue and migrates it into
+	// local-module.cue (removing it from the published module.cue).
+	var (
+		localMF     *modfile.File
+		localExists bool
+	)
+	if !ignoreLocal {
+		localMF, localExists, err = readLocalModuleFile(fsys, modRoot, baseMF)
+		if err != nil {
+			return nil, err
+		}
+		localMF, err = mergeLocalReplaces(baseMF, localMF)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Note: we can ignore build tags and the fact that we might
 	// have _tool.cue and _test.cue files, because we want to include
 	// all of those, but we do need to consider @ignore() attributes.
@@ -74,16 +142,115 @@ func tidy(ctx context.Context, fsys fs.FS, modRoot string, reg Registry, checkTi
 	if err != nil {
 		return nil, err
 	}
-	ld := &loader{
-		mainModule: mainModuleVersion,
-		registry:   reg,
-		mainModuleLoc: module.SourceLoc{
-			FS:  fsys,
-			Dir: modRoot,
-		},
-		checkTidy: checkTidy,
+
+	// Resolve the published view (without replaces) unless --local-only.
+	// This is done first so its selected versions can seed the versions of
+	// replacement targets in the main-module view (a module-version
+	// replacement is subject to MVS like any other dependency).
+	var rsPub *modrequirements.Requirements
+	if !opts.LocalOnly {
+		ld := &loader{
+			mainModule:    mainModuleVersion,
+			registry:      reg,
+			mainModuleLoc: mainModuleLoc,
+			checkTidy:     checkTidy,
+		}
+		origRs := modrequirements.NewRequirements(baseMF.QualifiedModule(), reg, baseMF.DepVersions(), baseMF.DefaultMajorVersions())
+		rsPub, err = ld.tidyOnce(ctx, rootPkgPaths, origRs)
+		if err != nil {
+			if localMF != nil && hasReplace(localMF) {
+				return nil, fmt.Errorf("cannot resolve published module.cue: %v\n\t(if a replaced module is not available in a registry, use 'cue mod tidy --local-only')", err)
+			}
+			return nil, err
+		}
+		if checkTidy && !equalRequirements(origRs, rsPub) {
+			return nil, &ErrModuleNotTidy{}
+		}
 	}
 
+	// Resolve the main-module view (with replaces applied) when there are
+	// replacements to apply. Replacement targets must be listed as ordinary
+	// dependencies so they participate in MVS; seed any that are missing,
+	// taking their version from the published view (or the registry).
+	var (
+		rsLocal *modrequirements.Requirements
+		repls   *modpkgload.Replacements
+	)
+	if localMF != nil && hasReplace(localMF) {
+		seededMF, err := seedReplacementTargets(ctx, localMF, rsPub, reg)
+		if err != nil {
+			return nil, err
+		}
+		repls, err = modpkgload.NewReplacements(seededMF)
+		if err != nil {
+			return nil, err
+		}
+		ld := &loader{
+			mainModule:    mainModuleVersion,
+			registry:      modpkgload.NewReplacingRegistry(reg, repls, opts.LocForPath),
+			mainModuleLoc: mainModuleLoc,
+			replacements:  repls,
+			checkTidy:     checkTidy,
+		}
+		origRs := modrequirements.NewRequirements(baseMF.QualifiedModule(), ld.registry, seededMF.DepVersions(), seededMF.DefaultMajorVersions())
+		rsLocal, err = ld.tidyOnce(ctx, rootPkgPaths, origRs)
+		if err != nil {
+			return nil, err
+		}
+		if checkTidy {
+			// Compare against the requirements as actually written on disk
+			// (without the seeded targets); a missing target dep means the
+			// file is not tidy.
+			onDisk := modrequirements.NewRequirements(baseMF.QualifiedModule(), ld.registry, localMF.DepVersions(), localMF.DefaultMajorVersions())
+			if !equalRequirements(onDisk, rsLocal) {
+				return nil, &ErrModuleNotTidy{}
+			}
+		}
+	}
+
+	if checkTidy {
+		// The replaceWith field belongs in local-module.cue, not module.cue;
+		// a tidy module has had them migrated out of the published file.
+		if hasReplace(baseMF) {
+			return nil, &ErrModuleNotTidy{Reason: "cue.mod/module.cue has a module replace that should be moved to cue.mod/local-module.cue"}
+		}
+		// A local-module.cue with no replaceWith fields serves no purpose
+		// and should have been removed.
+		if localExists && repls == nil {
+			return nil, &ErrModuleNotTidy{Reason: "cue.mod/local-module.cue has no module replaces and should be removed"}
+		}
+		// Each view being internally tidy is not enough: module.cue must also
+		// advertise the maximum version (and matching default major version)
+		// for every dependency across both views, exactly as a full tidy would
+		// write it. Otherwise publishing could ship a module.cue whose
+		// dependency versions lag behind what the main module actually builds
+		// against via local-module.cue.
+		if rsPub != nil && rsLocal != nil {
+			maxVers, defaults := mergeRequirements(rsPub, rsLocal)
+			if want := modfileFromRequirements(baseMF, rsPub, maxVers, defaults, nil); !sameDeps(want, baseMF) {
+				return nil, &ErrModuleNotTidy{}
+			}
+		}
+		return nil, nil
+	}
+
+	// Merge the two views and build the output files.
+	maxVers, defaults := mergeRequirements(rsPub, rsLocal)
+	res := &TidyResult{}
+	if rsPub != nil {
+		res.Module = modfileFromRequirements(baseMF, rsPub, maxVers, defaults, nil)
+	}
+	if rsLocal != nil {
+		local := modfileFromRequirements(baseMF, rsLocal, maxVers, defaults, localMF)
+		if hasReplace(local) {
+			res.Local = local
+		}
+	}
+	return res, nil
+}
+
+// tidyOnce resolves and tidies a single dependency graph.
+func (ld *loader) tidyOnce(ctx context.Context, rootPkgPaths []string, origRs *modrequirements.Requirements) (*modrequirements.Requirements, error) {
 	rs, pkgs, err := ld.resolveDependencies(ctx, rootPkgPaths, origRs)
 	if err != nil {
 		return nil, err
@@ -93,16 +260,224 @@ func tidy(ctx context.Context, fsys fs.FS, modRoot string, reg Registry, checkTi
 			return nil, fmt.Errorf("failed to resolve %q: %v", pkg.ImportPath(), pkg.Error())
 		}
 	}
-	// TODO check whether it's changed or not.
 	rs, err = ld.tidyRoots(ctx, rs, pkgs)
 	if err != nil {
 		return nil, fmt.Errorf("cannot tidy requirements: %v", err)
 	}
-	if ld.checkTidy && !equalRequirements(origRs, rs) {
-		// TODO: provide a reason, perhaps in structured form rather than a string
-		return nil, &ErrModuleNotTidy{}
+	return rs, nil
+}
+
+// mergeRequirements returns the maximum selected version for every module
+// path appearing in either requirement set (keyed by full module path,
+// including the major version), and the union of their default major
+// versions (the local view winning on conflict).
+func mergeRequirements(pub, local *modrequirements.Requirements) (maxVers, defaults map[string]string) {
+	maxVers = make(map[string]string)
+	defaults = make(map[string]string)
+	for _, rs := range []*modrequirements.Requirements{pub, local} {
+		if rs == nil {
+			continue
+		}
+		for _, v := range rs.RootModules() {
+			if v.IsLocal() {
+				continue
+			}
+			if cur, ok := maxVers[v.Path()]; !ok || semver.Compare(v.Version(), cur) > 0 {
+				maxVers[v.Path()] = v.Version()
+			}
+		}
+		maps.Copy(defaults, rs.DefaultMajorVersions())
 	}
-	return modfileFromRequirements(mf, rs), nil
+	return maxVers, defaults
+}
+
+func hasReplace(mf *modfile.File) bool {
+	for _, dep := range mf.Deps {
+		if dep.ReplaceWith != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// sameDeps reports whether a and b declare the same dependencies: the same
+// set of module paths, each with the same version, default marker and
+// replaceWith field.
+func sameDeps(a, b *modfile.File) bool {
+	if len(a.Deps) != len(b.Deps) {
+		return false
+	}
+	for mpath, ad := range a.Deps {
+		bd, ok := b.Deps[mpath]
+		if !ok || ad.Version != bd.Version || ad.Default != bd.Default || ad.ReplaceWith != bd.ReplaceWith {
+			return false
+		}
+	}
+	return true
+}
+
+// mergeLocalReplaces builds the effective main-module view by folding any
+// replaceWith fields from module.cue (base) into the local-module.cue view
+// (local, which may be nil if there is no such file). The local view wins on
+// conflict; a replaceWith field from module.cue is carried over only when local
+// does not already replace that module, and supplies a version when local omits
+// one.
+//
+// It returns nil when there are no replaceWith fields in either file, in which
+// case there is no main-module view distinct from the published one.
+func mergeLocalReplaces(base, local *modfile.File) (*modfile.File, error) {
+	deps := make(map[string]*modfile.Dep)
+	if local != nil {
+		for mpath, dep := range local.Deps {
+			d := *dep
+			deps[mpath] = &d
+		}
+	}
+	for mpath, bdep := range base.Deps {
+		if bdep.ReplaceWith == "" {
+			continue
+		}
+		if d, ok := deps[mpath]; ok {
+			d.ReplaceWith = cmp.Or(d.ReplaceWith, bdep.ReplaceWith)
+			d.Version = cmp.Or(d.Version, bdep.Version)
+			continue
+		}
+		d := *bdep
+		deps[mpath] = &d
+	}
+	eff := &modfile.File{
+		Module:   base.Module,
+		Language: base.Language,
+		Source:   base.Source,
+		Custom:   base.Custom,
+		Deps:     deps,
+	}
+	if !hasReplace(eff) {
+		return nil, nil
+	}
+	if err := eff.InitNonStrict(); err != nil {
+		return nil, err
+	}
+	return eff, nil
+}
+
+// seedReplacementTargets returns a copy of localMF in which every
+// module-version replacement target is present as an ordinary dependency with
+// a concrete version, so the target participates in MVS like any other
+// dependency. A target that is already listed with a version is left
+// unchanged; otherwise its version is taken from the published view rsPub
+// (which is nil under --local-only) or, failing that, the latest version in
+// the registry.
+func seedReplacementTargets(ctx context.Context, localMF *modfile.File, rsPub *modrequirements.Requirements, reg Registry) (*modfile.File, error) {
+	deps := make(map[string]*modfile.Dep, len(localMF.Deps))
+	for p, d := range localMF.Deps {
+		dc := *d
+		deps[p] = &dc
+	}
+	for mpath, dep := range localMF.Deps {
+		if dep.ReplaceWith == "" {
+			continue
+		}
+		dir, base, vers, err := modpkgload.ReplaceTarget(dep.ReplaceWith)
+		if err != nil {
+			return nil, fmt.Errorf("invalid replace value for %s: %v", mpath, err)
+		}
+		if dir != "" {
+			// A directory replacement has no module target to seed.
+			continue
+		}
+		major := semver.Major(vers)
+		if major == "" {
+			major, err = defaultMajorForBase(localMF, rsPub, base)
+			if err != nil {
+				return nil, fmt.Errorf("cannot resolve major version for replacement target %q: %v", base, err)
+			}
+		}
+		targetPath := base + "@" + major
+		if d, ok := deps[targetPath]; ok && d.Version != "" {
+			continue
+		}
+		full := vers
+		if semver.Canonical(vers) != vers {
+			// It's major-version only.
+			full = ""
+		}
+		// full is the version named in the replace directive (if any); it acts
+		// as a floor for the target so an explicit version is not lost when it
+		// exceeds what the published view requires.
+		version, err := seedVersion(ctx, targetPath, full, rsPub, reg)
+		if err != nil {
+			return nil, fmt.Errorf("cannot determine version for replacement target %q: %v", targetPath, err)
+		}
+		deps[targetPath] = &modfile.Dep{Version: version}
+	}
+	seeded := &modfile.File{
+		Module:   localMF.Module,
+		Language: localMF.Language,
+		Source:   localMF.Source,
+		Custom:   localMF.Custom,
+		Deps:     deps,
+	}
+	if err := seeded.InitNonStrict(); err != nil {
+		return nil, err
+	}
+	return seeded, nil
+}
+
+// seedVersion returns the version to record for a replacement target. It uses
+// the higher of the version selected in the published view and floor (the
+// version named in the replace directive, possibly empty), falling back to the
+// latest version available in the registry when neither is known.
+func seedVersion(ctx context.Context, targetPath, floor string, rsPub *modrequirements.Requirements, reg Registry) (string, error) {
+	best := floor
+	if rsPub != nil {
+		if v, ok := rsPub.RootSelected(targetPath); ok && v != "" && v != "none" {
+			if best == "" || semver.Compare(v, best) > 0 {
+				best = v
+			}
+		}
+	}
+	if best != "" {
+		return best, nil
+	}
+	versions, err := reg.ModuleVersions(ctx, targetPath)
+	if err != nil {
+		return "", err
+	}
+	if len(versions) == 0 {
+		return "", fmt.Errorf("no versions found in registry")
+	}
+	// ModuleVersions returns versions sorted in semver order.
+	return versions[len(versions)-1], nil
+}
+
+// defaultMajorForBase resolves the major version to use for a bare-path
+// replacement target. It first consults the default major versions recorded in
+// localMF (a `default: true` entry), matching how resolveReplacement resolves
+// the target at load time, then falls back to the published view's selected
+// modules.
+func defaultMajorForBase(localMF *modfile.File, rsPub *modrequirements.Requirements, base string) (string, error) {
+	if major := localMF.DefaultMajorVersions()[base]; major != "" {
+		return major, nil
+	}
+	if rsPub == nil {
+		return "", fmt.Errorf("no published view available to resolve a default major version")
+	}
+	var found string
+	for _, v := range rsPub.RootModules() {
+		if v.IsLocal() || v.BasePath() != base {
+			continue
+		}
+		m := semver.Major(v.Version())
+		if found != "" && found != m {
+			return "", fmt.Errorf("multiple major versions present")
+		}
+		found = m
+	}
+	if found == "" {
+		return "", fmt.Errorf("not a published dependency")
+	}
+	return found, nil
 }
 
 // ErrModuleNotTidy is returned by CheckTidy when a module is not tidy,
@@ -130,24 +505,45 @@ func equalRequirements(rs0, rs1 *modrequirements.Requirements) bool {
 		maps.Equal(rs0.DefaultMajorVersions(), rs1.DefaultMajorVersions())
 }
 
-func readModuleFile(fsys fs.FS, modRoot string) (module.Version, *modfile.File, error) {
+func readPublishedModuleFile(fsys fs.FS, modRoot string) (*modfile.File, error) {
 	modFilePath := path.Join(modRoot, "cue.mod/module.cue")
 	data, err := fs.ReadFile(fsys, modFilePath)
 	if err != nil {
-		return module.Version{}, nil, fmt.Errorf("cannot read cue.mod file: %v", err)
+		return nil, fmt.Errorf("cannot read cue.mod file: %v", err)
 	}
 	mf, err := modfile.ParseNonStrict(data, modFilePath)
 	if err != nil {
-		return module.Version{}, nil, err
+		return nil, err
 	}
-	mainModuleVersion, err := module.NewVersion(mf.QualifiedModule(), "")
-	if err != nil {
-		return module.Version{}, nil, fmt.Errorf("%s: invalid module path: %v", modFilePath, err)
-	}
-	return mainModuleVersion, mf, nil
+	return mf, nil
 }
 
-func modfileFromRequirements(old *modfile.File, rs *modrequirements.Requirements) *modfile.File {
+// readLocalModuleFile reads the optional cue.mod/local-module.cue file,
+// inheriting identity from baseMF (the parsed module.cue). It reports
+// whether the file exists.
+func readLocalModuleFile(fsys fs.FS, modRoot string, baseMF *modfile.File) (mf *modfile.File, exists bool, err error) {
+	localPath := path.Join(modRoot, "cue.mod/local-module.cue")
+	data, err := fs.ReadFile(fsys, localPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("cannot read cue.mod/local-module.cue: %v", err)
+	}
+	mf, err = modfile.ParseLocal(data, localPath, baseMF)
+	if err != nil {
+		return nil, true, err
+	}
+	return mf, true, nil
+}
+
+// modfileFromRequirements builds a module file from resolved requirements.
+// The module path, language version, source and custom data are taken from
+// old. For any module also present in maxVers at a higher version, that
+// version is used instead (keeping the two files in sync). When replSource
+// is non-nil, replaceWith fields from it are reattached to the matching
+// deps (used when building local-module.cue).
+func modfileFromRequirements(old *modfile.File, rs *modrequirements.Requirements, maxVers, defaults map[string]string, replSource *modfile.File) *modfile.File {
 	// TODO it would be nice to have some way of automatically including new
 	// fields by default when they're added to modfile.File, but we don't
 	// want to just copy the entirety of old because that includes
@@ -159,17 +555,69 @@ func modfileFromRequirements(old *modfile.File, rs *modrequirements.Requirements
 		Source:   old.Source,
 		Custom:   old.Custom,
 	}
-	defaults := rs.DefaultMajorVersions()
+	var replByPath map[string]string
+	if replSource != nil {
+		replByPath = replaceByPath(replSource)
+	}
 	for _, v := range rs.RootModules() {
 		if v.IsLocal() {
 			continue
 		}
-		mf.Deps[v.Path()] = &modfile.Dep{
-			Version: v.Version(),
-			Default: defaults[v.BasePath()] == semver.Major(v.Version()),
+		version := v.Version()
+		if mv, ok := maxVers[v.Path()]; ok && semver.Compare(mv, version) > 0 {
+			version = mv
 		}
+		dep := &modfile.Dep{
+			Version: version,
+			Default: defaults[v.BasePath()] == semver.Major(version),
+		}
+		if r, ok := replByPath[v.Path()]; ok {
+			dep.ReplaceWith = r
+		}
+		mf.Deps[v.Path()] = dep
 	}
 	return mf
+}
+
+// replaceByPath maps a module file's deps that carry a replaceWith directive from
+// their full module path to the normalized replace value (a module-version
+// target that names a full version is reduced to its bare major version).
+func replaceByPath(mf *modfile.File) map[string]string {
+	m := make(map[string]string)
+	for mpath, dep := range mf.Deps {
+		if dep.ReplaceWith == "" {
+			continue
+		}
+		repl := dep.ReplaceWith
+		if norm, err := normalizeReplace(repl); err == nil {
+			repl = norm
+		}
+		if mv, err := module.NewVersion(mpath, dep.Version); err == nil {
+			m[mv.Path()] = repl
+		} else {
+			m[mpath] = repl
+		}
+	}
+	return m
+}
+
+// normalizeReplace returns the canonical form of a replace directive value: a
+// directory path is returned unchanged, a module-version target that names a
+// full version is reduced to its bare major version (e.g.
+// "example.com/bar@v0.1.0" becomes "example.com/bar@v0"), and a value that
+// already names only a major version (or a bare path) is returned unchanged.
+func normalizeReplace(s string) (string, error) {
+	dir, base, vers, err := modpkgload.ReplaceTarget(s)
+	if err != nil {
+		return "", err
+	}
+	if dir != "" {
+		return dir, nil
+	}
+	if vers != "" {
+		return base + "@" + semver.Major(vers), nil
+	}
+	return base, nil
 }
 
 // shouldIncludePkgFile reports whether a file from a package should be included
@@ -204,7 +652,7 @@ func (ld *loader) shouldIncludePkgFile(pkgPath string, mod module.Version, fsys 
 func (ld *loader) resolveDependencies(ctx context.Context, rootPkgPaths []string, rs *modrequirements.Requirements) (*modrequirements.Requirements, *modpkgload.Packages, error) {
 	for {
 		logf("---- LOADING from requirements %q", rs.RootModules())
-		pkgs := modpkgload.LoadPackages(ctx, ld.mainModule.Path(), ld.mainModuleLoc, rs, ld.registry, rootPkgPaths, ld.shouldIncludePkgFile)
+		pkgs := modpkgload.LoadPackages(ctx, ld.mainModule.Path(), ld.mainModuleLoc, rs, ld.registry, ld.replacements, rootPkgPaths, ld.shouldIncludePkgFile)
 		if ld.checkTidy {
 			for _, pkg := range pkgs.All() {
 				err := pkg.Error()
@@ -410,7 +858,7 @@ func (ld *loader) updateRoots(ctx context.Context, rs *modrequirements.Requireme
 		slices.SortFunc(roots, module.Version.Compare)
 	}
 
-	// "Each root appears only once, at the selected version of its path ….”
+	// “Each root appears only once, at the selected version of its path ….”
 	for {
 		var mg *modrequirements.ModuleGraph
 		if rootsUpgraded {
@@ -665,6 +1113,37 @@ func (ld *loader) tidyRoots(ctx context.Context, old *modrequirements.Requiremen
 		}
 	}
 
+	// A module-version replacement target is reached only through the
+	// replacement, so the loop above never records it as a root even though
+	// the replace directive resolves its concrete version from the target's
+	// dependency entry. Add any such target back as a root, taking the version
+	// that minimum-version selection chose for it in old.
+	if ld.replacements != nil {
+		roots = tidy.RootModules()
+		added := false
+		for _, repl := range ld.replacements.All() {
+			target := repl.Module
+			if !target.IsValid() || pathIsRoot[target.Path()] {
+				continue
+			}
+			v, ok := old.RootSelected(target.Path())
+			if !ok || v == "" || v == "none" {
+				continue
+			}
+			mv, err := module.NewVersion(target.Path(), v)
+			if err != nil {
+				return nil, err
+			}
+			roots = append(roots, mv)
+			pathIsRoot[target.Path()] = true
+			added = true
+		}
+		if added {
+			slices.SortFunc(roots, module.Version.Compare)
+			tidy = modrequirements.NewRequirements(ld.mainModule.Path(), ld.registry, roots, tidy.DefaultMajorVersions())
+		}
+	}
+
 	if _, err := tidy.Graph(ctx); err != nil {
 		return nil, err
 	}
@@ -688,14 +1167,12 @@ func (ld *loader) spotCheckRoots(ctx context.Context, rs *modrequirements.Requir
 			if ctx.Err() != nil {
 				return
 			}
-
-			require, err := ld.registry.Requirements(ctx, m)
+			mf, err := ld.registry.ModFile(ctx, m)
 			if err != nil {
 				cancel()
 				return
 			}
-
-			for _, r := range require {
+			for _, r := range mf.DepVersions() {
 				if v, ok := rs.RootSelected(r.Path()); ok && semver.Compare(v, r.Version()) < 0 {
 					cancel()
 					return

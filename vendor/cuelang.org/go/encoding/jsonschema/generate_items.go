@@ -302,28 +302,78 @@ func (i *itemEnum) apply(f func(internItem, *uniqueItems) internItem, u *uniqueI
 	return i
 }
 
-type itemRef struct {
-	defName string
+// CUERef represents a reference within CUE source.
+type CUERef struct {
+	// Inst holds the package where the reference is.
+	Inst cue.Value
+
+	// Path holds the path within Inst.
+	Path cue.Path
+
+	// Name holds the name to use for the reference within
+	// the generated JSON Schema. It is the responsibility
+	// of the [GenerateConfig.NamesFunc] to set this.
+	Name string
 }
 
-func (it *itemRef) hash(h *maphash.Hash, u *uniqueItems) {
-	h.WriteString(it.defName)
+func (it *CUERef) hash(h *maphash.Hash, u *uniqueItems) {
+	h.WriteString(it.Name)
 }
 
-func (i *itemRef) generate(g *generator) ast.Expr {
+func (i *CUERef) generate(g *generator) ast.Expr {
 	// Note: we might need to escape the fragment to produce
 	// a valid URI. Also, if the definition name itself contains
 	// a slash, it should be treated as a literal slash not as a JSON Pointer
 	// separator.
-	jptr := json.PointerFromTokens(slices.Values([]string{"$defs", i.defName}))
+	jptr := json.PointerFromTokens(slices.Values([]string{"$defs", i.Name}))
 	u := &url.URL{
 		Fragment: string(jptr),
 	}
 	return singleKeyword("$ref", ast.NewString(u.String()))
 }
 
-func (i *itemRef) apply(f func(internItem, *uniqueItems) internItem, u *uniqueItems) item {
+func (i *CUERef) apply(f func(internItem, *uniqueItems) internItem, u *uniqueItems) item {
 	return i
+}
+
+type itemDescription struct {
+	description string
+	elem        internItem
+}
+
+func (i *itemDescription) hash(h *maphash.Hash, u *uniqueItems) {
+	h.WriteString(i.description)
+	u.writeHash(h, i.elem)
+}
+
+func (i *itemDescription) generate(g *generator) ast.Expr {
+	expr := i.elem.Value().generate(g)
+	switch expr := expr.(type) {
+	case *ast.StructLit:
+		expr.Elts = append(expr.Elts, makeField("description", ast.NewString(i.description)))
+		slices.SortFunc(expr.Elts, func(a, b ast.Decl) int {
+			return cmpSchemaLabels(fieldLabel(a), fieldLabel(b))
+		})
+		return expr
+	case *ast.BasicLit:
+		if expr.Kind == token.TRUE {
+			return makeSchemaStructLit(makeField("description", ast.NewString(i.description)))
+		}
+		return expr
+	default:
+		// All item generate methods return either *ast.StructLit
+		// (via makeSchemaStructLit or singleKeyword) or *ast.BasicLit
+		// (ast.NewBool in itemTrue and itemFalse), so this is unreachable.
+		panic(fmt.Errorf("unexpected expression type in itemDescription: %T", expr))
+	}
+}
+
+func (i *itemDescription) apply(f func(internItem, *uniqueItems) internItem, u *uniqueItems) item {
+	newElem := f(i.elem, u)
+	if newElem == i.elem {
+		return i
+	}
+	return &itemDescription{description: i.description, elem: newElem}
 }
 
 // itemType represents a type constraint
@@ -566,6 +616,20 @@ func (i *itemItems) apply(f func(internItem, *uniqueItems) internItem, u *unique
 	return &itemItems{prefix: prefix, rest: rest}
 }
 
+// itemUniqueItems represents the uniqueItems constraint for arrays.
+type itemUniqueItems struct{}
+
+func (it *itemUniqueItems) hash(h *maphash.Hash, u *uniqueItems) {
+}
+
+func (i *itemUniqueItems) generate(g *generator) ast.Expr {
+	return singleKeyword("uniqueItems", ast.NewBool(true))
+}
+
+func (i *itemUniqueItems) apply(f func(internItem, *uniqueItems) internItem, u *uniqueItems) item {
+	return i
+}
+
 // itemContains represents a contains constraint for arrays
 type itemContains struct {
 	elem internItem
@@ -792,9 +856,10 @@ func cmpSchemaLabels(l1, l2 string) int {
 var labelPriorityValues = func() map[string]int {
 	// Always put these keywords at the start.
 	m := map[string]int{
-		"$schema": 0,
-		"$defs":   1,
-		"type":    2,
+		"$schema":     0,
+		"$defs":       1,
+		"type":        2,
+		"description": 3,
 	}
 	// It's nice to group related keywords together.
 	n := len(m)

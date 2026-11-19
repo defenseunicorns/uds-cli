@@ -53,24 +53,22 @@ func init() {
 	handlePatternConstraint = &runner{
 		name:      "PatternConstraint",
 		f:         processPatternConstraint,
-		completes: allTasksCompleted | fieldConjunctsKnown,
+		completes: fieldConjunct,
 	}
 	handleComprehension = &runner{
 		name:      "Comprehension",
 		f:         processComprehension,
-		completes: valueKnown | allTasksCompleted | fieldConjunctsKnown | pendingKnown,
+		completes: fieldConjunct,
 	}
 	handleListLit = &runner{
 		name:      "ListLit",
 		f:         processListLit,
 		completes: fieldConjunct,
-		needs:     listTypeKnown,
 	}
 	handleListVertex = &runner{
 		name:      "ListVertex",
 		f:         processListVertex,
 		completes: fieldConjunct,
-		needs:     listTypeKnown,
 	}
 	handleDisjunctions = &runner{
 		name:      "Disjunctions",
@@ -105,18 +103,35 @@ func processResolver(ctx *OpContext, t *task, mode runMode) {
 	// be conclusive, we could avoid triggering evaluating disjunctions. This
 	// would be a pretty significant rework, though.
 
+	// Resolving may recursively run tasks on other nodes, including nested
+	// processResolver calls; save and restore the flag so that they do not
+	// clobber ours.
+	savedPendingParent := ctx.lookupPendingParent
+	ctx.lookupPendingParent = false
 	arc := r.resolve(ctx, Flags{
 		condition: fieldSetKnown,
 		mode:      mode,
 	})
+	pendingParent := ctx.lookupPendingParent
+	ctx.lookupPendingParent = savedPendingParent
 	// TODO: ensure that resolve always returns one of these two.
 	if arc == nil || arc == emptyNode {
 		// TODO: yield instead?
+		if arc == nil && mode == attemptOnly && !ctx.HasErr() &&
+			pendingParent {
+			// A parent task, such as a comprehension this task ran ahead
+			// of, may still produce the field. Retry later rather than
+			// silently dropping this conjunct.
+			t.retry = true
+		}
 		return
 	}
 	ci := ctx.ci
-	if arc.OpenedShared {
+	if arc.OpenedShared || t.id.Opened {
 		ci.Opened = true
+	}
+	if t.id.ConjunctOpened {
+		ci.ConjunctOpened = true
 	}
 
 	arc = arc.DerefNonDisjunct()
@@ -124,7 +139,6 @@ func processResolver(ctx *OpContext, t *task, mode runMode) {
 	if ctx.LogEval > 0 {
 		ctx.Logf(t.node.node, "RESOLVED %v to %v %v", r, arc.Label, fmt.Sprintf("%p", arc))
 	}
-	// TODO: consider moving after markCycle or removing.
 	d := arc.DerefDisjunct()
 
 	// A reference that points to itself indicates equality. In that case
@@ -162,6 +176,23 @@ func processDynamic(ctx *OpContext, t *task, mode runMode) {
 		mode:      mode,
 	})
 	if v == nil {
+		return
+	}
+
+	// A key that resolves to a vertex that is still being evaluated has no
+	// settled value yet: an embedded scalar may still change its kind.
+	// Report an incomplete error rather than failing on the partial value.
+	//
+	// This check does not hold for ctx.value callers in general: most
+	// tolerate a partial value or report their own incomplete errors, and
+	// only this caller makes a permanent decision based on the value's kind.
+	if vx, ok := v.(*Vertex); ok && vx.Status() == evaluating {
+		n.addBottom(&Bottom{
+			Code: IncompleteError,
+			Node: n.node,
+			Err: ctx.NewPosf(Pos(field.Key),
+				"key value of dynamic field not yet known"),
+		})
 		return
 	}
 
@@ -228,19 +259,16 @@ func processPatternConstraint(ctx *OpContext, t *task, mode runMode) {
 func processComprehension(ctx *OpContext, t *task, mode runMode) {
 	n := t.node
 
+	c := t.x.(*Comprehension)
+
 	y := &envYield{
-		envComprehension: t.comp,
-		leaf:             t.leaf,
-		env:              t.env,
-		id:               t.id,
-		expr:             t.x,
+		comp: c,
+		env:  t.env,
+		id:   t.id,
 	}
 
 	err := n.processComprehension(y, 0)
 	t.err = CombineErrors(nil, t.err, err)
-	if t.comp.vertex.state != nil {
-		t.comp.vertex.state.addBottom(err)
-	}
 }
 
 func processDisjunctions(c *OpContext, t *task, mode runMode) {
@@ -328,11 +356,6 @@ func processListLit(c *OpContext, t *task, mode runMode) {
 			c := MakeConjunct(t.env, x, id)
 			n.insertArc(label, ArcMember, c, id, true)
 		}
-
-		if max := n.maxListLen; n.listIsClosed && int(index) > max {
-			n.invalidListLength(max, len(l.Elems), n.maxNode, l)
-			return
-		}
 	}
 
 	isClosed := ellipsis == nil
@@ -344,8 +367,20 @@ func processListLit(c *OpContext, t *task, mode runMode) {
 			return
 		}
 
-	case int(index) > max,
-		isClosed && !n.listIsClosed,
+	case int(index) > max:
+		// This list is longer than an earlier one. If that earlier list
+		// was closed, the lengths are incompatible. Note that index
+		// reflects the fully expanded length, including any comprehensions,
+		// so the reported lengths are accurate.
+		if n.listIsClosed {
+			n.invalidListLength(max, int(index), n.maxNode, l)
+			return
+		}
+		n.maxListLen = int(index)
+		n.maxNode = l
+		n.listIsClosed = isClosed
+
+	case isClosed && !n.listIsClosed,
 		(isClosed == n.listIsClosed) && !hasComprehension:
 		n.maxListLen = int(index)
 		n.maxNode = l

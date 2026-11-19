@@ -116,6 +116,12 @@ func (i *Decoder) File() *ast.File {
 	return internal.ToFile(i.expr, false)
 }
 
+// SourceExpr returns the expression decoded from the source, before any
+// interpretation such as JSON Schema is applied.
+func (i *Decoder) SourceExpr() ast.Expr {
+	return i.expr
+}
+
 func (i *Decoder) Err() error {
 	if i.err == io.EOF {
 		return nil
@@ -157,7 +163,9 @@ type Config struct {
 // type of f must be a data type, but does not have to be an encoding that
 // can stream. stdin is used in case the file is "-".
 //
-// This may change the contents of f.
+// NewDecoder may set f.Source to the raw bytes it reads, so that callers
+// can recover them without re-reading from disk. f must not be used
+// concurrently with NewDecoder.
 func NewDecoder(ctx *cue.Context, f *build.File, cfg *Config) *Decoder {
 	if cfg == nil {
 		cfg = &Config{}
@@ -244,6 +252,10 @@ func NewDecoder(ctx *cue.Context, f *build.File, cfg *Config) *Decoder {
 			i.err = err
 			break
 		}
+		// Stash the raw bytes back on the build.File so callers (such as
+		// cue fix or cue trim) can compare a re-formatted file against its
+		// original contents without reading the file from disk again.
+		f.Source = b
 		if cfg.ParseFile == nil {
 			i.file, i.err = parser.ParseFile(path, b, cfg.ParserConfig)
 		} else {

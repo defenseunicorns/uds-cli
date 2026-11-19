@@ -4,6 +4,8 @@
 package oci
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -14,7 +16,7 @@ import (
 	"oras.land/oras-go/v2/content"
 )
 
-func TestWriteIndexAndPackageRootDescriptor(t *testing.T) {
+func TestWriteIndex(t *testing.T) {
 	root := t.TempDir()
 	desc := content.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, []byte("manifest"))
 	idx := &ocispec.Index{
@@ -24,23 +26,11 @@ func TestWriteIndexAndPackageRootDescriptor(t *testing.T) {
 	}
 	require.NoError(t, WriteIndex(filepath.Join(root, ocispec.ImageIndexFile), idx))
 
-	got, err := packageRootDescriptor(root)
+	data, err := os.ReadFile(filepath.Join(root, ocispec.ImageIndexFile))
 	require.NoError(t, err)
-	assert.Equal(t, desc, got)
-}
-
-func TestPackageRootDescriptorRejectsMultipleRoots(t *testing.T) {
-	root := t.TempDir()
-	idx := ocispec.Index{
-		Versioned: specs.Versioned{SchemaVersion: 2},
-		Manifests: []ocispec.Descriptor{{}, {}},
-	}
-	require.NoError(t, WriteIndex(filepath.Join(root, ocispec.ImageIndexFile), &idx))
-
-	_, err := packageRootDescriptor(root)
-	require.ErrorContains(t, err, "expected exactly 1")
-	var countErr ManifestCountError
-	require.ErrorAs(t, err, &countErr)
-	assert.Equal(t, 2, countErr.Count)
-	assert.Equal(t, 1, countErr.Want)
+	var got ocispec.Index
+	require.NoError(t, json.Unmarshal(data, &got))
+	assert.Equal(t, *idx, got)
+	require.Len(t, got.Manifests, 1)
+	assert.Equal(t, desc, got.Manifests[0])
 }

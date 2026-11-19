@@ -187,6 +187,10 @@
         "default": {
           "type": "string",
           "description": "Default value for the parameter"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "An optional regex pattern that the input value must match"
         }
       },
       "additionalProperties": false,

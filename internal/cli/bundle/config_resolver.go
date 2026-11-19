@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
@@ -32,6 +33,8 @@ type CLIFlags struct {
 	PlainHTTPChanged             bool
 	SkipTLSVerify                bool
 	SkipTLSVerifyChanged         bool
+	CacheDir                     string
+	CacheDirChanged              bool
 	TmpDir                       string
 	TmpDirChanged                bool
 	Concurrency                  int
@@ -53,6 +56,8 @@ func SnapshotFlags(cmd *cobra.Command) CLIFlags {
 	f.PlainHTTPChanged = cmd.Flags().Changed("plain-http")
 	f.SkipTLSVerify, _ = cmd.Flags().GetBool("skip-tls-verify")
 	f.SkipTLSVerifyChanged = cmd.Flags().Changed("skip-tls-verify")
+	f.CacheDir, _ = cmd.Flags().GetString("uds-cache")
+	f.CacheDirChanged = cmd.Flags().Changed("uds-cache")
 	f.TmpDir, _ = cmd.Flags().GetString("tmp-dir")
 	f.TmpDirChanged = cmd.Flags().Changed("tmp-dir")
 	f.Concurrency, _ = cmd.Flags().GetInt("concurrency")
@@ -72,9 +77,11 @@ func NewConfigResolver() *ConfigResolver {
 
 // Defaults returns ConfigOptions with sensible defaults per ADR-0006.
 func (r *ConfigResolver) Defaults() bundle.ConfigOptions {
+	homeDir, _ := os.UserHomeDir()
 	return bundle.ConfigOptions{
 		LogLevel:     "info",
 		Architecture: runtime.GOARCH,
+		CacheDir:     filepath.Join(homeDir, bundleinternal.UDSCacheDirName),
 		TmpDir:       os.TempDir(),
 		Concurrency:  10,
 	}
@@ -105,6 +112,9 @@ func (r *ConfigResolver) MergeHCL(base bundle.ConfigOptions, hcl *bundle.ConfigO
 	if hcl.SkipTLSVerify {
 		base.SkipTLSVerify = hcl.SkipTLSVerify
 	}
+	if hcl.CacheDir != "" {
+		base.CacheDir = hcl.CacheDir
+	}
 	if hcl.TmpDir != "" {
 		base.TmpDir = hcl.TmpDir
 	}
@@ -133,6 +143,9 @@ func (r *ConfigResolver) OverlayCLI(flags CLIFlags, base bundle.ConfigOptions) b
 	}
 	if flags.SkipTLSVerifyChanged {
 		base.SkipTLSVerify = flags.SkipTLSVerify
+	}
+	if flags.CacheDirChanged && flags.CacheDir != "" {
+		base.CacheDir = flags.CacheDir
 	}
 	if flags.TmpDirChanged {
 		base.TmpDir = flags.TmpDir
@@ -171,6 +184,10 @@ func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOSt
 	}
 
 	options := r.resolveOptions(userCfg, flags)
+	options.CacheDir, err = expandCacheDir(options.CacheDir)
+	if err != nil {
+		return nil, "", err
+	}
 	if _, err := logger.ParseLevel(options.LogLevel); err != nil {
 		return nil, "", fmt.Errorf("invalid log level %q: %w", options.LogLevel, err)
 	}
@@ -185,6 +202,20 @@ func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOSt
 		SignatureVerification: userSignatureVerification(userCfg),
 		Variables:             variables,
 	}, flags.ConfigPath, nil
+}
+
+func expandCacheDir(path string) (string, error) {
+	if path != "~" && !strings.HasPrefix(path, "~/") {
+		return path, nil
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("expanding cache directory %q: %w", path, err)
+	}
+	if path == "~" {
+		return homeDir, nil
+	}
+	return filepath.Join(homeDir, path[2:]), nil
 }
 
 // applyBundleDefaults merges adjacent or materialized bundle defaults beneath
@@ -346,12 +377,8 @@ func fromInternalOptions(options *bundleinternal.ConfigOptions) *bundle.ConfigOp
 	if options == nil {
 		return nil
 	}
-	return &bundle.ConfigOptions{
-		LogLevel: options.LogLevel, Architecture: options.Architecture,
-		PlainHTTP: options.PlainHTTP, SkipTLSVerify: options.SkipTLSVerify,
-		TmpDir: options.TmpDir, Concurrency: options.Concurrency,
-		SkipArchitectureCheck: options.SkipArchitectureCheck,
-	}
+	converted := bundle.ConfigOptions(*options)
+	return &converted
 }
 
 func fromInternalVariableValue(value any) any {

@@ -414,6 +414,9 @@ func GetSuccessfullyDeployedPackageIDs() []string {
 }
 
 func deployedPackageIsSuccessful(pkg state.DeployedPackage) bool {
+	if event, ok := pkg.LatestEvent(); ok && (event.Type != state.EventTypeDeploy || event.Outcome != state.EventOutcomeSucceeded) {
+		return false
+	}
 	definition, err := pkg.Definition()
 	if err != nil {
 		return false
@@ -421,7 +424,13 @@ func deployedPackageIsSuccessful(pkg state.DeployedPackage) bool {
 	deployedComponents := make(map[string]state.DeployedComponent, len(pkg.DeployedComponents))
 	for _, deployedComponent := range pkg.DeployedComponents {
 		deployedComponents[deployedComponent.Name] = deployedComponent
-		if deployedComponent.Status != state.ComponentStatusSucceeded {
+		if deployedComponent.LastEvent.Type != "" {
+			if deployedComponent.LastEvent.Type != state.EventTypeDeploy || deployedComponent.LastEvent.Outcome != state.EventOutcomeSucceeded {
+				return false
+			}
+			continue
+		}
+		if deployedComponent.Status != state.ComponentStatusSucceeded { //nolint:staticcheck // Read deployment records saved before component events existed.
 			return false
 		}
 	}

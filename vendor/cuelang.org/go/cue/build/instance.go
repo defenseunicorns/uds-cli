@@ -29,6 +29,7 @@ import (
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/mod/modfiledata"
+	"cuelang.org/go/mod/module"
 )
 
 // An Instance describes the collection of files, and its imports, necessary
@@ -47,11 +48,22 @@ type Instance struct {
 	User bool // True if package was created from individual files.
 
 	// Files contains the AST for all files part of this instance.
+	// When populated via [cuelang.org/go/cue/load.Instances], Files is
+	// index-parallel with BuildFiles: Files[i] holds the parsed AST for
+	// BuildFiles[i].
 	// TODO: the intent is to deprecate this in favor of BuildFiles.
 	Files []*ast.File
 
 	loadFunc LoadFunc
 	done     bool
+
+	// CanonicalImportPath, if non-nil, is called for each import path
+	// extracted from the instance's source files before it is resolved
+	// to determine its canonical form. This allows the caller to
+	// rewrite import paths to canonical forms — for example, adding a
+	// major version qualifier to an unversioned import based on the
+	// importing module's own defaults.
+	CanonicalImportPath func(importPath string) string
 
 	// PkgName is the name specified in the package clause.
 	PkgName string
@@ -61,6 +73,17 @@ type Instance struct {
 	//
 	// Instances created with [Context.NewInstance] do not have an import path.
 	ImportPath string
+
+	// CanonicalID, if non-empty, holds the canonical identifier used for
+	// hidden-field namespaces. It normalizes version and qualifier differences
+	// so that the same package always gets the same hidden-field namespace
+	// regardless of how it was imported.
+	//
+	// TODO it would be better to just canonicalize ImportPath but
+	// doing so runs the risk of breaking existing users which assume
+	// a direct mapping from import path to [Instance.ImportPath].
+	// See https://cuelang.org/issue/4264 for some background.
+	CanonicalID string
 
 	// Imports lists the instances of all direct imports of this instance.
 	Imports []*Instance
@@ -88,6 +111,12 @@ type Instance struct {
 	// imported by other packages, including those within the module.
 	Module string
 
+	// ModuleVersion holds the resolved module version for the package.
+	// For packages from external dependencies, this includes the full
+	// resolved version. For packages in the main module, the version
+	// will be empty.
+	ModuleVersion module.Version
+
 	// ModuleFile holds the actual module file data, if available.
 	ModuleFile *modfiledata.File
 
@@ -97,9 +126,17 @@ type Instance struct {
 	// Root/pkg is the directory that holds third-party packages.
 	Root string
 
+	// RootLoc holds FS location information for [Instance.Root].
+	// It is set when loading from an [io/fs.FS].
+	RootLoc token.FSLoc
+
 	// Dir is the package directory. A package may also include files from
 	// ancestor directories, up to the module file.
 	Dir string
+
+	// DirLoc holds FS location information for [Instance.Dir].
+	// It is set when loading from an [io/fs.FS].
+	DirLoc token.FSLoc
 
 	// NOTICE: the below struct field tags may change in the future.
 
@@ -132,6 +169,9 @@ func (inst *Instance) RelPath(f *File) string {
 
 // ID returns the package ID unique for this module.
 func (inst *Instance) ID() string {
+	if s := inst.CanonicalID; s != "" {
+		return s
+	}
 	if s := inst.ImportPath; s != "" {
 		return s
 	}
@@ -204,13 +244,20 @@ func (inst *Instance) parse(name string, src interface{}) (*ast.File, error) {
 
 // LookupImport defines a mapping from an ImportSpec's ImportPath to Instance.
 func (inst *Instance) LookupImport(path string) *Instance {
-	path = inst.expandPath(path)
+	path = inst.canonicalImportPath(inst.expandPath(path))
 	for _, inst := range inst.Imports {
 		if inst.ImportPath == path {
 			return inst
 		}
 	}
 	return nil
+}
+
+func (inst *Instance) canonicalImportPath(path string) string {
+	if inst.CanonicalImportPath == nil {
+		return path
+	}
+	return inst.CanonicalImportPath(path)
 }
 
 func (inst *Instance) addImport(imp *Instance) {

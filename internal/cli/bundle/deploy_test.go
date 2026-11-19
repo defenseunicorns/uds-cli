@@ -167,7 +167,7 @@ func TestArtifactIsUnsigned(t *testing.T) {
 			archivePath := filepath.Join(t.TempDir(), "bundle.tar.zst")
 			require.NoError(t, artifact.WriteTarZst(t.Context(), iostreams.IOStreams{}, archivePath, bundleDir))
 
-			got, err := artifactIsUnsigned(t.Context(), archivePath, nil)
+			got, err := artifactIsUnsigned(t.Context(), archivePath, nil, iostreams.IOStreams{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})

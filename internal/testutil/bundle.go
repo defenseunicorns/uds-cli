@@ -104,6 +104,7 @@ func createBundleFromTestData(t *testing.T, testDataRelPath, arch string) (strin
 	resolver := clibundle.NewConfigResolver()
 	opts := resolver.Defaults()
 	opts.Architecture = arch
+	opts.CacheDir = t.TempDir()
 	bundleFile := filepath.Join(dir, "bundle.uds.hcl")
 	result, err := bundle.Create(t.Context(), bundleFile, bundle.CreateOptions{
 		Config:  &bundle.UDSBundleConfig{Options: &opts},
@@ -124,7 +125,7 @@ func CreateBundleFromTestDataCLIWithBinary(t *testing.T, udsPath, testDataRelPat
 	t.Helper()
 
 	dir := PrepareBundleDir(t, testDataRelPath)
-	args := []string{"bundle", "create", "--unsigned", "--architecture", arch, dir}
+	args := []string{"bundle", "create", "--unsigned", "--architecture", arch, "--uds-cache", t.TempDir(), dir}
 	cmd := exec.Command(udsPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -146,7 +147,7 @@ func CreateBundleFromTestDataCobra(t *testing.T, testDataRelPath, arch string) s
 	dir := PrepareBundleDir(t, testDataRelPath)
 	streams, _, out, _ := iostreams.NewTestIOStreams()
 	root := clibundle.NewBundleCommand(streams)
-	root.SetArgs([]string{"create", "--unsigned", "--architecture", arch, dir})
+	root.SetArgs([]string{"create", "--unsigned", "--architecture", arch, "--uds-cache", t.TempDir(), dir})
 	require.NoError(t, root.Execute())
 	assert.Contains(t, out.String(), "Bundle Name:")
 

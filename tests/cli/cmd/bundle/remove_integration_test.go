@@ -8,7 +8,6 @@
 package bundle_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -96,7 +95,7 @@ func (s *RemoveSuite) TestRemoveCommand_LocalArtifact() {
 func (s *RemoveSuite) TestRemoveCommand_OCIArtifact() {
 	artifact := createInspectArtifact(s.T())
 	registryHost := testutil.StartLocalRegistry(s.T())
-	ref := fmt.Sprintf("%s/test/remove:v1.0.0", registryHost)
+	ref := registryHost + "/test/remove:v1.0.0"
 	config := &bundlepkg.UDSBundleConfig{
 		Options: &bundlepkg.ConfigOptions{
 			Architecture: runtime.GOARCH,
@@ -134,7 +133,7 @@ func (s *RemoveSuite) TestRemoveCommand_UnavailableArtifactReferences() {
 		},
 		{
 			name: "OCI artifact",
-			args: []string{"bundle", "remove", fmt.Sprintf("%s/test/missing:v1", testutil.StartLocalRegistry(s.T())), "--plain-http", "--skip-signature-verification"},
+			args: []string{"bundle", "remove", testutil.StartLocalRegistry(s.T()) + "/test/missing:v1", "--plain-http", "--skip-signature-verification"},
 		},
 	}
 	for _, tt := range tests {

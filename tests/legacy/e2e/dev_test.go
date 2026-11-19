@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -15,14 +15,13 @@ import (
 func TestDevDeploy(t *testing.T) {
 
 	removeZarfInit()
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/03-local-and-remote")
+	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	t.Run("Test dev deploy with local and remote pkgs", func(t *testing.T) {
 		e2e.CreateZarfPkg(t, "testdata/legacy/packages/podinfo", false)
 
-		bundleDir := "testdata/legacy/bundles/03-local-and-remote"
-		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
-
-		runCmd(t, fmt.Sprintf("dev deploy %s", bundleDir))
+		runCmd(t, fmt.Sprintf("dev deploy %s --insecure", bundleDir))
 
 		deployments, _ := runCmd(t, "zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'")
 		require.Contains(t, deployments, "podinfo")
@@ -34,10 +33,7 @@ func TestDevDeploy(t *testing.T) {
 	t.Run("Test dev deploy with CreateLocalPkgs", func(t *testing.T) {
 		e2e.DeleteZarfPkg(t, "testdata/legacy/packages/podinfo")
 
-		bundleDir := "testdata/legacy/bundles/03-local-and-remote"
-		bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
-
-		runCmd(t, fmt.Sprintf("dev deploy %s --packages %s", bundleDir, "podinfo"))
+		runCmd(t, fmt.Sprintf("dev deploy %s --insecure --packages %s", bundleDir, "podinfo"))
 
 		deployments, _ := runCmd(t, "zarf tools kubectl get deployments -A -o=jsonpath='{.items[*].metadata.name}'")
 		require.Contains(t, deployments, "podinfo")
@@ -48,9 +44,8 @@ func TestDevDeploy(t *testing.T) {
 
 	t.Run("Test dev deploy with ref flag", func(t *testing.T) {
 		e2e.DeleteZarfPkg(t, "testdata/legacy/packages/podinfo")
-		bundleDir := "testdata/legacy/bundles/03-local-and-remote"
 
-		runCmd(t, fmt.Sprintf("dev deploy %s --ref %s", bundleDir, "nginx=0.0.2"))
+		runCmd(t, fmt.Sprintf("dev deploy %s --insecure --ref %s", bundleDir, "nginx=0.0.2"))
 
 		ref, _ := runCmd(t, "zarf tools kubectl get deployment -n nginx nginx-deployment -o=jsonpath='{.spec.template.spec.containers[0].image}'")
 		require.Contains(t, ref, "nginx")

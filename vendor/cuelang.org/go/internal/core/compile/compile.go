@@ -302,7 +302,11 @@ func (c *compiler) compileFiles(a []*ast.File) *adt.Vertex { // Or value?
 
 		for _, d := range f.Decls {
 			if f, ok := d.(*ast.Field); ok {
-				if id, ok := f.Label.(*ast.Ident); ok {
+				label := f.Label
+				if a, ok := label.(*ast.Alias); ok {
+					label, _ = a.Expr.(ast.Label)
+				}
+				if id, ok := label.(*ast.Ident); ok {
 					c.fileScope[c.label(id)] = true
 				}
 			}
@@ -441,6 +445,15 @@ func (c *compiler) resolve(n *ast.Ident) adt.Expr {
 		return &adt.Top{Src: n}
 	}
 
+	// Predeclared name references created via [ast.NewPredeclared].
+	if n.IsPredeclared() {
+		p := predeclared(n)
+		if p == nil {
+			return c.errf(n, "predeclared name %q not found", n.Name)
+		}
+		return c.verifyVersion(n, p)
+	}
+
 	// Unresolved field.
 	if n.Node == nil {
 		upCount := int32(0)
@@ -483,6 +496,7 @@ func (c *compiler) resolve(n *ast.Ident) adt.Expr {
 			}
 		}
 
+		// Predeclared name references created without [ast.NewPredeclared].
 		if p := predeclared(n); p != nil {
 			return c.verifyVersion(n, p)
 		}
@@ -1111,9 +1125,9 @@ func (c *compiler) expr(expr ast.Expr) adt.Expr {
 	case *ast.Func:
 		// We don't yet support function types natively in
 		// CUE.  ast.Func exists only to support external
-		// interpreters. Function values (really, adt.Builtin)
+		// injections. Function values (really, adt.Builtin)
 		// are only created by the runtime, or injected by
-		// external interpreters.
+		// external injections.
 		//
 		// TODO: revise this when we add function types.
 		return c.resolve(ast.NewIdent("_"))
@@ -1193,17 +1207,10 @@ func (c *compiler) expr(expr ast.Expr) adt.Expr {
 		return c.parse(n)
 
 	case *ast.Interpolation:
-		if len(n.Elts) == 0 {
-			return c.errf(n, "invalid interpolation")
-		}
-		first, ok1 := n.Elts[0].(*ast.BasicLit)
-		last, ok2 := n.Elts[len(n.Elts)-1].(*ast.BasicLit)
-		if !ok1 || !ok2 {
-			return c.errf(n, "invalid interpolation")
-		}
 		if len(n.Elts) == 1 {
 			return c.expr(n.Elts[0])
 		}
+		first, last := n.Quotes()
 		lit := &adt.Interpolation{Src: n}
 		info, prefixLen, _, err := literal.ParseQuotes(first.Value, last.Value)
 		if err != nil {

@@ -33,8 +33,7 @@ import (
 // A Context is used for creating CUE [Value] objects.
 //
 // A Context keeps track of loaded instances, indices of internal
-// representations of values, and defines the set of supported builtins. Any
-// operation that involves two Values should originate from the same Context.
+// representations of values, and defines the set of supported builtins.
 //
 // Use [cuelang.org/go/cue/cuecontext.New] to create a new context.
 //
@@ -57,6 +56,12 @@ func (c *Context) ctx() *adt.OpContext {
 }
 
 // Context reports the Context with which this value was created.
+//
+// Deprecated: the returned context is undefined when values from
+// different contexts are combined. Note that it is now OK to combine
+// (for example with [Value.Unify] or [Value.FillPath]) values
+// that were created from different contexts, so it is OK
+// to create a new one-off context rather than using this method.
 func (v Value) Context() *Context {
 	return (*Context)(v.idx)
 }
@@ -389,13 +394,11 @@ func (c *Context) EncodeType(x any, option ...EncodeOption) Value {
 	}
 
 	ctx := c.ctx()
-	expr, err := convert.FromGoType(ctx, x)
+	v, err := convert.FromGoType(ctx, x)
 	if err != nil {
 		return c.makeError(err)
 	}
-	n := exprToVertex(expr)
-	n.Finalize(ctx)
-	return c.make(n)
+	return c.make(v)
 }
 
 // NewList creates a Value that is a list of the given values.
@@ -404,9 +407,6 @@ func (c *Context) EncodeType(x any, option ...EncodeOption) Value {
 func (c *Context) NewList(v ...Value) Value {
 	a := make([]adt.Value, len(v))
 	for i, x := range v {
-		if x.idx != (*runtime.Runtime)(c) {
-			panic("values must be from same Context")
-		}
 		a[i] = x.v
 	}
 	return c.make(c.ctx().NewList(a...))

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/google/go-containerregistry/pkg/name"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	oras "oras.land/oras-go/v2"
@@ -23,14 +24,14 @@ func resolvePushTarget(ctx context.Context, ref string, opts *PushOptions) (oras
 	return NewRemoteRepository(ctx, ref, *opts.Config.Options)
 }
 
-// resolvePullTarget picks the ORAS source: the ToOrasTarget hook if set,
-// otherwise a live registry repository.
-func resolvePullTarget(ctx context.Context, ref string, opts *PullOptions) (oras.Target, error) {
+// resolveBundlePullSource preserves caller-provided targets and uses the
+// upstream cache-aware reader for registry bundle pulls.
+func resolveBundlePullSource(ctx context.Context, ref string, opts *PullOptions) (oras.ReadOnlyTarget, error) {
 	ref = TrimScheme(ref)
 	if opts.PullHooks.ToOrasTarget != nil {
 		return opts.PullHooks.ToOrasTarget(ctx, ref, opts)
 	}
-	return NewRemoteRepository(ctx, ref, *opts.Config.Options)
+	return NewRemoteReadSource(ctx, ref, *opts.Config.Options, logger.Bind(opts.Streams, opts.Config.Options.LogLevel))
 }
 
 // pushCopyOptions builds copy options: concurrency from config, then consumer hook.
@@ -86,7 +87,7 @@ func pushBundleToRemote(ctx context.Context, store *oraci.Store, child ocispec.D
 		}
 		if exists {
 			if hasSignature {
-				if err := PublishBundleSignature(ctx, dst, child, signature, false); err != nil {
+				if err := PublishBundleSignature(ctx, dst, dst, child, signature, false); err != nil {
 					return nil, fmt.Errorf("publishing bundle signature: %w", err)
 				}
 			}
@@ -105,7 +106,7 @@ func pushBundleToRemote(ctx context.Context, store *oraci.Store, child ocispec.D
 		return nil, fmt.Errorf("pushing bundle content to %s: %w: %w", ref, ErrPushContent, err)
 	}
 	if hasSignature {
-		if err := PublishBundleSignature(ctx, dst, child, signature, false); err != nil {
+		if err := PublishBundleSignature(ctx, dst, dst, child, signature, false); err != nil {
 			return nil, fmt.Errorf("publishing bundle signature: %w", err)
 		}
 	}
@@ -113,48 +114,4 @@ func pushBundleToRemote(ctx context.Context, store *oraci.Store, child ocispec.D
 		return nil, fmt.Errorf("pushing root index to %s: %w: %w", ref, ErrPushRootIndex, err)
 	}
 	return &PushResult{OCIReference: ref}, nil
-}
-
-// pushToRemote tags root in store and copies it (and all it references) to ref.
-func pushToRemote(ctx context.Context, store *oraci.Store, root ocispec.Descriptor, ref string, opts *PushOptions) (*PushResult, error) {
-	if err := store.Tag(ctx, root, "push-root"); err != nil {
-		return nil, fmt.Errorf("tagging root: %w: %w", ErrTagContent, err)
-	}
-	dst, err := resolvePushTarget(ctx, ref, opts)
-	if err != nil {
-		return nil, fmt.Errorf("resolving push target %s: %w: %w", ref, ErrResolveReference, err)
-	}
-	copyOpts, err := pushCopyOptions(ctx, opts)
-	if err != nil {
-		return nil, fmt.Errorf("configuring push: %w: %w", ErrConfigureTransfer, err)
-	}
-	tag, err := ReferenceIdentifier(ref)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := copyReference(ctx, store, "push-root", dst, tag, copyOpts); err != nil {
-		return nil, fmt.Errorf("pushing to %s: %w: %w", ref, ErrPushContent, err)
-	}
-	return &PushResult{OCIReference: ref}, nil
-}
-
-// pullToStore copies ref into store and returns the copied root descriptor.
-func pullToStore(ctx context.Context, ref string, store *oraci.Store, opts *PullOptions) (ocispec.Descriptor, error) {
-	src, err := resolvePullTarget(ctx, ref, opts)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("resolving pull source %s: %w: %w", ref, ErrResolveReference, err)
-	}
-	copyOpts, err := pullCopyOptions(ctx, opts)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("configuring pull: %w: %w", ErrConfigureTransfer, err)
-	}
-	tag, err := ReferenceIdentifier(ref)
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
-	desc, err := copyReference(ctx, src, tag, store, tag, copyOpts)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("pulling from %s: %w: %w", ref, ErrPullContent, err)
-	}
-	return desc, nil
 }
