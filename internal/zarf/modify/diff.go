@@ -161,16 +161,16 @@ func textPatch(ctx context.Context, change FileChange, oldText, newText []byte) 
 	}
 	patch := textChunks{header: fmt.Sprintf("--- %s\n+++ %s\n", from, to)}
 	// Bound synchronous matching so cancellation is observed without leaving a
-	// worker behind. Go-Git's timeout fallback emits complete delete/insert
-	// chunks for unmatched regions; it sacrifices minimality, not content.
-	timeout := 100 * time.Millisecond
+	// worker behind. If the budget runs out, Go-Git emits coarser delete/insert
+	// chunks for unmatched regions without dropping content.
+	matchBudget := 100 * time.Millisecond
 	if deadline, ok := ctx.Deadline(); ok {
-		timeout = min(timeout, time.Until(deadline))
-		if timeout <= 0 {
+		matchBudget = min(matchBudget, time.Until(deadline))
+		if matchBudget <= 0 {
 			return nil, context.DeadlineExceeded
 		}
 	}
-	chunks := diff.DoWithTimeout(string(oldText), string(newText), timeout)
+	chunks := diff.DoWithTimeout(string(oldText), string(newText), matchBudget)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
