@@ -133,7 +133,7 @@ variables = {
 }
 ```
 
-Variables are used by `bundle dev deploy` and `bundle deploy`. Top-level scalar values are also exposed to Zarf as uppercase variable names. Nested objects and collection values are intended for [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates.
+Variables are used by `bundle dev deploy` and `bundle deploy` to render [Zarf package values](https://docs.zarf.dev/ref/package-values/) file templates. For `v1alpha1` Zarf packages, top-level scalar values are also exposed as uppercase Zarf variable names. For `v1beta1` Zarf packages, including Zarf 1.x init packages, use values file templates to pass bundle variables into package values.
 
 A package values file can read variables with Go template expressions:
 
@@ -144,6 +144,8 @@ auditLogs: {{ .vars.features.audit_logs }}
 ```
 
 When the resolved configuration contains variables, the values file is rendered at deployment time. A referenced variable that is missing from the merged variable set causes deployment to fail. Values files pass through without UDS variable templating only when every configuration layer omits the `variables` attribute. An explicit empty object (`variables = {}`) still renders values files.
+
+Zarf 1.x records deployment configuration, including package values and legacy variable overrides, in Kubernetes package Secrets. Restrict access to those Secrets when values contain credentials. Deployment fails if Zarf cannot write its package state.
 
 Config variables do not change the bundle definition, package sources, package signature policies, or the set of packages in the artifact.
 

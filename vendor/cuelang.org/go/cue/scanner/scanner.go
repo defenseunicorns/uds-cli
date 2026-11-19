@@ -18,6 +18,7 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"unicode"
@@ -49,6 +50,7 @@ type Scanner struct {
 	linesSinceLast  int
 	spacesSinceLast int
 	insertEOL       bool // insert a comma before next newline
+	nextHasComma    bool // next token was preceded by an explicit comma
 
 	quoteStack []quoteInfo
 
@@ -60,6 +62,10 @@ type quoteInfo struct {
 	char    rune
 	numChar int
 	numHash int
+
+	// For multiline strings, persisted across interpolation boundaries.
+	startOffset int    // offset of the opening quotes
+	minLineWS   []byte // shortest whitespace prefix of any non-empty content line; nil if none
 }
 
 const bom = 0xFEFF // byte order mark, only permitted as very first character
@@ -190,9 +196,6 @@ func isDigit(ch rune) bool {
 
 func (s *Scanner) scanFieldIdentifier() string {
 	offs := s.offset
-	if s.ch == '_' {
-		s.next()
-	}
 	if s.ch == '#' {
 		s.next()
 		// TODO: remove this block to allow #<num>
@@ -289,6 +292,13 @@ func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
 				seenDigits = true
 				s.scanMantissa(10)
 			}
+			if p := s.offset + 1; s.ch == '.' && p < len(s.src) && s.src[p] == '.' {
+				// The dot is part of a range (..), so this is an integer.
+				if seenDigits {
+					s.errf(offs, "illegal integer number")
+				}
+				goto exit
+			}
 			if s.ch == '.' || s.ch == 'e' || s.ch == 'E' {
 				goto fraction
 			}
@@ -296,6 +306,9 @@ func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
 				// integer other than 0 may not start with 0
 				s.errf(offs, "illegal integer number")
 			}
+			// A bare "0" may still be followed by an SI/IEC multiplier,
+			// forming a valid si_lit per the spec (e.g. "0M", "0Ki").
+			goto exponent
 		}
 		goto exit
 	}
@@ -336,6 +349,9 @@ exponent:
 		if s.ch == '-' || s.ch == '+' {
 			s.next()
 		}
+		if digitVal(s.ch) >= 10 {
+			s.errf(s.offset, "illegal exponent in number")
+		}
 		s.scanMantissa(10)
 	}
 
@@ -368,8 +384,16 @@ func (s *Scanner) scanEscape(quote quoteInfo) (ok, interpolation bool) {
 		s.next()
 		return true, false
 	case '0', '1', '2', '3', '4', '5', '6', '7':
+		if quote.char == '"' {
+			s.errf(offs, "octal escape not allowed in string literal")
+			return false, false
+		}
 		n, base, max = 3, 8, 255
 	case 'x':
+		if quote.char == '"' {
+			s.errf(offs, "hexadecimal escape not allowed in string literal")
+			return false, false
+		}
 		s.next()
 		n, base, max = 2, 16, 255
 	case 'u':
@@ -390,7 +414,7 @@ func (s *Scanner) scanEscape(quote quoteInfo) (ok, interpolation bool) {
 	var x uint32
 	for n > 0 {
 		d := uint32(digitVal(s.ch))
-		if d >= base {
+		if s.ch == '_' || d >= base {
 			if s.ch < 0 {
 				s.errf(s.offset, "escape sequence not terminated")
 			} else {
@@ -413,13 +437,24 @@ func (s *Scanner) scanEscape(quote quoteInfo) (ok, interpolation bool) {
 	return true, false
 }
 
-func (s *Scanner) scanString(offs int, quote quoteInfo) (token.Token, string) {
+func (s *Scanner) scanString(offs int, quote quoteInfo, continuation bool) (token.Token, string) {
 	// ", """, ', or ''' opening already consumed
 
 	tok := token.STRING
 
 	hasCR := false
 	extra := 0
+	// For multiline strings, the closing quotes must follow a newline
+	// (with optional whitespace indentation).
+	// For a new multiline string, the opening newline was already consumed,
+	// so we start at a line boundary. For continuations after interpolation,
+	// we resume mid-line.
+	closeAllowed := false
+	if !continuation {
+		quote.startOffset = offs
+		closeAllowed = quote.numChar == 3
+	}
+	lineStart := s.offset
 	for {
 		ch := s.ch
 		if (quote.numChar != 3 && ch == '\n') || ch < 0 {
@@ -432,12 +467,42 @@ func (s *Scanner) scanString(offs int, quote quoteInfo) (token.Token, string) {
 		}
 
 		s.next()
-		ch, ok := s.consumeStringClose(ch, quote)
-		if ok {
-			break
+		if quote.numChar != 3 || closeAllowed {
+			if _, ok := s.consumeStringClose(ch, quote); ok {
+				break
+			}
 		}
+		// Carriage returns are stripped from multiline strings per the spec,
+		// so they should not affect closeAllowed or whitespace tracking.
 		if ch == '\r' && quote.numChar == 3 {
 			hasCR = true
+			continue
+		}
+		// Track the common whitespace prefix of non-empty content lines,
+		// including lines consisting entirely of whitespace.
+		// For newlines, len(ws) > 0 skips truly empty lines.
+		if closeAllowed && ch != ' ' && ch != '\t' {
+			if ws := s.src[lineStart : s.offset-1]; ch != '\n' || len(ws) > 0 {
+				if quote.minLineWS == nil {
+					quote.minLineWS = ws
+				} else {
+					// Shrink minLineWS to the common prefix with ws.
+					i := 0
+					for i < len(quote.minLineWS) && i < len(ws) && quote.minLineWS[i] == ws[i] {
+						i++
+					}
+					quote.minLineWS = quote.minLineWS[:i]
+				}
+			}
+		}
+		switch {
+		case ch == '\n':
+			closeAllowed = true
+			lineStart = s.offset
+		case quote.numChar == 3 && closeAllowed && (ch == ' ' || ch == '\t'):
+			// preserve closeAllowed
+		default:
+			closeAllowed = false
 		}
 		if ch == '\\' {
 			if _, interpolation := s.scanEscape(quote); interpolation {
@@ -451,6 +516,12 @@ func (s *Scanner) scanString(offs int, quote quoteInfo) (token.Token, string) {
 	lit := s.src[offs : s.offset+extra]
 	if hasCR {
 		lit = stripCR(lit)
+	}
+	if tok == token.STRING && quote.minLineWS != nil {
+		closingWS := s.src[lineStart : s.offset-int(quote.numChar)-quote.numHash]
+		if !bytes.HasPrefix(quote.minLineWS, closingWS) {
+			s.errf(quote.startOffset, "non-matching whitespace for multiline strings")
+		}
 	}
 	return tok, string(lit)
 }
@@ -612,7 +683,7 @@ func (s *Scanner) popInterpolation() quoteInfo {
 // of the next interpolation expression if there is one.
 func (s *Scanner) ResumeInterpolation() string {
 	quote := s.popInterpolation()
-	_, str := s.scanString(s.offset-1, quote)
+	_, str := s.scanString(s.offset-1, quote, true)
 	return str
 }
 
@@ -708,6 +779,7 @@ scanAgain:
 	// current token start
 	offset := s.offset
 	pos = s.file.Pos(offset, rel)
+	hadComma := s.nextHasComma
 
 	// determine token value
 	insertEOL := false
@@ -742,24 +814,20 @@ scanAgain:
 			}
 			tok = token.EOF
 		case '_':
-			if s.ch == '|' {
-				// Unconditionally require this to be followed by another
-				// underscore to avoid needing an extra lookahead.
-				// Note that `_|x` is always equal to _.
-				s.next()
-				if s.ch != '_' {
-					s.errf(s.file.Offset(pos), "illegal token '_|'; expected '_'")
-					insertEOL = s.insertEOL // preserve insertComma info
-					tok = token.ILLEGAL
-					lit = "_|"
-					break
-				}
-				s.next()
+			if s.ch == '|' && s.rdOffset < len(s.src) && s.src[s.rdOffset] == '_' {
+				s.next() // consume '|'
+				s.next() // consume '_'
 				tok = token.BOTTOM
 				lit = "_|_"
 			} else {
 				tok = token.IDENT
 				lit = "_" + s.scanFieldIdentifier()
+				if lit == "__" && s.ch == '#' {
+					s.next() // consume '#'
+					lit += "#" + s.scanIdentifier()
+					s.errf(s.file.Offset(pos), "illegal token %q", lit)
+					tok = token.ILLEGAL
+				}
 			}
 			insertEOL = true
 
@@ -795,7 +863,7 @@ scanAgain:
 			switch _, n := s.consumeQuotes(ch, 2); n {
 			case 0:
 				quote.numChar = 1
-				tok, lit = s.scanString(offs, quote)
+				tok, lit = s.scanString(offs, quote, false)
 			case 1:
 				// When the string is surrounded by hashes,
 				// a single leading quote is OK (and part of the string)
@@ -807,19 +875,30 @@ scanAgain:
 					// It's the empty string.
 					tok, lit = token.STRING, string(s.src[offs:s.offset])
 				} else {
-					tok, lit = s.scanString(offs, quote)
+					tok, lit = s.scanString(offs, quote, false)
 				}
 			case 2:
+				// A raw string with three consecutive quote characters may
+				// still be a single-line string whose content is a single
+				// quote, e.g. #"""# or ##"""##. This is not covered by the
+				// language spec but matches Swift's behavior, which we adopt
+				// to keep the scanner aligned with cue/literal's parser.
+				if quote.numHash > 0 {
+					if n := s.scanHashes(quote.numHash); n == quote.numHash {
+						tok, lit = token.STRING, string(s.src[offs:s.offset])
+						break
+					}
+				}
 				quote.numChar = 3
 				switch s.ch {
 				case '\n':
 					s.next()
-					tok, lit = s.scanString(offs, quote)
+					tok, lit = s.scanString(offs, quote, false)
 				case '\r':
 					s.next()
 					if s.ch == '\n' {
 						s.next()
-						tok, lit = s.scanString(offs, quote)
+						tok, lit = s.scanString(offs, quote, false)
 						break
 					}
 					fallthrough
@@ -861,6 +940,7 @@ scanAgain:
 		case ',':
 			tok = token.COMMA
 			lit = ","
+			s.nextHasComma = true
 		case '(':
 			tok = token.LPAREN
 		case ')':
@@ -957,6 +1037,17 @@ scanAgain:
 	}
 	if s.mode&DontInsertCommas == 0 {
 		s.insertEOL = insertEOL
+	}
+
+	// Mark all tokens as scanned (produced by the scanner, not programmatic).
+	pos = pos.WithScanned(true)
+
+	// Apply the HasComma bit to the first non-comment token after an
+	// explicit comma. Comments between a comma and the next token must
+	// not consume the bit.
+	if hadComma && tok != token.COMMENT {
+		pos = pos.WithComma(true)
+		s.nextHasComma = false
 	}
 
 	s.linesSinceLast = 0

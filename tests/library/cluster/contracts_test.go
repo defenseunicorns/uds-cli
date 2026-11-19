@@ -7,7 +7,6 @@ package cluster_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -434,7 +433,7 @@ func deployedPackageDigest(t *testing.T, client *kubernetes.Clientset, packageNa
 	secretName := (&state.DeployedPackage{Name: packageName, NamespaceOverride: namespace}).GetSecretName()
 	secret, err := client.CoreV1().Secrets(state.ZarfNamespaceName).Get(t.Context(), secretName, metav1.GetOptions{})
 	require.NoError(t, err)
-	var deployed state.DeployedPackage
-	require.NoError(t, json.Unmarshal(secret.Data["data"], &deployed))
+	deployed, err := decodeDeployedPackage(secret)
+	require.NoError(t, err)
 	return deployed.Digest
 }

@@ -177,6 +177,12 @@ func (p *NumInfo) next() bool {
 	}
 	p.ch = p.src[p.p]
 	p.p++
+	if p.ch == 0 {
+		// The NUL byte is disallowed in source text (see the spec,
+		// "Source code representation"). Reject it explicitly so it
+		// cannot be confused with the end-of-input sentinel below.
+		p.err = p.errorf("illegal character NUL")
+	}
 	if p.ch == '.' {
 		if len(p.buf) == 0 {
 			p.buf = append(p.buf, '0')
@@ -207,6 +213,9 @@ func (p *NumInfo) scanMantissa(base int) bool {
 	hasDigit := false
 	var last byte
 	for p.digitVal(p.ch) < base {
+		if last == '_' && p.ch == '_' {
+			p.err = p.errorf("illegal '_' in number")
+		}
 		if p.ch != '_' {
 			p.buf = append(p.buf, p.ch)
 			hasDigit = true
@@ -260,14 +269,8 @@ func (p *NumInfo) scanNumber(seenDecimalPoint bool) error {
 				return p.errorf("illegal octal number %q", p.src)
 			}
 		default:
-			// int (base 8 or 10) or float
-			p.scanMantissa(8)
-			if p.ch == '8' || p.ch == '9' {
-				p.scanMantissa(10)
-				if p.ch != '.' && p.ch != 'e' && p.ch != 'E' {
-					return p.errorf("illegal integer number %q", p.src)
-				}
-			}
+			// 0 or float
+			seenDigits := p.scanMantissa(10)
 			switch p.ch {
 			case 'e', 'E':
 				if len(p.buf) == 0 {
@@ -277,8 +280,19 @@ func (p *NumInfo) scanNumber(seenDecimalPoint bool) error {
 			case '.':
 				goto fraction
 			}
-			if len(p.buf) > 0 {
-				p.base = 8
+			if seenDigits {
+				// integer other than 0 may not start with 0
+				return p.errorf("illegal integer number %q", p.src)
+			}
+			// After a bare "0", only valid continuations are
+			// end-of-input or a multiplier suffix.
+			if p.ch != 0 {
+				switch p.ch {
+				case 'K', 'M', 'G', 'T', 'P':
+					goto exponent
+				default:
+					return p.errorf("illegal number %q", p.src)
+				}
 			}
 		}
 		goto exit
@@ -307,6 +321,9 @@ exponent:
 		} else {
 			p.mul |= mulDec
 		}
+		if p.ch != 0 {
+			return p.errorf("illegal trailing characters in number %q", p.src)
+		}
 		var v apd.Decimal
 		p.isFloat = false
 		return p.decimal(&v)
@@ -325,6 +342,13 @@ exponent:
 	}
 
 exit:
+	// p.next eagerly advances p.p past each character it reads,
+	// so a trailing invalid character (e.g. "1A", "0xFG") will have
+	// p.p == len(src) even though p.ch holds an unconsumed rune.
+	// Catch any such leftover character here.
+	if p.ch != 0 {
+		return p.errorf("illegal number %q", p.src)
+	}
 	return nil
 }
 

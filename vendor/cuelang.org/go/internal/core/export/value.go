@@ -15,6 +15,7 @@
 package export
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -43,6 +44,14 @@ func (e *exporter) bareValue(v adt.Value) ast.Expr {
 // value with a reference in graph mode.
 
 func (e *exporter) vertex(n *adt.Vertex) (result ast.Expr) {
+	// Guard against infinite recursion when a vertex cycles back to itself
+	// through BuiltinValidator arguments or other value-level cycles.
+	for i := range e.stack {
+		if e.stack[i].node == n {
+			return ast.NewIdent("_")
+		}
+	}
+
 	var attrs []*ast.Attribute
 	if e.cfg.ShowAttributes {
 		attrs = ExtractDeclAttrs(n)
@@ -105,9 +114,20 @@ func (e *exporter) vertex(n *adt.Vertex) (result ast.Expr) {
 		// are not associated with a position) are deterministic.
 		a := slices.SortedStableFunc(n.LeafConjuncts(), cmpConjuncts)
 
+		// Dedup conjuncts that share the same body AST. Pushdown lands a
+		// `for x in xs { … }` over N items as N body conjuncts on the
+		// target, one per yielded env. The envs differ but symbolic
+		// rendering ignores them, so without dedup the fallback produces
+		// `X & X & …`.
+		seen := map[adt.Elem]bool{}
 		exprs := make([]ast.Expr, 0, len(a))
 		for _, c := range a {
-			if x := e.expr(c.Env, c.Elem()); x != dummyTop {
+			elem := c.Elem()
+			if seen[elem] {
+				continue
+			}
+			seen[elem] = true
+			if x := e.expr(c.Env, elem); x != dummyTop {
 				exprs = append(exprs, x)
 			}
 		}
@@ -181,6 +201,12 @@ func (e *exporter) value(n adt.Value, a ...adt.Conjunct) (result ast.Expr) {
 				return e.expr(nil, x.Values[0])
 			}
 			return e.bareValue(x.Values[0])
+		}
+
+		if e.cfg.Simplify {
+			if name := adt.MatchBuiltinRange(x); name != "" {
+				return ast.NewIdent(name)
+			}
 		}
 
 		a := []adt.Value{}
@@ -313,7 +339,7 @@ func (e *exporter) boundValue(n *adt.BoundValue) ast.Expr {
 
 func (e *exporter) builtin(x *adt.Builtin) ast.Expr {
 	if x.Package == 0 {
-		return ast.NewIdent(x.Name)
+		return ast.NewPredeclared(x.Name)
 	}
 	spec := ast.NewImport(nil, x.Package.StringValue(e.index))
 	info, _ := astutil.ParseImportSpec(spec)
@@ -426,7 +452,9 @@ func (e *exporter) structComposite(v *adt.Vertex, attrs []*ast.Attribute) ast.Ex
 		case adt.DefinitionLabel:
 			show = p.ShowDefinitions
 		case adt.HiddenLabel, adt.HiddenDefinitionLabel:
-			show = p.ShowHidden && label.PkgID(e.ctx) == e.pkgID
+			lpkg := label.PkgID(e.ctx)
+			pkgID := cmp.Or(e.pkgID, "_")
+			show = p.ShowHidden && lpkg == pkgID
 		}
 		if !show {
 			continue

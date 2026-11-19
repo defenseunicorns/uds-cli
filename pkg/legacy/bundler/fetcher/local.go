@@ -109,7 +109,7 @@ func (f *localFetcher) toBundle() ([]ocispec.Descriptor, error) {
 	}
 
 	filter := filters.Combine(
-		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ","), false),
+		filters.ForDeploy(strings.Join(f.pkg.OptionalComponents, ",")),
 	)
 
 	remoteOpts := zarfTypes.RemoteOptions{

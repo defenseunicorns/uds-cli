@@ -75,7 +75,7 @@ func (s *remoteSource) newZociRemoteForRef(ctx context.Context, ref string) (*zo
 	}
 	// Zarf appends images/ and owns the cached package bytes. An empty path
 	// disables caching at this layer rather than selecting Zarf's default cache.
-	return zoci.NewRemoteWithOptions(ctx, ref, platform, zoci.RemoteClientOptions{
+	return zoci.NewRemote(ctx, ref, platform, zoci.RemoteClientOptions{
 		CachePath: cachePath,
 		RemoteOptions: zarfTypes.RemoteOptions{
 			PlainHTTP:             plainHTTP,

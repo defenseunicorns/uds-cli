@@ -112,6 +112,10 @@ func (p *taskContext) popTask() {
 	p.stack = p.stack[:len(p.stack)-1]
 }
 
+// taskChunkSize is the number of tasks allocated at once when the pool is empty.
+// sizeof(task) is 120 bytes, so 32 tasks is just under 4KiB per chunk.
+const taskChunkSize = 32
+
 func (p *taskContext) newTask() *task {
 	if n := len(p.taskPool); n > 0 {
 		t := p.taskPool[n-1]
@@ -122,7 +126,13 @@ func (p *taskContext) newTask() *task {
 		*t = task{}
 		return t
 	}
-	return &task{}
+	// Allocate a chunk of tasks at once to reduce GC overhead
+	// from many small heap allocations.
+	chunk := make([]task, taskChunkSize)
+	for i := 1; i < taskChunkSize; i++ {
+		p.taskPool = append(p.taskPool, &chunk[i])
+	}
+	return &chunk[0]
 }
 
 func (p *taskContext) freeTask(t *task) {
@@ -147,8 +157,7 @@ type schedState uint8
 const (
 	schedREADY schedState = iota
 
-	schedRUNNING    // processing conjunct(s)
-	schedFINALIZING // all tasks completed, run new tasks immediately
+	schedRUNNING // processing conjunct(s)
 	schedSUCCESS
 	schedFAILED
 )
@@ -178,8 +187,6 @@ func (s schedState) String() string {
 		return "READY"
 	case schedRUNNING:
 		return "RUNNING"
-	case schedFINALIZING:
-		return "FINALIZING"
 	case schedSUCCESS:
 		return "SUCCESS"
 	case schedFAILED:
@@ -234,7 +241,7 @@ func (c condition) meets(x condition) bool {
 	return c&x == x
 }
 
-const numCompletionStates = 10 // TODO: make this configurable
+const numCompletionStates = 10
 
 // A scheduler represents the set of outstanding tasks for a node.
 type scheduler struct {
@@ -273,16 +280,40 @@ type scheduler struct {
 	// tasks lists all tasks that were scheduled for this scheduler.
 	// The list only contains tasks that are associated with this node.
 	// TODO: rename to queue and taskPos to nextQueueIndex.
-	tasks   []*task
-	taskPos int
+	tasks []*task
+
+	// parentTasks are tasks that originate on a parent node but contribute
+	// fields to this node (e.g. a pushed-down comprehension on the parent
+	// whose body materializes arcs here). They must complete before this
+	// scheduler's own tasks can rely on the parent having finished adding
+	// fields to this node.
+	parentTasks []*task
 
 	// blocking is a list of tasks that are blocked on the completion of
 	// the indicate conditions. This can hold tasks from other nodes or tasks
 	// originating from this node itself.
 	blocking []*task
+
+	// deferred tracks nodes that were not completed during computation and that
+	// still need to be finalized. This is especially important for inline
+	// structs, which may not be included in the output and thus the errors
+	// would never be discovered. But it is also important for models where we
+	// only do partial evaluation.
+	deferred []*nodeContext
 }
 
 func (s *scheduler) clear() {
+	// Any tasks blocked on this scheduler are unblocked once the scheduler is cleared.
+	// Otherwise they might signal a cleared scheduler, which can panic.
+	//
+	// TODO(mvdan,mpvl): In principle, all blocks should have been removed when a scheduler
+	// is cleared. Perhaps this can happen when the scheduler is stopped prematurely.
+	// For now, this solution seems to work OK.
+	for _, t := range s.blocking {
+		t.blockedOn = nil
+		t.blockCondition = neverKnown
+	}
+
 	// Free tasks back to the pool for reuse. Tasks are not cleared here because
 	// they may still be referenced in other schedulers' blocking queues.
 	// They will be cleared when obtained from the pool for reuse.
@@ -291,10 +322,32 @@ func (s *scheduler) clear() {
 	}
 
 	*s = scheduler{
-		ctx:      s.ctx,
-		tasks:    s.tasks[:0],
-		blocking: s.blocking[:0],
+		ctx:         s.ctx,
+		tasks:       s.tasks[:0],
+		parentTasks: s.parentTasks[:0],
+		blocking:    s.blocking[:0],
+		deferred:    s.deferred[:0],
 	}
+}
+
+// allTasksStarted reports whether all tasks have started processing.
+func allTasksStarted(x *nodeContext) bool {
+	for _, t := range x.tasks {
+		if t.state == taskREADY {
+			return false
+		}
+	}
+	return true
+}
+
+// allTasksFinished reports whether all tasks have completed processing.
+func allTasksFinished(x *nodeContext) bool {
+	for _, t := range x.tasks {
+		if t.state < taskSUCCESS {
+			return false
+		}
+	}
+	return true
 }
 
 // cloneInto initializes the state of dst to be the same as s.
@@ -377,6 +430,8 @@ func (s *scheduler) process(needs condition, mode runMode) bool {
 		s.signal(f(s))
 	}
 
+	s.handleParents(needs, mode)
+
 	if s.ctx.LogEval > 0 && len(s.tasks) > 0 {
 
 		if v := s.tasks[0].node.node; v != nil {
@@ -384,20 +439,74 @@ func (s *scheduler) process(needs condition, mode runMode) bool {
 		}
 	}
 
+	ranParent := false
+	for _, t := range s.parentTasks {
+		if t.state == taskREADY {
+			runTask(t, mode)
+			ranParent = true
+		}
+	}
+
+	// If a parent task ran (e.g. a comprehension that pushes fields into
+	// this node via its parent), re-process ancestors so the parent
+	// scheduler picks up the newly queued conjuncts and propagates them
+	// down to this node.
+	if ranParent {
+		s.handleParents(needs, mode)
+	}
+
+	if s.node != nil && s.node.node != nil && s.node.node.ArcType == ArcPending && mode == finalize {
+		s.tasks = s.tasks[:0]
+	}
+
 	// hasRunning := false
 	s.state = schedRUNNING
 	// Use variable instead of range, because s.tasks may grow during processes.
 
-processNextTask:
-	for s.taskPos < len(s.tasks) {
-		t := s.tasks[s.taskPos]
-		s.taskPos++
+	taskPos := 0
 
-		if t.state != taskREADY {
-			// TODO(perf): Figure out how it is possible to reach this and if we
-			// should optimize.
-			// panic("task not READY")
+	selectTasks := needs
+	if needs&concreteKnown != 0 {
+		selectTasks |= valueKnown
+	}
+	if needs&fieldSetKnown != 0 {
+		selectTasks |= fieldConjunctsKnown
+	}
+
+	// Check if any comprehension is currently running on this scheduler.
+	// If so, skip other comprehensions to prevent ordering issues where a
+	// later comprehension iterates over fields that an earlier (currently
+	// running) comprehension has not yet populated.
+	hasRunningComp := false
+	// hasInsertingComp only considers comprehensions that are inserting
+	// the conjuncts their clauses yielded.
+	hasInsertingComp := false
+	// Check if a disjunction is still pending (READY) on this scheduler.
+	// If so, defer pushed-down comprehension tasks until disjunction
+	// expansion has cloned the parent into disjuncts. Pushdown turns the
+	// comp's body into pre-created arcs and counters on the parent;
+	// running the comp before disjunction expansion would leave its
+	// pending counters on every disjunct, blocking finalization. By
+	// running disjunctions first, the comp is still taskREADY at clone
+	// time, so each disjunct gets its own clone that runs in the
+	// disjunct's context.
+	hasPendingDisjunction := false
+	for _, t := range s.tasks {
+		if t.state == taskRUNNING && t.run == handleComprehension {
+			hasRunningComp = true
+			if t.inserting {
+				hasInsertingComp = true
+			}
 		}
+		if t.state == taskREADY && t.run == handleDisjunctions {
+			hasPendingDisjunction = true
+		}
+	}
+
+processNextTask:
+	for taskPos < len(s.tasks) {
+		t := s.tasks[taskPos]
+		taskPos++
 
 		switch {
 		case t.state == taskRUNNING:
@@ -407,9 +516,35 @@ processNextTask:
 			// mark the cycle as a generation counter, instead of a boolean
 			// value, so that it will be trivial reconstruct a detailed cycle
 			// report when generating an error message.
-
 		case t.state != taskREADY:
-
+			// TODO(perf): Figure out how it is possible to reach this and if we
+			// should optimize.
+			// panic("task not READY")
+		case t.completes&selectTasks == 0:
+			continue
+		case hasRunningComp && t.run == handleComprehension:
+			// Do not start a new comprehension while another is running
+			// on the same node. The running comprehension may add fields
+			// that this one depends on.
+			continue
+		case hasInsertingComp && t.run == handleResolver:
+			// Do not start a resolver while a comprehension is inserting
+			// results on the same node: the resolver (e.g. an embedding
+			// like funcs["0"]) may depend on fields it has not yet added.
+			// A comprehension still evaluating its clauses does not defer
+			// resolvers: its guards may depend on the resolver's conjuncts.
+			continue
+		case hasPendingDisjunction && t.run == handleComprehension &&
+			t.completes == allTasksCompleted:
+			// Defer pushed-down comprehensions until pending
+			// disjunctions have expanded the parent into disjuncts.
+			// Only comps whose body was fully pushed down (after
+			// pushDownDeps, completes == allTasksCompleted) are
+			// delayed: such comps need to run inside each disjunct
+			// so the pushed-down arcs see that disjunct's view.
+			// Comps with broader completes (e.g. for-comps over a
+			// list) are not delayed.
+			continue
 		default:
 			runTask(t, mode)
 		}
@@ -472,7 +607,7 @@ unblockTasks:
 
 	// The running of tasks above may result in more tasks being added to the
 	// queue. Process these first before continuing.
-	if s.taskPos < len(s.tasks) {
+	if taskPos < len(s.tasks) {
 		goto processNextTask
 	}
 
@@ -523,13 +658,14 @@ func (s *scheduler) blockOn(cond condition) {
 func (s *scheduler) signal(completed condition) {
 	was := s.completed
 	s.completed |= completed
+	toFreeze := s.deferFieldSetKnown(completed)
 	if was == s.completed {
-		s.frozen |= completed
+		s.frozen |= toFreeze
 		return
 	}
 
 	s.completed |= s.ctx.complete(s)
-	s.frozen |= completed
+	s.frozen |= toFreeze
 
 	// TODO: this could benefit from a linked list where tasks are removed
 	// from the list before being run.
@@ -547,10 +683,80 @@ func (s *scheduler) signal(completed condition) {
 // freeze indicates no more tasks satisfying the given condition may be added.
 // It is also used to freeze certain elements of the task.
 func (s *scheduler) freeze(c condition) {
-	s.frozen |= c
+	s.frozen |= s.deferFieldSetKnown(c)
 	s.completed |= c
 	s.ctx.complete(s)
 	s.isFrozen = true
+}
+
+// deferFieldSetKnown filters fieldSetKnown out of c while a task other than
+// the currently-running one may still add fields to this node:
+//
+//   - a parent task that has not completed (typically a pushed-down
+//     comprehension still yielding); or
+//   - one of this scheduler's own field-adding tasks (those that complete
+//     fieldConjunctsKnown, e.g. a ListLit) that is taskREADY, or that is
+//     taskRUNNING and is not a comprehension.
+//
+// Freezing in either case would lock in an incomplete field set and produce
+// spurious "field set was already referenced" errors. Among this scheduler's
+// own field-adding tasks, two states defer the freeze: a taskREADY task has not
+// run yet, and a taskRUNNING non-comprehension task is an ancestor of the
+// current task on the evaluation stack that will resume and add the rest of its
+// bounded field set. A running comprehension does not defer: it derives fields
+// by iterating other fields and is typically part of a dependency cycle, where
+// freezing is the deliberate cycle-breaker. A waiting task does not defer
+// either, regardless of kind.
+//
+// The current task is excluded from the parent-task check only: it may
+// freeze fieldSetKnown for the very node it is the parent task of (e.g. a
+// comprehension iterating over its own source node). A running resolver
+// among this scheduler's own tasks still defers the freeze, as its result
+// may yet add fields to this node.
+func (s *scheduler) deferFieldSetKnown(c condition) condition {
+	if c&fieldSetKnown == 0 {
+		return c
+	}
+	cur := s.ctx.current()
+	for _, pt := range s.parentTasks {
+		switch pt.state {
+		case taskSUCCESS, taskFAILED, taskCANCELLED:
+			continue
+		}
+		if pt != cur {
+			return c &^ fieldSetKnown
+		}
+	}
+	for _, t := range s.tasks {
+		if t.run.completes&fieldConjunctsKnown == 0 {
+			continue
+		}
+		switch t.state {
+		case taskREADY:
+			// A field-adding task that has not yet run.
+			return c &^ fieldSetKnown
+		case taskRUNNING:
+			// A still-running non-comprehension conjunct (e.g. close()) is an
+			// ancestor on the stack that will resume and add the rest of its
+			// bounded field set. A comprehension can grow the field set without
+			// bound, so for it freezing remains the deliberate cycle-breaker.
+			if t.run != handleComprehension {
+				return c &^ fieldSetKnown
+			}
+		}
+	}
+	return c
+}
+
+// hasActiveParentTask reports whether a parent task, such as a pushed-down
+// comprehension, has not yet completed and may still add to this node.
+func (s *scheduler) hasActiveParentTask() bool {
+	for _, pt := range s.parentTasks {
+		if pt.state < taskSUCCESS {
+			return true
+		}
+	}
+	return false
 }
 
 // signalDoneAdding signals that no more tasks will be added to this scheduler.
@@ -572,10 +778,6 @@ type runner struct {
 	// completes indicates which states this tasks contributes to.
 	completes condition
 
-	// needes indicates which states of the corresponding node need to be
-	// completed before this task can be run.
-	needs condition
-
 	// a lower priority indicates a preference to run a task before tasks
 	// of a higher priority.
 	priority int8
@@ -592,6 +794,13 @@ type task struct {
 
 	// unblocked indicates this task was unblocked by force.
 	unblocked bool
+
+	// inserting indicates that this comprehension task is inserting the
+	// conjuncts its clauses yielded; see hasInsertingComp in process.
+	inserting bool
+
+	// retry requeues this task as READY instead of completing it.
+	retry bool
 
 	// The following fields indicate what this task is blocked on, including
 	// the scheduler, which conditions it is blocking on, and the stack of
@@ -615,28 +824,20 @@ type task struct {
 	env *Environment
 	id  CloseInfo
 	x   Node // The conjunct Expression or Value.
-
-	// For Comprehensions:
-	comp *envComprehension
-	leaf *Comprehension
 }
 
 func (s *scheduler) insertTask(t *task) {
+	if t.run.completes == 0 {
+		panic("task with no completes")
+	}
 	completes := t.run.completes
-	needs := t.run.needs
+	if t.run == handleComprehension {
+		completes = pushDownDeps(s.node, t, t.x)
+	}
 
-	s.needs |= needs
 	s.provided |= completes
 
-	if needs&completes != 0 {
-		panic("task depends on its own completion")
-	}
 	t.completes = completes
-
-	if s.state == schedFINALIZING {
-		runTask(t, finalize)
-		return
-	}
 
 	s.incrementCounts(completes)
 	s.tasks = append(s.tasks, t)
@@ -644,24 +845,54 @@ func (s *scheduler) insertTask(t *task) {
 	// Sort by priority. This code is optimized for the case that there are
 	// very few tasks with higher priority. This loop will almost always
 	// terminate within 0 or 1 iterations.
-	for i := len(s.tasks) - 1; i > s.taskPos; i-- {
+	for i := len(s.tasks) - 1; i > 0; i-- {
 		if s.tasks[i-1].run.priority <= s.tasks[i].run.priority {
 			break
 		}
 		s.tasks[i], s.tasks[i-1] = s.tasks[i-1], s.tasks[i]
 	}
-
-	if s.completed&needs != needs {
-		t.waitFor(s, needs)
-	}
 }
 
 func runTask(t *task, mode runMode) {
 	if t.defunct {
-		if t.state != taskCANCELLED {
-			t.state = taskCANCELLED
-		}
+		t.state = taskCANCELLED
 		return
+	}
+	// Skip tasks whose evaluation must not cross an ancestor-cycle
+	// reference on this arc (see [nodeContext.hasAncestorCycle]):
+	//
+	//   - Comprehensions: a comprehension inherited onto a cycle arc may
+	//     re-enter the ancestor via the cyclic reference (its for/if
+	//     clauses look up children that themselves cycle back), recursing
+	//     without bound. This only applies when the node has no non-cyclic
+	//     conjuncts of its own (see below).
+	//   - Disjunctions: evaluating a disjunction here would resolve the
+	//     disjunct through the cyclic reference back into the same
+	//     disjunction's evaluation — the cross-disjunct cycle err1/err2
+	//     in [cue/testdata/disjunctions/edge.txtar] documents that this
+	//     must surface as an unresolved-disjunction error per the spec,
+	//     not as a successful resolution via the back-edge.
+	//
+	// Other task kinds (Resolver, StructLit body, Field, ListLit, etc.)
+	// contribute bounded structure or constraints that downstream lookups
+	// (e.g. `_self.foo`) need; they must still fire. The structural cycle
+	// is still reported through [nodeContext.detectCycle].
+	if t.node.hasAncestorCycle {
+		switch t.run {
+		case handleComprehension:
+			// Only skip if the node is a pure back-reference to its
+			// ancestor. If it has independent non-cyclic conjuncts (e.g. a
+			// `let X = self` whose conjuncts were copied into this vertex),
+			// the comprehension must still fire to materialize its fields
+			// here.
+			if t.node.hasOnlyCyclicConjuncts() {
+				t.state = taskSUCCESS
+				return
+			}
+		case handleDisjunctions:
+			t.state = taskSUCCESS
+			return
+		}
 	}
 	ctx := t.node.ctx
 	if ctx.LogEval > 0 {
@@ -679,6 +910,29 @@ func runTask(t *task, mode runMode) {
 	defer func() {
 		ctx.freeScope = ctx.freeScope[:len(ctx.freeScope)-1]
 
+		// TODO(pushdown): try to remove once transitioned.
+		//
+		// Disabling this block causes three categories of regressions:
+		//   1. Cycle detection: self-referential list indexing (e.g.
+		//      x: [x[0]][0]) loses its cycle sentinel and returns the
+		//      let-bound reference instead of _.
+		//      Test: TestEvalV3/eval/disjunctions/indexElimination
+		//   2. Unexpanded references: existence-check comprehensions
+		//      (if Y.host != _|_) leave references like Y_2.host unresolved
+		//      instead of substituting the concrete value "mod.test".
+		//      Test: TestEvalV3/cycle/compbottomnofinal/large
+		//   3. Disjunction default handling: nested definition chains that
+		//      contain if-guarded disjunctions (e.g. imagePullPolicy) gain
+		//      spurious defaults, and disjunction values that should remain
+		//      as "a"|"b" collapse to a concrete value prematurely.
+		//      Tests: TestEvalV3/comprehensions/issue3929/{reduced,full}
+		//
+		// Root cause: toComplete is set in scheduleVertexConjuncts when the
+		// arc being scheduled is still in progress (getBareState != nil).
+		// Without the post-task completeNodeTasks(attemptOnly) call, those
+		// nodes never signal allAncestorsProcessed or process remaining
+		// valueKnown|fieldConjunctsKnown tasks, leaving evaluation
+		// half-finished.
 		if n := t.node; n.toComplete {
 			n.toComplete = false
 			n.completeNodeTasks(attemptOnly)
@@ -689,9 +943,12 @@ func runTask(t *task, mode runMode) {
 		case *scheduler:
 			// Task must be WAITING.
 			if t.state == taskRUNNING {
-				t.state = taskSUCCESS // XXX: something else? Do we known the dependency?
 				if t.err != nil {
 					t.state = taskFAILED
+				} else {
+					// TODO: something else? Do we know the dependency?
+					// Either way, this code seems to never be reached.
+					t.state = taskSUCCESS
 				}
 			}
 		default:
@@ -719,13 +976,32 @@ func runTask(t *task, mode runMode) {
 
 	t.run.f(ctx, t, mode)
 
+	// Clear context error so that it does not leak into deferred tasks.
+	errs := ctx.Err()
+
+	for _, d := range t.node.deferred {
+		d.node.CompleteArcsOnly(ctx)
+		if b, ok := d.node.BaseValue.(*Bottom); ok {
+			t.node.addBottom(b)
+		}
+	}
+
+	if t.retry {
+		// The task ran without effect but may succeed later; requeue it
+		// rather than completing it and dropping its conjuncts.
+		// TODO: consider using the waitFor blocking machinery instead.
+		t.retry = false
+		t.state = taskREADY
+		return
+	}
+
 	if t.state != taskWAITING {
 		t.blockedOn = nil
 		t.blockCondition = neverKnown
 
 		// TODO: always reporting errors in the current task would avoid us
 		// having to collect and assign errors here.
-		t.err = CombineErrors(nil, t.err, ctx.Err())
+		t.err = CombineErrors(nil, t.err, errs)
 		if t.err == nil {
 			t.state = taskSUCCESS
 		} else {

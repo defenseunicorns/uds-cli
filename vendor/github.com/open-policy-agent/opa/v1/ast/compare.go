@@ -8,7 +8,10 @@ import (
 	"cmp"
 	"fmt"
 	"math/big"
+	"slices"
 	"strings"
+
+	"github.com/open-policy-agent/opa/v1/util"
 )
 
 // Compare returns an integer indicating whether two AST values are less than,
@@ -38,7 +41,6 @@ import (
 // is empty.
 // Other comparisons are consistent but not defined.
 func Compare(a, b any) int {
-
 	if t, ok := a.(*Term); ok {
 		if t == nil {
 			a = nil
@@ -77,7 +79,7 @@ func Compare(a, b any) int {
 	switch a := a.(type) {
 	case *Not:
 		b := b.(*Not)
-		return Compare(a.Body, b.Body)
+		return a.Compare(b)
 	case Null:
 		return 0
 	case Boolean:
@@ -120,25 +122,13 @@ func Compare(a, b any) int {
 		return a.Compare(b.(Set))
 	case *ArrayComprehension:
 		b := b.(*ArrayComprehension)
-		if cmp := Compare(a.Term, b.Term); cmp != 0 {
-			return cmp
-		}
-		return a.Body.Compare(b.Body)
+		return a.Compare(b)
 	case *ObjectComprehension:
 		b := b.(*ObjectComprehension)
-		if cmp := Compare(a.Key, b.Key); cmp != 0 {
-			return cmp
-		}
-		if cmp := Compare(a.Value, b.Value); cmp != 0 {
-			return cmp
-		}
-		return a.Body.Compare(b.Body)
+		return a.Compare(b)
 	case *SetComprehension:
 		b := b.(*SetComprehension)
-		if cmp := Compare(a.Term, b.Term); cmp != 0 {
-			return cmp
-		}
-		return a.Body.Compare(b.Body)
+		return a.Compare(b)
 	case Call:
 		return termSliceCompare(a, b.(Call))
 	case *Expr:
@@ -173,14 +163,8 @@ func Compare(a, b any) int {
 	panic(fmt.Sprintf("illegal value: %T", a))
 }
 
-type termSlice []*Term
-
-func (s termSlice) Less(i, j int) bool { return Compare(s[i].Value, s[j].Value) < 0 }
-func (s termSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s termSlice) Len() int           { return len(s) }
-
-func sortOrder(x any) int {
-	switch x.(type) {
+func valueSortOrder(v Value) int {
+	switch v.(type) {
 	case Null:
 		return 0
 	case Boolean:
@@ -209,6 +193,28 @@ func sortOrder(x any) int {
 		return 12
 	case Call:
 		return 13
+	case *Not:
+		return 111
+	}
+	return 10000000
+}
+
+func valueTypeCompare[A, B Value](a A, b B) int {
+	sortA := valueSortOrder(a)
+	sortB := valueSortOrder(b)
+
+	if sortA < sortB {
+		return -1
+	} else if sortB < sortA {
+		return 1
+	}
+	return 0
+}
+
+func sortOrder(x any) int {
+	switch v := x.(type) {
+	case Value:
+		return valueSortOrder(v)
 	case Args:
 		return 14
 	case *Expr:
@@ -223,8 +229,6 @@ func sortOrder(x any) int {
 		return 104
 	case *With:
 		return 110
-	case *Not:
-		return 111
 	case *Head:
 		return 120
 	case Body:
@@ -241,38 +245,6 @@ func sortOrder(x any) int {
 		return 10000
 	}
 	panic(fmt.Sprintf("illegal value: %T", x))
-}
-
-func importsCompare(a, b []*Import) int {
-	minLen := min(len(b), len(a))
-	for i := range minLen {
-		if cmp := a[i].Compare(b[i]); cmp != 0 {
-			return cmp
-		}
-	}
-	if len(a) < len(b) {
-		return -1
-	}
-	if len(b) < len(a) {
-		return 1
-	}
-	return 0
-}
-
-func annotationsCompare(a, b []*Annotations) int {
-	minLen := min(len(b), len(a))
-	for i := range minLen {
-		if cmp := a[i].Compare(b[i]); cmp != 0 {
-			return cmp
-		}
-	}
-	if len(a) < len(b) {
-		return -1
-	}
-	if len(b) < len(a) {
-		return 1
-	}
-	return 0
 }
 
 func rulesCompare(a, b []*Rule) int {
@@ -294,7 +266,7 @@ func rulesCompare(a, b []*Rule) int {
 func termSliceCompare(a, b []*Term) int {
 	minLen := min(len(b), len(a))
 	for i := range minLen {
-		if cmp := Compare(a[i], b[i]); cmp != 0 {
+		if cmp := a[i].Value.Compare(b[i].Value); cmp != 0 {
 			return cmp
 		}
 	}
@@ -309,7 +281,7 @@ func termSliceCompare(a, b []*Term) int {
 func withSliceCompare(a, b []*With) int {
 	minLen := min(len(b), len(a))
 	for i := range minLen {
-		if cmp := Compare(a[i], b[i]); cmp != 0 {
+		if cmp := a[i].Compare(b[i]); cmp != 0 {
 			return cmp
 		}
 	}
@@ -335,25 +307,19 @@ func TermValueCompare(a, b *Term) int {
 	return a.Value.Compare(b.Value)
 }
 
-func TermValueEqual(a, b *Term) bool {
-	return ValueEqual(a.Value, b.Value)
-}
-
 func ValueEqual(a, b Value) bool {
 	switch v := a.(type) {
-	case Null:
-		return v.Equal(b)
-	case Boolean:
-		return v.Equal(b)
+	case Null, Boolean, String, Var:
+		return v == b
 	case Number:
-		return v.Equal(b)
-	case String:
-		return v.Equal(b)
-	case Var:
 		return v.Equal(b)
 	case Ref:
 		return v.Equal(b)
 	case *Array:
+		return v.Equal(b)
+	case *object:
+		return v.Equal(b)
+	case *Not:
 		return v.Equal(b)
 	case *TemplateString:
 		return v.Equal(b)
@@ -367,39 +333,44 @@ func RefCompare(a, b Ref) int {
 }
 
 func RefEqual(a, b Ref) bool {
-	return termSliceEqual(a, b)
+	return slices.EqualFunc(a, b, (*Term).Equal)
 }
 
 func NumberCompare(x, y Number) int {
 	xs, ys := string(x), string(y)
-
-	var xIsF, yIsF bool
-
-	// Treat "1" and "1.0", "1.00", etc as "1"
-	if strings.Contains(xs, ".") {
-		if tx := strings.TrimRight(xs, ".0"); tx != xs {
-			// Still a float after trimming?
-			xIsF = strings.Contains(tx, ".")
-			xs = tx
-		}
-	}
-	if strings.Contains(ys, ".") {
-		if ty := strings.TrimRight(ys, ".0"); ty != ys {
-			yIsF = strings.Contains(ty, ".")
-			ys = ty
-		}
-	}
 	if xs == ys {
 		return 0
 	}
 
 	var xi, yi int64
-	var xf, yf float64
 	var xiOK, yiOK, xfOK, yfOK bool
 
-	if xi, xiOK = x.Int64(); xiOK {
-		if yi, yiOK = y.Int64(); yiOK {
+	if xi, xiOK = util.Atoi64(xs); xiOK {
+		if yi, yiOK = util.Atoi64(ys); yiOK {
 			return cmp.Compare(xi, yi)
+		}
+	}
+
+	var xf, yf float64
+	var xIsF, yIsF bool
+
+	// Treat "1" and "1.0", "1.00", etc as "1" for the purpose of deciding
+	// whether each side is a non-integral value.
+	//
+	// The trimmed forms must not be assigned back over xs and ys. TrimRight
+	// takes a cutset rather than a suffix, so ".0" strips every trailing '.'
+	// and '0' character: "0.0" trims to the empty string and "-0.0" to "-".
+	// Those are then handed to big.Float.SetString below, which fails, and the
+	// failure path is a panic.
+	if strings.IndexByte(xs, '.') != -1 {
+		if tx := strings.TrimRight(xs, ".0"); tx != xs {
+			// Still a float after trimming?
+			xIsF = strings.IndexByte(tx, '.') != -1
+		}
+	}
+	if strings.IndexByte(ys, '.') != -1 {
+		if ty := strings.TrimRight(ys, ".0"); ty != ys {
+			yIsF = strings.IndexByte(ty, '.') != -1
 		}
 	}
 
@@ -415,7 +386,7 @@ func NumberCompare(x, y Number) int {
 	}
 
 	var a *big.Rat
-	fa, ok := new(big.Float).SetString(string(x))
+	fa, ok := new(big.Float).SetString(xs)
 	if !ok {
 		panic("illegal value")
 	}
@@ -425,14 +396,14 @@ func NumberCompare(x, y Number) int {
 		}
 	}
 	if a == nil {
-		a, ok = new(big.Rat).SetString(string(x))
+		a, ok = new(big.Rat).SetString(xs)
 		if !ok {
 			panic("illegal value")
 		}
 	}
 
 	var b *big.Rat
-	fb, ok := new(big.Float).SetString(string(y))
+	fb, ok := new(big.Float).SetString(ys)
 	if !ok {
 		panic("illegal value")
 	}
@@ -442,7 +413,7 @@ func NumberCompare(x, y Number) int {
 		}
 	}
 	if b == nil {
-		b, ok = new(big.Rat).SetString(string(y))
+		b, ok = new(big.Rat).SetString(ys)
 		if !ok {
 			panic("illegal value")
 		}

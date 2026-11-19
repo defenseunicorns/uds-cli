@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package test provides e2e tests for UDS.
@@ -23,7 +23,91 @@ import (
 	"oras.land/oras-go/v2/registry"
 
 	"github.com/defenseunicorns/uds-cli/pkg/legacy/config"
+	"github.com/defenseunicorns/uds-cli/pkg/legacy/types"
+	goyaml "github.com/goccy/go-yaml"
+	"github.com/zarf-dev/zarf/src/pkg/images"
+	"github.com/zarf-dev/zarf/src/pkg/packager"
+	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/state"
+	"github.com/zarf-dev/zarf/src/pkg/transform"
+	zarfTypes "github.com/zarf-dev/zarf/src/types"
 )
+
+func TestRemotePackageFixturesWithoutCluster(t *testing.T) {
+	const templateDir = "testdata/legacy/bundles/06-ghcr"
+	templatePath := filepath.Join(templateDir, config.BundleYAML)
+	original, err := os.ReadFile(templatePath)
+	require.NoError(t, err)
+	bundleDir := prepareRemotePackageBundle(t, templateDir, "amd64", "arm64")
+	data, err := os.ReadFile(filepath.Join(bundleDir, config.BundleYAML))
+	require.NoError(t, err)
+	var bundle types.UDSBundle
+	require.NoError(t, goyaml.Unmarshal(data, &bundle))
+	require.Len(t, bundle.Packages, 2)
+	registryHost := strings.Split(bundle.Packages[0].Repository, "/")[0]
+
+	for _, architecture := range []string{"amd64", "arm64"} {
+		t.Run(architecture, func(t *testing.T) {
+			runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, architecture))
+			bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-ghcr-test-%s-0.0.1.tar.zst", architecture))
+			require.FileExists(t, bundlePath)
+			runCmd(t, fmt.Sprintf("publish %s oci://%s/bundles --insecure", bundlePath, registryHost))
+			for _, pkg := range bundle.Packages {
+				require.Equal(t, "0.0.2", pkg.Ref)
+				require.Equal(t, registryHost+"/fixtures/"+pkg.Name, pkg.Repository)
+				pkgLayout, err := packager.LoadPackage(t.Context(), "oci://"+pkg.Repository+":"+pkg.Ref, packager.LoadOptions{
+					Architecture: architecture, CachePath: t.TempDir(),
+					RemoteOptions:        zarfTypes.RemoteOptions{PlainHTTP: true},
+					VerificationStrategy: layout.VerifyNever,
+				})
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
+				definition := pkgLayout.Definition()
+				require.Equal(t, architecture, definition.Build.Architecture)
+				var packageImages []transform.Image
+				for _, component := range definition.Components {
+					for _, image := range component.GetImages() {
+						parsed, err := transform.ParseImageRef(image)
+						require.NoError(t, err)
+						packageImages = append(packageImages, parsed)
+					}
+				}
+				// Exercise the same image resolution and push used by deployment,
+				// without contacting a Kubernetes cluster.
+				require.NoError(t, images.Push(t.Context(), packageImages, pkgLayout.GetImageDirPath(), state.RegistryInfo{
+					Address: registryHost, RegistryMode: state.RegistryModeExternal,
+				}, images.PushOptions{PlainHTTP: true, OCIConcurrency: 1, Retries: 1}))
+			}
+		})
+	}
+	index, err := queryIndex(t, "http://"+registryHost, "bundles/ghcr-test")
+	require.NoError(t, err)
+	require.Len(t, index.Manifests, 2)
+	var architectures []string
+	for _, manifest := range index.Manifests {
+		require.NotNil(t, manifest.Platform)
+		architectures = append(architectures, manifest.Platform.Architecture)
+	}
+	require.ElementsMatch(t, []string{"amd64", "arm64"}, architectures)
+	unchanged, err := os.ReadFile(templatePath)
+	require.NoError(t, err)
+	require.Equal(t, original, unchanged)
+
+	t.Run("mixed local and remote sources", func(t *testing.T) {
+		mixedDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/03-local-and-remote")
+		mixedData, err := os.ReadFile(filepath.Join(mixedDir, config.BundleYAML))
+		require.NoError(t, err)
+		var mixed types.UDSBundle
+		require.NoError(t, goyaml.Unmarshal(mixedData, &mixed))
+		require.Len(t, mixed.Packages, 2)
+		require.Contains(t, mixed.Packages[0].Repository, "/fixtures/nginx")
+		localPath, err := filepath.Abs("testdata/legacy/packages/podinfo")
+		require.NoError(t, err)
+		require.Equal(t, localPath, mixed.Packages[1].Path)
+		require.Empty(t, mixed.Packages[1].Repository)
+		require.Equal(t, "0.0.1", mixed.Packages[1].Ref)
+	})
+}
 
 func TestUDSCmd(t *testing.T) {
 	_, _, err := e2e.UDS()
@@ -114,7 +198,7 @@ func TestBundleWithLocalAndRemotePkgs(t *testing.T) {
 	defer e2e.TeardownRegistry(t, 889)
 	e2e.CreateZarfPkg(t, "testdata/legacy/packages/podinfo", false)
 
-	bundleDir := "testdata/legacy/bundles/03-local-and-remote"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/03-local-and-remote")
 	bundleTarballName := fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch)
 	bundlePath := filepath.Join(bundleDir, bundleTarballName)
 	pulledBundlePath := filepath.Join("build", bundleTarballName)
@@ -606,7 +690,7 @@ func TestBundleTmpDir(t *testing.T) {
 	deployZarfInit(t)
 	e2e.CreateZarfPkg(t, "testdata/legacy/packages/podinfo", false)
 
-	bundleDir := "testdata/legacy/bundles/03-local-and-remote"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/03-local-and-remote")
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	// Test create using custom tmpDir
@@ -931,7 +1015,7 @@ func TestBundleList(t *testing.T) {
 	// Create the podinfo package which actually deploys resources to the cluster
 	e2e.CreateZarfPkg(t, "testdata/legacy/packages/podinfo", false)
 
-	bundleDir := "testdata/legacy/bundles/03-local-and-remote"
+	bundleDir := prepareRemotePackageBundle(t, "testdata/legacy/bundles/03-local-and-remote")
 	bundlePath := filepath.Join(bundleDir, fmt.Sprintf("uds-bundle-test-local-and-remote-%s-0.0.1.tar.zst", e2e.Arch))
 
 	runCmd(t, fmt.Sprintf("create %s --insecure --confirm -a %s", bundleDir, e2e.Arch))

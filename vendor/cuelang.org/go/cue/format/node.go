@@ -37,6 +37,11 @@ func printNode(node interface{}, f *printer) error {
 		if f.cfg.simplify {
 			ls.markReferences(x)
 		}
+		// Prefer the language version from the AST (set by the parser from the
+		// module file) over any explicit option, which is used as a fallback.
+		if x.LanguageVersion != "" {
+			f.cfg.languageVersion = x.LanguageVersion
+		}
 		s.file(x)
 	case ast.Expr:
 		if f.cfg.simplify {
@@ -235,9 +240,50 @@ func fallbackKeyword(n *ast.Comprehension) token.Token {
 	return token.ELSE
 }
 
-func (f *formatter) walkListElems(list []ast.Expr) {
+// listOmitsCommas reports whether the list source omits commas between
+// elements. It returns true when any inter-element comma is missing, meaning
+// the formatter should use the comma-free style. For single-element lists
+// the trailing comma (before ']') is checked instead.
+//
+// The Scanned bit on lbrack distinguishes scanner-produced lists from
+// programmatically constructed ASTs. For programmatic ASTs (where Scanned
+// is false), this always returns false to keep commas.
+//
+// TODO: consider whether programmatic ASTs should default to comma-free
+// style, which would remove the need for this check.
+func listOmitsCommas(list []ast.Expr, lbrack, rbrack token.Pos) bool {
+	if len(list) == 0 || !lbrack.Scanned() {
+		return false
+	}
+	// Check commas between consecutive elements: element[i].Pos().HasComma()
+	// indicates an explicit comma preceded that token (i.e. after element[i-1]).
+	for i := 1; i < len(list); i++ {
+		if !list[i].Pos().HasComma() {
+			return true
+		}
+	}
+	// For single-element lists there are no inter-element gaps to check,
+	// so use the trailing comma (before ']') to determine style.
+	if len(list) == 1 {
+		return !rbrack.HasComma()
+	}
+	return false
+}
+
+func (f *formatter) walkListElems(list []ast.Expr, lbrack, rbrack token.Pos) {
 	f.before(nil)
-	for _, x := range list {
+	// Use declcomma (same mechanism as struct fields) when commas should be
+	// omitted. This prints ", " only when elements are on the same line.
+	// The separator is placed before the next element so that trailing
+	// comments on the previous element are printed without a comma.
+	//
+	// Commas are omitted when the source is missing a comma between any
+	// two consecutive elements.
+	useNewCommaStyle := listOmitsCommas(list, lbrack, rbrack)
+	for i, x := range list {
+		if i > 0 && useNewCommaStyle {
+			f.print(declcomma)
+		}
 		f.before(x)
 
 		// Collect comments that appear after the element's start position.
@@ -290,8 +336,9 @@ func (f *formatter) walkListElems(list []ast.Expr) {
 		case ast.Expr:
 			f.exprRaw(n, token.LowestPrec, 1)
 		}
-		f.print(comma, blank)
-
+		if !useNewCommaStyle {
+			f.print(comma, blank)
+		}
 		if splitComments {
 			f.current.cg = commentsAfter
 		}
@@ -377,8 +424,10 @@ func (f *formatter) decl(decl ast.Decl) {
 				f.expr(a.Field)
 				f.print(a.Rparen, token.RPAREN, noblank)
 			} else {
-				// Simple form: ~X
+				// Simple form: always output with parens ~(X)
+				f.print(a.Lparen, token.LPAREN, noblank)
 				f.expr(a.Field)
+				f.print(a.Rparen, token.RPAREN, noblank)
 			}
 		}
 
@@ -687,8 +736,17 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 
 	case *ast.Interpolation:
 		f.before(nil)
-		for _, x := range x.Elts {
-			f.expr0(x, depth+1)
+		// For multi-line string literals, enforce that the newlines
+		// surrounding each interpolation expression are either both
+		// present or both absent; if only one is present, force the
+		// other. For single-line string literals, collapse all newlines
+		// inside interpolation expressions so the result stays on one line.
+		forceNewline := interpolationNormalize(x)
+		for i, el := range x.Elts {
+			if i < len(forceNewline) && forceNewline[i] {
+				f.print(newline, nooverride)
+			}
+			f.expr0(el, depth+1)
 		}
 		f.after(nil)
 
@@ -793,7 +851,7 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		}
 
 		f.print(x.Lbrack, token.LBRACK, ws)
-		f.walkListElems(x.Elts)
+		f.walkListElems(x.Elts, x.Lbrack, x.Rbrack)
 		f.print(trailcomma, noblank)
 		f.visitComments(f.current.pos)
 		f.matchUnindent()
@@ -805,6 +863,59 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 	default:
 		panic(fmt.Sprintf("unimplemented type %T", x))
 	}
+}
+
+// interpolationNormalize normalizes the whitespace surrounding each
+// \(...) interpolation expression in x.
+//
+// For multi-line string literals, it returns a slice of the same length
+// as x.Elts indicating which elements should be preceded by an inserted
+// newline so that the leading and trailing newlines around each
+// interpolation expression are either both present or both absent.
+//
+// For single-line string literals, it mutates positions within each
+// interpolation expression and its closing fragment so that no
+// position-driven newlines are emitted, collapsing the interpolation
+// to a single line.
+func interpolationNormalize(x *ast.Interpolation) []bool {
+	first, last := x.Quotes()
+	qi, _, _, _ := literal.ParseQuotes(first.Value, last.Value)
+	if !qi.IsMulti() {
+		// Remove newlines from all elements except the first.
+		for _, e := range x.Elts[1:] {
+			ast.Walk(e, func(n ast.Node) bool {
+				if n != nil && n.Pos().RelPos() >= token.Newline {
+					ast.SetRelPos(n, token.NoRelPos)
+				}
+				return true
+			}, nil)
+		}
+		return nil
+	}
+	var force []bool
+	for i := 1; i+1 < len(x.Elts); i += 2 {
+		prev, expr, next := x.Elts[i-1], x.Elts[i], x.Elts[i+1]
+		// Skip if any relevant position is missing, as can happen for
+		// AST nodes synthesized without positions.
+		if !expr.Pos().IsValid() || !prev.End().IsValid() ||
+			!next.Pos().IsValid() || !expr.End().IsValid() {
+			continue
+		}
+		hasLeading := expr.Pos().Line() > prev.End().Line()
+		hasTrailing := next.Pos().Line() > expr.End().Line()
+		if hasLeading == hasTrailing {
+			continue
+		}
+		if force == nil {
+			force = make([]bool, len(x.Elts))
+		}
+		if hasLeading {
+			force[i+1] = true
+		} else {
+			force[i] = true
+		}
+	}
+	return force
 }
 
 func (f *formatter) clause(clause ast.Clause) {

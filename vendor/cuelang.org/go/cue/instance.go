@@ -85,7 +85,6 @@ func lookupInstance(x *runtime.Runtime, p *build.Instance) *Instance {
 
 func getImportFromBuild(x *runtime.Runtime, p *build.Instance, v *adt.Vertex) *Instance {
 	inst := lookupInstance(x, p)
-
 	if inst != nil {
 		return inst
 	}
@@ -115,25 +114,6 @@ func getImportFromNode(x *runtime.Runtime, v *adt.Vertex) *Instance {
 	}
 
 	return getImportFromBuild(x, p, v)
-}
-
-func getImportFromPath(x *runtime.Runtime, id string) *Instance {
-	node := x.LoadBuiltin(id)
-	if node == nil {
-		return nil
-	}
-	b := x.GetInstanceFromNode(node)
-	inst := lookupInstance(x, b)
-	if inst == nil {
-		inst = &Instance{
-			ImportPath: b.ImportPath,
-			PkgName:    b.PkgName,
-			root:       node,
-			inst:       b,
-			index:      x,
-		}
-	}
-	return inst
 }
 
 // newInstance creates a new instance. Use Insert to populate the instance.
@@ -222,7 +202,7 @@ func (inst *hiddenInstance) Build(p *build.Instance) *Instance {
 	cfg := &compile.Config{Scope: valueScope(Value{idx: r, v: inst.root})}
 	v, err := compile.Instance(cfg, r, p)
 
-	// Just like [runtime.Runtime.Build], ensure that the @embed compiler is run as needed.
+	// Just like [runtime.Runtime.Build], ensure that the @embed injector is run as needed.
 	err = errors.Append(err, r.InjectImplementations(p, v))
 
 	v.AddConjunct(adt.MakeRootConjunct(nil, inst.root))
@@ -240,73 +220,4 @@ func (inst *hiddenInstance) Build(p *build.Instance) *Instance {
 	}
 
 	return i
-}
-
-// Lookup reports the value at a path starting from the top level struct. The
-// Exists method of the returned value will report false if the path did not
-// exist. The Err method reports if any error occurred during evaluation. The
-// empty path returns the top-level configuration struct. Use LookupDef for definitions or LookupField for
-// any kind of field.
-//
-// Deprecated: use [Value.LookupPath]
-func (inst *hiddenInstance) Lookup(path ...string) Value {
-	return inst.Value().Lookup(path...)
-}
-
-// LookupDef reports the definition with the given name within struct v. The
-// Exists method of the returned value will report false if the definition did
-// not exist. The Err method reports if any error occurred during evaluation.
-//
-// Deprecated: use [Value.LookupPath]
-func (inst *hiddenInstance) LookupDef(path string) Value {
-	return inst.Value().LookupDef(path)
-}
-
-// LookupField reports a Field at a path starting from v, or an error if the
-// path is not. The empty path returns v itself.
-//
-// It cannot look up hidden or unexported fields.
-//
-// Deprecated: use [Value.LookupPath]
-func (inst *hiddenInstance) LookupField(path ...string) (f FieldInfo, err error) {
-	v := inst.Value()
-	for _, k := range path {
-		s, err := v.Struct()
-		if err != nil {
-			return f, err
-		}
-
-		f, err = s.FieldByName(k, true)
-		if err != nil {
-			return f, err
-		}
-		if f.IsHidden {
-			return f, errNotFound
-		}
-		v = f.Value
-	}
-	return f, err
-}
-
-// Fill creates a new instance with the values of the old instance unified with
-// the given value. It is not possible to update the emit value.
-//
-// Values may be any Go value that can be converted to CUE, an ast.Expr or
-// a Value. In the latter case, it will panic if the Value is not from the same
-// Runtime.
-//
-// Deprecated: use [Value.FillPath]
-func (inst *hiddenInstance) Fill(x interface{}, path ...string) (*Instance, error) {
-	v := inst.Value().Fill(x, path...)
-
-	inst = addInst(inst.index, &Instance{
-		root: v.v,
-		inst: nil,
-
-		// Omit ImportPath to indicate this is not an importable package.
-		Dir:        inst.Dir,
-		PkgName:    inst.PkgName,
-		Incomplete: inst.Incomplete,
-	})
-	return inst, nil
 }

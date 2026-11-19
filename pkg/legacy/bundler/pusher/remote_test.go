@@ -25,9 +25,9 @@ func TestRemoteToRemoteCopiesSelectedLayersAndConfig(t *testing.T) {
 	t.Cleanup(dstServer.Close)
 	platform := ocispec.Platform{Architecture: "amd64", OS: zarfoci.MultiOS}
 	options := zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{PlainHTTP: true}}
-	src, err := zoci.NewRemoteWithOptions(t.Context(), strings.TrimPrefix(srcServer.URL, "http://")+"/test/package:v1", platform, options)
+	src, err := zoci.NewRemote(t.Context(), strings.TrimPrefix(srcServer.URL, "http://")+"/test/package:v1", platform, options)
 	require.NoError(t, err)
-	dst, err := zoci.NewRemoteWithOptions(t.Context(), strings.TrimPrefix(dstServer.URL, "http://")+"/test/package:v1", platform, options)
+	dst, err := zoci.NewRemote(t.Context(), strings.TrimPrefix(dstServer.URL, "http://")+"/test/package:v1", platform, options)
 	require.NoError(t, err)
 	push := func(data string) ocispec.Descriptor {
 		t.Helper()

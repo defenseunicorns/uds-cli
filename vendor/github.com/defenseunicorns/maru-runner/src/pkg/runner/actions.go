@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present the Maru Authors
 
-// Package runner provides functions for running tasks in a tasks.yaml
 package runner
 
 import (
@@ -9,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -157,7 +157,7 @@ func RunAction[T any](action *types.BaseAction[T], envFilePath string, variableC
 		return nil
 	}
 
-	// load the contents of the env file into the Action + the MARU_ARCH
+	// load the contents of the env file into the Action
 	if envFilePath != "" {
 		envFilePath := filepath.Join(filepath.Dir(config.TaskFileLocation), envFilePath)
 		envFileContents, err := os.ReadFile(envFilePath)
@@ -396,6 +396,22 @@ func validateActionableTaskCall(inputTaskName string, inputs map[string]types.In
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("task %s is missing required inputs: %s", inputTaskName, strings.Join(missing, ", "))
+	}
+	for inputKey, input := range inputs {
+		if input.Pattern == "" {
+			continue
+		}
+		pattern, err := regexp.Compile(input.Pattern)
+		if err != nil {
+			return fmt.Errorf("task %s input %q has invalid pattern %q: %w", inputTaskName, inputKey, input.Pattern, err)
+		}
+		value, supplied := withs[inputKey]
+		if !supplied {
+			value = input.Default
+		}
+		if !pattern.MatchString(value) {
+			return fmt.Errorf("task %s input %q does not match pattern %q", inputTaskName, inputKey, input.Pattern)
+		}
 	}
 	for withKey := range withs {
 		matched := false

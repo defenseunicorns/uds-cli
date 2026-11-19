@@ -145,14 +145,26 @@ func TestRemoteSourcePullFilteredCache(t *testing.T) {
 		CacheDir:     t.TempDir(),
 		Concurrency:  1,
 	}
+	var packageDigest string
 	pull := func() {
 		source := NewPackageSource(ref, opts, "", iostreams.IOStreams{})
 		pkgLayout, err := source.PullFiltered(t.Context(), t.TempDir(), layout.PackageLayoutOptions{
-			Filter:               filters.ForDeploy("included", false),
+			Filter:               filters.ForDeploy("included"),
 			VerificationStrategy: layout.VerifyNever,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "filtered", pkgLayout.Definition().Metadata.Name)
+		definition := pkgLayout.Definition()
+		assert.Equal(t, "filtered", definition.Metadata.Name)
+		require.Len(t, definition.Components, 1)
+		assert.Equal(t, "included", definition.Components[0].Name)
+		selectors, selected := definition.ComponentSelectors()
+		assert.True(t, selected)
+		assert.Equal(t, []string{"included"}, selectors)
+		require.NotEmpty(t, pkgLayout.Digest())
+		if packageDigest == "" {
+			packageDigest = pkgLayout.Digest()
+		}
+		assert.Equal(t, packageDigest, pkgLayout.Digest())
 		require.NoError(t, pkgLayout.Cleanup())
 	}
 	pull()
@@ -245,7 +257,7 @@ func TestRemovePackageUsesConfiguredCache(t *testing.T) {
 	}
 	data, err := json.Marshal(malformed)
 	require.NoError(t, err)
-	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: runtime.GOARCH, OS: oci.MultiOS}, zoci.RemoteClientOptions{})
+	remote, err := zoci.NewRemote(t.Context(), ref, ocispec.Platform{Architecture: runtime.GOARCH, OS: oci.MultiOS}, zoci.RemoteClientOptions{})
 	require.NoError(t, err)
 	desc := udsoci.NewDescriptorFromBytes(ocispec.MediaTypeImageManifest, data)
 	require.NoError(t, udsoci.PushReferenceBytes(t.Context(), remote.Repo(), desc, data, "1.0.0"))
@@ -263,7 +275,7 @@ func pushCacheTestPackage(t *testing.T, serverURL string) (string, *layout.Packa
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
 	ref := strings.TrimPrefix(strings.TrimPrefix(serverURL, "http://"), "https://") + "/cache/package:1.0.0"
-	remote, err := zoci.NewRemoteWithOptions(t.Context(), ref, ocispec.Platform{Architecture: runtime.GOARCH, OS: oci.MultiOS}, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{PlainHTTP: !strings.HasPrefix(serverURL, "https://")}})
+	remote, err := zoci.NewRemote(t.Context(), ref, ocispec.Platform{Architecture: runtime.GOARCH, OS: oci.MultiOS}, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{PlainHTTP: !strings.HasPrefix(serverURL, "https://")}})
 	require.NoError(t, err)
 	_, err = remote.PushPackage(t.Context(), pkgLayout, zoci.PublishOptions{OCIConcurrency: 1})
 	require.NoError(t, err)

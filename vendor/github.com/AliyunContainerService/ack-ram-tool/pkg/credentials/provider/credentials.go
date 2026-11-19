@@ -20,3 +20,15 @@ func (c *Credentials) DeepCopy() *Credentials {
 		Expiration:      c.Expiration,
 	}
 }
+
+func (c *Credentials) expired(now time.Time, expiryDelta time.Duration) bool {
+	exp := c.Expiration
+	if exp.IsZero() {
+		return false
+	}
+	if expiryDelta > 0 {
+		exp = exp.Add(-expiryDelta)
+	}
+
+	return exp.Before(now)
+}

@@ -63,7 +63,7 @@ const (
 	// cycles are permanent errors, but they are not passed up recursively,
 	// as a unification of a value with a structural cycle with one that
 	// doesn't may still give a useful result.
-	StructuralCycleError // structural cycle
+	StructuralCycleError // structural_cycle
 
 	// IncompleteError means an evaluation could not complete because of
 	// insufficient information that may still be added later.
@@ -83,16 +83,11 @@ type Bottom struct {
 	Src ast.Node
 	Err errors.Error
 
-	Code ErrorCode
-	// Permanent indicates whether an incomplete error can be
-	// resolved later without making the configuration more specific.
-	// This may happen when an arc isn't fully resolved yet.
-	Permanent    bool
+	Code         ErrorCode
 	HasRecursive bool
 	ChildError   bool // Err is the error of the child
 	NotExists    bool // This error originated from a failed lookup.
 	CloseCheck   bool // This error resulted from a close check.
-	ForCycle     bool // this is a for cycle
 	// Value holds the computed value so far in case
 	Value Value
 
@@ -279,6 +274,13 @@ func (v *Vertex) reportFieldError(c *OpContext, pos token.Pos, f Feature, intMsg
 	// If v is an error, we need to adopt the worst error.
 	if b := v.Bottom(); b != nil && !isCyclePlaceholder(b) {
 		code = b.Code
+	} else if s := v.state; s != nil && s.errs != nil && s.errs.Code == CycleError {
+		// Also check cycle errors in the state (e.g. from failed
+		// comprehension tasks) that have not yet been promoted to BaseValue.
+		// This ensures that when a comp fails due to a mutual cycle, lookups
+		// of fields on the same vertex report CycleError instead of
+		// IncompleteError, allowing validate to propagate the cycle.
+		code = s.errs.Code
 	} else if !v.Accept(c, f) {
 		code = EvalError
 	}
@@ -303,11 +305,17 @@ func (v *Vertex) reportFieldError(c *OpContext, pos token.Pos, f Feature, intMsg
 
 // baseError contains common fields and methods for error types.
 type baseError struct {
-	r       Runtime
-	v       *Vertex
-	pos     token.Pos
-	auxpos  []token.Pos
+	r      Runtime
+	format func(Runtime, Node) string
+	v      *Vertex
+	pos    token.Pos
+	auxpos []token.Pos
+
 	altPath []string
+
+	// auxposBootstrap lets auxpos avoid extra allocations for few positions,
+	// which is a very common scenario.
+	auxposBootstrap [4]token.Pos
 }
 
 func (e *baseError) AddPos(p token.Pos) {
@@ -394,40 +402,45 @@ func appendNodePositions(a []token.Pos, n Node) []token.Pos {
 }
 
 func (c *OpContext) NewPosf(p token.Pos, format string, args ...interface{}) *ValueError {
-	var a []token.Pos
+	err := &ValueError{
+		baseError: baseError{
+			r:       c.Runtime,
+			format:  c.Format,
+			v:       c.errNode(),
+			pos:     p,
+			altPath: c.makeAltPath(),
+		},
+	}
+	err.auxpos = err.auxposBootstrap[:0]
+
 	if len(c.positions) > 0 {
-		a = make([]token.Pos, 0, len(c.positions))
 		for _, n := range c.positions {
-			a = appendNodePositions(a, n)
+			err.auxpos = appendNodePositions(err.auxpos, n)
 		}
 	}
 	for i, arg := range args {
 		switch x := arg.(type) {
 		case Node:
-			a = appendNodePositions(a, x)
-			// Wrap nodes in a [fmt.Stringer] which delays the call to
-			// [OpContext.Str] until the error needs to be rendered.
-			// This helps avoid work, as in many cases,
-			// errors are created but never shown to the user.
-			//
+			err.auxpos = appendNodePositions(err.auxpos, x)
 			// A Vertex will set an error as its BaseValue via a Bottom node,
 			// which might be this error we are creating.
 			// Using the Vertex directly could then lead to endless recursion.
 			// Make a shallow copy to avoid that.
 			if v, ok := x.(*Vertex); ok {
-				// TODO(perf): we could join this allocation with the creation
-				// of the stringer below.
 				vcopy := *v
 				x = &vcopy
 			}
-			args[i] = c.Str(x)
+			// Keep the Node in args; ValueError.Msg wraps it in a
+			// Formatter lazily, avoiding an interface-boxing allocation
+			// for the common case where the error is never rendered.
+			args[i] = x
 		case ast.Node:
 			// TODO: ideally the core evaluator should not depend on higher
 			// level packages. This will allow the debug packages to be used
 			// more widely.
 			b, _ := cueformat.Node(x)
 			if p := x.Pos(); p.IsValid() {
-				a = append(a, p)
+				err.auxpos = append(err.auxpos, p)
 			}
 			args[i] = string(b)
 		case Feature:
@@ -435,16 +448,8 @@ func (c *OpContext) NewPosf(p token.Pos, format string, args ...interface{}) *Va
 		}
 	}
 
-	return &ValueError{
-		baseError: baseError{
-			r:       c.Runtime,
-			v:       c.errNode(),
-			pos:     p,
-			auxpos:  a,
-			altPath: c.makeAltPath(),
-		},
-		Message: errors.NewMessagef(format, args...),
-	}
+	err.Message = errors.NewMessagef(format, args...)
+	return err
 }
 
 func (c *OpContext) makeAltPath() (a []string) {
@@ -463,6 +468,18 @@ func (c *OpContext) makeAltPath() (a []string) {
 	return a
 }
 
+// Msg wraps any Node args with [Formatter] lazily, so the boxing allocation
+// only happens when the error is actually rendered (the minority case).
+func (e *ValueError) Msg() (format string, args []interface{}) {
+	format, args = e.Message.Msg()
+	for i, a := range args {
+		if x, ok := a.(Node); ok {
+			args[i] = Formatter{X: x, F: e.format, R: e.r}
+		}
+	}
+	return format, args
+}
+
 func (e *ValueError) Error() string {
 	return errors.String(e)
 }
@@ -471,7 +488,6 @@ func (e *ValueError) Error() string {
 // actually needed, avoiding expensive string conversions and allocations.
 type ConflictError struct {
 	baseError
-	format func(Runtime, Node) string
 	v1, v2 Node
 	k1, k2 Kind
 }

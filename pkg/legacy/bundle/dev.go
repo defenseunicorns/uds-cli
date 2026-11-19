@@ -1,4 +1,4 @@
-// Copyright 2024 Defense Unicorns
+// Copyright 2024-2026 Defense Unicorns
 // SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
 
 // Package bundle contains functions for interacting with, managing and deploying UDS packages
@@ -62,12 +62,13 @@ func (b *Bundle) CreateZarfPkgs() error {
 			}
 			// create local zarf package if it doesn't exist
 			if !packageFound || b.cfg.DevDeployOpts.ForceCreate {
-				if len(b.cfg.DevDeployOpts.Flavor) != 0 {
-					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--flavor", pkg.Flavor}
-				} else {
-					os.Args = []string{"zarf", "package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom"}
+				args := []string{"package", "create", pkgDir, "--confirm", "-o", pkgDir, "--skip-sbom", "--architecture", config.GetArch(b.bundle.Metadata.Architecture)}
+				if pkg.Flavor != "" {
+					args = append(args, "--flavor", pkg.Flavor)
 				}
-				if err := zarfCLI.Execute(context.TODO()); err != nil {
+				cmd := zarfCLI.NewZarfCommand()
+				cmd.SetArgs(args)
+				if err := cmd.ExecuteContext(context.TODO()); err != nil {
 					return err
 				}
 			}

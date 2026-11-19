@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2023-Present the Maru Authors
 
-// Package message provides a rich set of functions for displaying messages to the user.
 package message
 
 import (

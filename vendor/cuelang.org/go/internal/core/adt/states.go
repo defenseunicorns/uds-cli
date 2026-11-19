@@ -131,19 +131,6 @@ const (
 	// TODO: rename to something better?
 	scalarKnown
 
-	// listTypeKnown indicates that it is known that lists unified with this
-	// Vertex should be interpreted as integer indexed lists, as associative
-	// lists, or an error.
-	//
-	// This is a signal condition that is reached when:
-	//    - allFieldsKnown is reached (all expressions have )
-	//    - it is unified with an associative list type
-	//
-	// TODO(assoclist): this is set to 0 below: This mode is only needed for
-	// associative lists and is not yet used. We should use this again and fix
-	// any performance issues when we implement associative lists.
-	// listTypeKnown
-
 	// fieldConjunctsKnown means that all the conjuncts of all fields are
 	// known.
 	fieldConjunctsKnown
@@ -170,13 +157,11 @@ const (
 	//
 	subFieldsProcessed
 
-	// pendingKnown means that this task is relevant for resolving whether an
-	// arc is present or not. This implies actTypeKnown.
-	pendingKnown
-
 	// disjunctionTask indicates that this task is a disjunction. This is
 	// used to trigger finalization of disjunctions.
 	disjunctionTask
+
+	childConjunctsDone
 
 	leftOfMaxCoreCondition
 
@@ -188,10 +173,6 @@ const (
 		valueKnown |
 		fieldConjunctsKnown |
 		allTasksCompleted |
-		// TODO: not adding this improves error message for issue3691 in
-		// eval/comprehensions.txtar. But without this, TestVisit of dep
-		// panics. Investigate.
-		pendingKnown |
 		disjunctionTask
 
 	// The xConjunct condition sets indicate a conjunct MAY contribute the to
@@ -215,7 +196,7 @@ const (
 
 	// a fieldConjunct is on that only adds a new field to the struct.
 	fieldConjunct = allTasksCompleted |
-		fieldConjunctsKnown
+		fieldConjunctsKnown | valueKnown
 
 	// a scalarConjunct is one that is guaranteed to result in a scalar or
 	// list value.
@@ -243,8 +224,15 @@ const (
 	// At the moment this is equal to 'scalarKnown'.
 	concreteKnown = scalarKnown
 
-	// TODO(assoclist): see comment above.
-	listTypeKnown condition = 0
+	// fieldConjunctsKnownIdx is the bit-position index of
+	// fieldConjunctsKnown, for use as a scheduler.counters index.
+	// It must equal bits.TrailingZeros16(uint16(fieldConjunctsKnown)).
+	fieldConjunctsKnownIdx = 4
+
+	// allTasksCompletedIdx is the bit index of allTasksCompleted in the
+	// counters array, matching the iota position of allTasksCompleted in the
+	// condition constants.
+	allTasksCompletedIdx = 6
 )
 
 // schedConfig configures a taskContext with the states needed for the
@@ -252,8 +240,75 @@ const (
 // new taskContexts.
 var schedConfig = taskContext{
 	counterMask: conditionsUsingCounters,
-	autoUnblock: listTypeKnown | scalarKnown | arcTypeKnown,
+	autoUnblock: scalarKnown | arcTypeKnown,
 	complete:    stateCompletions,
+}
+
+// handleParents checks whether needs is already met and, if not, triggers
+// ancestor processing to propagate conjuncts downward. It reports whether
+// all ancestors have completed processing.
+func (s *scheduler) handleParents(needs condition, mode runMode) (done bool) {
+	if s.meets(needs) {
+		return true
+	}
+
+	return s.node.processAncestors(mode)
+}
+
+// processAncestors walks up the parent chain, recursively processing each
+// ancestor's pending conjuncts until fieldConjunctsKnown is reached. It
+// returns true when all ancestors have finished processing.
+func (n *nodeContext) processAncestors(mode runMode) (done bool) {
+	if n == nil {
+		return // Some tests do not set node.
+	}
+	v := n.node
+	if v == nil {
+		return // Some tests do not set vertex.
+	}
+
+	if n.meets(allAncestorsProcessed) {
+		return true
+	}
+
+	parentsDone := true
+	p := n.node.Parent
+	switch {
+	case p != nil:
+		n := p.state
+		// p.state is nil when the parent vertex exists but has not yet
+		// entered evaluation (no nodeContext has been created for it).
+		// Known trigger path: unifyNode passes arcTypeKnown|fieldSetKnown
+		// to process, so handleParents no longer returns early once
+		// arcTypeKnown is met, reaching processAncestors for nodes whose
+		// parents were never unified. (Reproducer:
+		// TestScript/cmd_typocheck.) Without this guard the nil receiver
+		// panics at n.meets(...).
+		if n == nil {
+			break
+		}
+
+		if n.meets(childConjunctsDone) {
+			break
+		}
+
+		parentsDone = n.processAncestors(mode)
+
+		if n.counters[fieldConjunctsKnownIdx] > 0 {
+			n.process(fieldConjunctsKnown, mode)
+		}
+
+		if parentsDone && n.counters[fieldConjunctsKnownIdx] == 0 {
+			n.completed |= childConjunctsDone
+		}
+	}
+
+	if done || v.IsDynamic || v.Label.IsLet() ||
+		v.Parent.allChildConjunctsKnown(n.ctx) {
+		n.signal(allAncestorsProcessed)
+	}
+
+	return parentsDone
 }
 
 // stateCompletions indicates the completion of conditions based on the
@@ -281,7 +336,12 @@ func stateCompletions(s *scheduler) condition {
 	case v.ArcType == ArcMember, v.ArcType == ArcNotPresent:
 		x |= arcTypeKnown
 	case x&arcTypeKnown != 0 && v.ArcType == ArcPending:
-		v.ArcType = ArcNotPresent
+		// Do not prematurely convert a pending arc to ArcNotPresent if a
+		// parent task (e.g. a comprehension) is still running that might
+		// yet add this arc.
+		if !s.hasActiveParentTask() {
+			v.ArcType = ArcNotPresent
+		}
 	}
 
 	if x.meets(valueKnown) {
@@ -291,10 +351,16 @@ func stateCompletions(s *scheduler) condition {
 		if v.ArcType == ArcMember || v.ArcType == ArcNotPresent {
 			x |= scalarKnown
 		}
-		x |= listTypeKnown
 	}
 
 	if x.meets(needFieldConjunctsKnown | needTasksDone) {
+		// Even if allTasksCompleted and fieldConjunctsKnown bits are set in
+		// s.completed (from when their counters first reached 0), new tasks
+		// may have been added since then, incrementing those counters again.
+		// Check actual counter values before treating these conditions as met.
+		if s.counters[allTasksCompletedIdx] > 0 || s.counters[fieldConjunctsKnownIdx] > 0 {
+			return x
+		}
 		switch {
 		case x.meets(subFieldsProcessed):
 			x |= fieldSetKnown
@@ -318,18 +384,10 @@ func (v *Vertex) allChildConjunctsKnown(ctx *OpContext) bool {
 		return true
 	}
 
-	// TODO(refcount): allow partial processed?
-	if v.Status() == finalized || (v.state == nil && v.status != unprocessed) {
-		// This can happen, for instance, if this is called on a parent of a
-		// rooted node that is marked as a parent for a dynamic node.
-		// In practice this should be handled by the caller, but we add this
-		// as an extra safeguard.
-		// TODO: remove this check at some point.
+	n := v.getState(ctx)
+	if n == nil {
 		return true
 	}
-
-	n := v.getState(ctx)
-
 	return n.meets(fieldConjunctsKnown | allAncestorsProcessed)
 }
 

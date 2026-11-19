@@ -32,14 +32,18 @@ func IsPackage(s string) bool {
 
 	ip := ast.ParseImportPath(s)
 	if ip.ExplicitQualifier {
-		if !ast.IsValidIdent(ip.Qualifier) || strings.Contains(ip.Path, ":") || ip.Path == "-" {
-			// TODO potentially widen the scope of "file-like"
-			// paths here to include more invalid package paths?
+		if strings.Contains(ip.Path, ":") || ip.Path == "-" {
 			return false
 		}
-		// If it's got an explicit qualifier, the path has a colon in
-		// which isn't generally allowed in CUE file names.
-		return true
+		if ast.IsValidIdent(ip.Qualifier) {
+			// If it's got an explicit qualifier, the path has a colon
+			// which isn't generally allowed in CUE file names.
+			return true
+		}
+		// Even with an invalid qualifier (e.g. "pkg@v1" where the
+		// version was placed after the qualifier), a path with a slash
+		// indicates a package path, not a filetype scope like "json:".
+		return strings.Contains(ip.Path, "/")
 	}
 	if ip.Version != "" {
 		if strings.Contains(ip.Version, "/") {
@@ -65,4 +69,33 @@ func IsPackage(s string) bool {
 	// or whether the package starts with a dot. Potentially we could thus relax
 	// the requirement that packages be dots if it is clear that the package
 	// name will not interfere with command names in all circumstances.
+}
+
+// SplitArgs partitions command-line arguments into package and file arguments,
+// preserving order within each group, so the two may be interspersed in any
+// order. A bare scope qualifier such as "json:" applies to the files after it,
+// so once seen the rest are files even if they look like packages (e.g.
+// "json: somefile"); the file arguments are returned verbatim for [ParseArgs].
+func SplitArgs(args []string) (pkgArgs, otherArgs []string) {
+	fileScope := false
+	for _, arg := range args {
+		switch {
+		case isScopeQualifier(arg):
+			fileScope = true
+			otherArgs = append(otherArgs, arg)
+		case !fileScope && IsPackage(arg):
+			pkgArgs = append(pkgArgs, arg)
+		default:
+			otherArgs = append(otherArgs, arg)
+		}
+	}
+	return pkgArgs, otherArgs
+}
+
+// isScopeQualifier reports whether a command-line argument is a bare file type
+// scope qualifier, such as "json:" or "cue+schema:", which carries no file name
+// of its own but applies to the files after it. Contrast [IsPackage].
+func isScopeQualifier(s string) bool {
+	scope, file, found := cutScope(s)
+	return found && scope != "" && file == ""
 }
