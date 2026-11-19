@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
-	"text/template"
 	"time"
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
@@ -483,7 +482,7 @@ func templateValuesFiles(_ context.Context, files []string, vars bundleinternal.
 			return result, fmt.Errorf("%w %q: %w", ErrReadValuesFile, f, err)
 		}
 
-		tmpl, err := template.New(filepath.Base(f)).Option("missingkey=error").Parse(string(src))
+		tmpl, err := bundleinternal.ParseValuesTemplate(filepath.Base(f), string(src))
 		if err != nil {
 			return result, fmt.Errorf("%w %q: %w", ErrParseValuesTemplate, f, err)
 		}

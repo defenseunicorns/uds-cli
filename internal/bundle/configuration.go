@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -209,6 +210,12 @@ func ctyValueToGo(val cty.Value) (any, error) {
 		// Loud-fail backstop — silent drops must not occur.
 		return nil, fmt.Errorf("unsupported variable type: %s: %w", ty.FriendlyName(), ErrUnsupportedVariableType)
 	}
+}
+
+// ParseValuesTemplate parses a values template with deployment's missing-key
+// behavior. Callers choose whether to execute it and where rendered output goes.
+func ParseValuesTemplate(name, source string) (*template.Template, error) {
+	return template.New(name).Option("missingkey=error").Parse(source)
 }
 
 // ParseSetVariables parses key=value CLI entries into deploy-time variables.

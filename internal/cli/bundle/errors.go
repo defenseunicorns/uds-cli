@@ -7,6 +7,7 @@ import "errors"
 
 var (
 	ErrInvalidArgument       = errors.New("invalid command argument")
+	ErrLintFailed            = errors.New("bundle lint failed")
 	ErrPathNotFound          = errors.New("path not found")
 	ErrInvalidPath           = errors.New("invalid path")
 	ErrUnsupportedSource     = errors.New("unsupported bundle source")
