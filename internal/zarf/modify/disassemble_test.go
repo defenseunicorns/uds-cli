@@ -476,6 +476,21 @@ func TestDisassemblePreservesFlavorSelectors(t *testing.T) {
 	}
 }
 
+func TestReassembleRejectsSymlinkRoot(t *testing.T) {
+	link := filepath.Join(t.TempDir(), "source-link")
+	require.NoError(t, os.Symlink(t.TempDir(), link))
+	opts := ReassembleOptions{PackageOptions: testPackageOptions(t), Output: t.TempDir()}
+	for _, suffix := range []string{"", string(os.PathSeparator)} {
+		opts.SourceDir = link + suffix
+		result, err := Reassemble(t.Context(), opts)
+		require.ErrorContains(t, err, "must be a directory, not a file or symlink", "source path: %q", opts.SourceDir)
+		assert.Empty(t, result)
+	}
+	entries, err := os.ReadDir(opts.Output)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
 func TestReassembleRejectsInvalidDisassembledSource(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -7,11 +7,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	gitdiff "github.com/go-git/go-git/v5/plumbing/format/diff"
 	"github.com/go-git/go-git/v5/utils/diff"
 	"github.com/sergi/go-diff/diffmatchpatch"
@@ -63,7 +63,7 @@ func Diff(ctx context.Context, sourceDir string) (DiffResult, error) {
 	if strings.TrimSpace(sourceDir) == "" {
 		return DiffResult{}, fmt.Errorf("source directory is required")
 	}
-	root, err := os.OpenRoot(sourceDir)
+	root, err := filesystem.OpenRoot(sourceDir)
 	if err != nil {
 		return DiffResult{}, fmt.Errorf("opening source directory: %w", err)
 	}

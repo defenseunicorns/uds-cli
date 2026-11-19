@@ -134,6 +134,22 @@ func TestDiffReportsSourceChanges(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDiffRejectsSymlinkRoot(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, captureBaseline(t.Context(), dir, "amd64", "", digest.FromString("package").String(), "package.tar.zst"))
+	link := filepath.Join(t.TempDir(), "source-link")
+	require.NoError(t, os.Symlink(dir, link))
+
+	for _, suffix := range []string{"", string(os.PathSeparator)} {
+		_, err := Diff(t.Context(), dir+suffix)
+		require.NoError(t, err)
+
+		result, err := Diff(t.Context(), link+suffix)
+		require.ErrorContains(t, err, "must be a directory, not a file or symlink", "source path: %q", link+suffix)
+		assert.Equal(t, DiffResult{}, result)
+	}
+}
+
 func TestDiffRejectsInvalidBaselineWithoutPartialResults(t *testing.T) {
 	for _, tc := range []struct {
 		name string
