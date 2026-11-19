@@ -4,6 +4,7 @@
 package filesystem
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 // The caller owns the returned root and must close it.
 func OpenRoot(path string) (*os.Root, error) {
 	if path == "" {
-		return nil, fmt.Errorf("directory path is required")
+		return nil, errors.New("directory path is required")
 	}
 	// A trailing separator can make Lstat follow the final symlink.
 	path = filepath.Clean(path)
