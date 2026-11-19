@@ -136,8 +136,6 @@ func TestPackageModDisassembleAndReassemble(t *testing.T) {
 	assert.NotEmpty(t, build.Terminal)
 
 	t.Run("changed diff", func(t *testing.T) {
-		t.Setenv("NO_COLOR", "")
-		t.Setenv("TERM", "xterm")
 		definitionPath := filepath.Join(worktree, "zarf.yaml")
 		require.NoError(t, os.Rename(definitionPath, filepath.Join(worktree, "zarf-workaround.yaml")))
 		require.NoError(t, os.WriteFile(filepath.Join(worktree, "notes.txt"), []byte("reproduce the workaround upstream"), 0o600))

@@ -6,7 +6,6 @@ package packagecli
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/zarf/modify"
@@ -17,7 +16,8 @@ import (
 
 // NewDiffCommand creates the package source change-report command.
 func NewDiffCommand(streams iostreams.IOStreams) *cobra.Command {
-	return &cobra.Command{
+	var noColor bool
+	cmd := &cobra.Command{
 		Use:   "diff <source-dir>",
 		Short: "Report changes against the disassembled package baseline",
 		Long: "Report local source changes without the original package or network access. " +
@@ -29,10 +29,11 @@ func NewDiffCommand(streams iostreams.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			color := streams.IsOutTerminal() && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
-			return printDiffReport(streams.Out(), result, color)
+			return printDiffReport(streams.Out(), result, !noColor && streams.IsOutTerminal())
 		},
 	}
+	cmd.Flags().BoolVar(&noColor, "no-color", false, "disable color output")
+	return cmd
 }
 
 func printDiffReport(out io.Writer, result modify.DiffResult, color bool) error {
