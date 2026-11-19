@@ -59,17 +59,31 @@ func (b *Bundle) Deploy(ctx context.Context) error {
 		}
 	}
 
+	// Resolve development refs before comparing them with deployed state.
+	if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
+		for i, pkg := range packagesToDeploy {
+			resolved, err := b.setPackageRef(pkg)
+			if err != nil {
+				return err
+			}
+			packagesToDeploy[i] = resolved
+		}
+	}
+
 	// if resume, filter for packages not yet deployed successfully
 	if b.cfg.DeployOpts.Resume {
-		deployedPackageIDs := GetSuccessfullyDeployedPackageIDs()
-		var notDeployedSuccessfully []types.Package
-
-		for _, pkg := range packagesToDeploy {
-			if !slices.Contains(deployedPackageIDs, bundlePackageLifecycleID(pkg)) {
-				notDeployedSuccessfully = append(notDeployedSuccessfully, pkg)
-			}
+		c, err := cluster.New(ctx)
+		if err != nil {
+			return fmt.Errorf("read deployed packages for resume: %w", err)
 		}
-		packagesToDeploy = notDeployedSuccessfully
+		deployed, err := c.GetDeployedZarfPackages(ctx)
+		if err != nil {
+			return fmt.Errorf("read deployed packages for resume: %w", err)
+		}
+		packagesToDeploy, err = filterResumePackages(packagesToDeploy, deployed, b.getMetadata)
+		if err != nil {
+			return err
+		}
 	}
 
 	return deployPackages(ctx, packagesToDeploy, b)
@@ -80,15 +94,7 @@ func deployPackages(ctx context.Context, packagesToDeploy []types.Package, b *Bu
 	bundleExportedVars := make(map[string]map[string]string)
 	var stateRegistryInfo *state.RegistryInfo
 
-	for i, pkg := range packagesToDeploy {
-		// for dev mode update package ref for remote bundles, refs for local bundles updated on create
-		if config.Dev && !strings.Contains(b.cfg.DeployOpts.Source, "tar.zst") {
-			pkg, err := b.setPackageRef(pkg)
-			if err != nil {
-				return err
-			}
-			b.bundle.Packages[i] = pkg
-		}
+	for _, pkg := range packagesToDeploy {
 		manifestDigest, err := packageManifestDigest(pkg)
 		if err != nil {
 			return err
