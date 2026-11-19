@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
 
@@ -33,25 +34,11 @@ func PrepareBundleCache(cacheDir string) (string, error) {
 	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
 		return "", fmt.Errorf("creating cache directory: %w", err)
 	}
-	info, err := os.Lstat(cacheDir)
-	if err != nil {
-		return "", fmt.Errorf("checking cache directory: %w", err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("cache root %q must be a directory, not a file or symlink", cacheDir)
-	}
-	root, err := os.OpenRoot(cacheDir)
+	root, err := filesystem.OpenRoot(cacheDir)
 	if err != nil {
 		return "", fmt.Errorf("opening cache root: %w", err)
 	}
 	defer func() { _ = root.Close() }()
-	opened, err := root.Stat(".")
-	if err != nil {
-		return "", fmt.Errorf("checking opened cache root: %w", err)
-	}
-	if !os.SameFile(info, opened) {
-		return "", fmt.Errorf("cache root %q changed while opening", cacheDir)
-	}
 	// Prepare the directories used by upstream OCI storage, including all
 	// supported SHA-2 digest algorithms. Zarf retains ownership of blob bytes.
 	for _, name := range []string{
@@ -104,22 +91,11 @@ func ClearBundleCache(ctx context.Context, cacheDir string, streams iostreams.IO
 	if err != nil {
 		return fmt.Errorf("checking Next OCI cache %q: %w", path, err)
 	}
-	if !info.IsDir() {
-		return fmt.Errorf("next OCI cache %q must be a directory, not a file or symlink", path)
-	}
-	root, err := os.OpenRoot(path)
+	root, err := filesystem.OpenRootFromLstat(path, info)
 	if err != nil {
 		return fmt.Errorf("opening Next OCI cache %q: %w", path, err)
 	}
 	defer func() { _ = root.Close() }()
-	// Reject replacement between Lstat and OpenRoot, including a swapped symlink.
-	opened, err := root.Stat(".")
-	if err != nil {
-		return fmt.Errorf("checking opened Next OCI cache %q: %w", path, err)
-	}
-	if !os.SameFile(info, opened) {
-		return fmt.Errorf("next OCI cache %q changed while opening", path)
-	}
 	dir, err := root.Open(".")
 	if err != nil {
 		return fmt.Errorf("opening Next OCI cache directory %q: %w", path, err)

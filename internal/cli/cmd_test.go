@@ -62,10 +62,12 @@ func TestRootCommand_PackageModFeatureGate(t *testing.T) {
 			modCmd := childCommand(packageCmd, "mod")
 			require.NotNil(t, modCmd)
 			assert.NotNil(t, childCommand(modCmd, "disassemble"))
+			assert.NotNil(t, childCommand(modCmd, "diff"))
 			assert.NotNil(t, childCommand(modCmd, "reassemble"))
 			root.SetArgs([]string{"package", "mod", "--help"})
 			require.NoError(t, root.Execute())
 			assert.Contains(t, out.String(), "disassemble")
+			assert.Contains(t, out.String(), "diff")
 			assert.Contains(t, out.String(), "reassemble")
 
 			for _, command := range []struct {
@@ -74,6 +76,7 @@ func TestRootCommand_PackageModFeatureGate(t *testing.T) {
 				wantErr string
 			}{
 				{name: "disassemble", args: []string{"", ""}, wantErr: "source is required"},
+				{name: "diff", args: []string{""}, wantErr: "source directory is required"},
 				{name: "reassemble", args: []string{""}, wantErr: "source directory is required"},
 			} {
 				t.Run(command.name, func(t *testing.T) {

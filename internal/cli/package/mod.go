@@ -26,6 +26,7 @@ func NewModCommand(streams iostreams.IOStreams) *cobra.Command {
 	cmd.PersistentFlags().Int("concurrency", zoci.DefaultConcurrency, "degree of parallelism for concurrent operations")
 
 	cmd.AddCommand(NewDisassembleCommand(streams))
+	cmd.AddCommand(NewDiffCommand(streams))
 	cmd.AddCommand(NewReassembleCommand(streams))
 	return cmd
 }

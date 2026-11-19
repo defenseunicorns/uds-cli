@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/defenseunicorns/uds-cli/internal/filesystem"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/load"
@@ -26,7 +27,12 @@ func Reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
 }
 
 func reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
-	metadata, err := readDisassemblyMetadata(opts.SourceDir)
+	root, err := filesystem.OpenRoot(opts.SourceDir)
+	if err != nil {
+		return "", fmt.Errorf("opening source directory: %w", err)
+	}
+	defer root.Close()
+	metadata, err := readDisassemblyMetadata(root)
 	if err != nil {
 		return "", err
 	}
@@ -34,7 +40,8 @@ func reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
 		PlainHTTP:             opts.PlainHTTP,
 		InsecureSkipTLSVerify: opts.SkipTLSVerify,
 	}
-	definition, err := load.PackageDefinition(ctx, opts.SourceDir, load.DefinitionOptions{
+	sourceDir := root.Name()
+	definition, err := load.PackageDefinition(ctx, sourceDir, load.DefinitionOptions{
 		Flavor:        metadata.Flavor,
 		RemoteOptions: remoteOptions,
 	})
@@ -55,7 +62,7 @@ func reassemble(ctx context.Context, opts ReassembleOptions) (string, error) {
 		signOpts = &defaults
 	}
 
-	created, err := packager.Create(ctx, opts.SourceDir, opts.Output, packager.CreateOptions{
+	created, err := packager.Create(ctx, sourceDir, opts.Output, packager.CreateOptions{
 		Flavor:               metadata.Flavor,
 		MaxPackageSizeMB:     opts.MaxPackageSizeMB,
 		SignBlobOptions:      signOpts,

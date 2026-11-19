@@ -1073,7 +1073,7 @@ components:
       - source: payload.txt
         target: %q
 `, alphaOutput)), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(betaDir, "payload.txt"), []byte("{{ .Values.message }}"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(betaDir, "payload.txt"), []byte("{{ .Values.message }}\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(betaDir, "values.yaml"), []byte("message: beta-default\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(betaDir, "zarf.yaml"), []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1beta1
 kind: ZarfPackageConfig
@@ -1131,7 +1131,7 @@ packages:
 	for _, path := range []string{betaOutput, selected} {
 		data, err := os.ReadFile(path)
 		require.NoError(t, err)
-		require.Equal(t, "beta-default", string(data))
+		require.Equal(t, "beta-default\n", string(data))
 	}
 	require.NoFileExists(t, excluded)
 }

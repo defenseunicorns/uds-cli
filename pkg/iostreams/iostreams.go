@@ -9,6 +9,8 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+
+	"golang.org/x/term"
 )
 
 type lockedWriter struct {
@@ -67,11 +69,7 @@ func NewTestIOStreams() (IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer)
 	out := &bytes.Buffer{}
 	errOut := &bytes.Buffer{}
 
-	return IOStreams{
-		in:     in,
-		out:    synchronize(out),
-		errOut: synchronize(errOut),
-	}, in, out, errOut
+	return New(in, out, errOut), in, out, errOut
 }
 
 // In returns the stdin reader.
@@ -83,6 +81,17 @@ func (s IOStreams) Out() io.Writer {
 		return io.Discard
 	}
 	return s.out
+}
+
+// IsOutTerminal reports whether the configured stdout writer is a terminal.
+// Writers without a file descriptor, including test buffers, are not terminals.
+func (s IOStreams) IsOutTerminal() bool {
+	out := s.out
+	if writer, ok := out.(*lockedWriter); ok {
+		out = writer.w
+	}
+	file, ok := out.(interface{ Fd() uintptr })
+	return ok && term.IsTerminal(int(file.Fd()))
 }
 
 // ErrOut returns the stderr writer. Returns io.Discard if no writer was configured.
