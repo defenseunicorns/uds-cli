@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Agent guide for **UDS CLI**, a Go CLI for UDS workflows with Legacy and Next implementations. Format spec: https://agents.md.
+Agent guide for **UDS CLI**, a Go CLI for UDS workflows with Legacy and Next implementations. Format spec: <https://agents.md>.
 
 Module: `github.com/defenseunicorns/uds-cli`, never change.
 
@@ -88,7 +88,8 @@ Error ownership is package-local. There is no repository-wide error package.
 - Named error methods, including `Error`, `Unwrap`, and `Is`, live in the owning `errors.go`.
 - Operation-specific wrapping stays at the call site.
 - Internal packages must not import `pkg/bundle/` just to reuse public errors.
-- Public facades map internal failures to public sentinels or typed errors when callers need stable `errors.Is` or `errors.As` behavior.
+- Every failure returned by a public library API must match a package-owned exported sentinel or typed error. Reuse an existing public error when it describes the failure; add a more specific one when callers need to distinguish it. Wrap internal or dependency errors for context without making callers depend on them.
+- Verify new or changed public error contracts in a public-library test using `errors.Is` or `errors.As`, not by matching error text.
 - Use `%w`; do not log and return the same error.
 
 ## ADRs

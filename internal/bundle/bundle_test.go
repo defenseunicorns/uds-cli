@@ -888,6 +888,58 @@ options {
 			hcl:    `options { uds_cache = "/configured-cache" }`,
 			check: func(t *testing.T, cfg *UDSBundleConfig) {
 				assert.Equal(t, "/configured-cache", cfg.Options.CacheDir)
+				assert.Nil(t, cfg.Options.ZarfInit)
+			},
+		},
+
+		{
+			name:   "zarf init options",
+			wantOK: true,
+			hcl: `
+options {
+  zarf_init {
+    registry_url           = "registry.example.com:5000"
+    registry_mode          = "external"
+    registry_port          = 5000
+    registry_secret        = "registry-secret"
+    registry_push_username = "registry-push"
+    registry_push_password = "registry-push-password"
+    registry_pull_username = "registry-pull"
+    registry_pull_password = "registry-pull-password"
+    git_url                = "https://git.example.com"
+    git_push_username      = "git-push"
+    git_push_password      = "git-push-password"
+    git_pull_username      = "git-pull"
+    git_pull_password      = "git-pull-password"
+    injector_image         = "registry.example.com/injector:v1"
+    injector_port          = 5001
+    agent_mutation_policy  = "labeled"
+    agent_tls_ca           = "ca"
+    agent_tls_cert         = "cert"
+    agent_tls_key          = "key"
+  }
+}`,
+			check: func(t *testing.T, cfg *UDSBundleConfig) {
+				require.NotNil(t, cfg.Options.ZarfInit)
+				assert.Equal(t, "registry.example.com:5000", cfg.Options.ZarfInit.RegistryURL)
+				assert.Equal(t, "external", cfg.Options.ZarfInit.RegistryMode)
+				assert.Equal(t, 5000, cfg.Options.ZarfInit.RegistryPort)
+				assert.Equal(t, "registry-secret", cfg.Options.ZarfInit.RegistrySecret)
+				assert.Equal(t, "registry-push", cfg.Options.ZarfInit.RegistryPushUsername)
+				assert.Equal(t, "registry-push-password", cfg.Options.ZarfInit.RegistryPushPassword)
+				assert.Equal(t, "registry-pull", cfg.Options.ZarfInit.RegistryPullUsername)
+				assert.Equal(t, "registry-pull-password", cfg.Options.ZarfInit.RegistryPullPassword)
+				assert.Equal(t, "https://git.example.com", cfg.Options.ZarfInit.GitURL)
+				assert.Equal(t, "git-push", cfg.Options.ZarfInit.GitPushUsername)
+				assert.Equal(t, "git-push-password", cfg.Options.ZarfInit.GitPushPassword)
+				assert.Equal(t, "git-pull", cfg.Options.ZarfInit.GitPullUsername)
+				assert.Equal(t, "git-pull-password", cfg.Options.ZarfInit.GitPullPassword)
+				assert.Equal(t, "registry.example.com/injector:v1", cfg.Options.ZarfInit.InjectorImage)
+				assert.Equal(t, 5001, cfg.Options.ZarfInit.InjectorPort)
+				assert.Equal(t, "labeled", cfg.Options.ZarfInit.AgentMutationPolicy)
+				assert.Equal(t, "ca", cfg.Options.ZarfInit.AgentTLSCA)
+				assert.Equal(t, "cert", cfg.Options.ZarfInit.AgentTLSCert)
+				assert.Equal(t, "key", cfg.Options.ZarfInit.AgentTLSKey)
 			},
 		},
 
@@ -1201,6 +1253,9 @@ func TestParseBundleConfig_FileFunction(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 options {
   tmp_dir = file("config-value.txt")
+  zarf_init {
+    registry_push_password = file("config-value.txt")
+  }
 }
 
 variables = {
@@ -1215,6 +1270,8 @@ variables = {
 	require.NoError(t, err)
 	require.NotNil(t, cfg.Options)
 	assert.Equal(t, "from file", cfg.Options.TmpDir)
+	require.NotNil(t, cfg.Options.ZarfInit)
+	assert.Equal(t, "from file", cfg.Options.ZarfInit.RegistryPushPassword)
 	assert.Equal(t, "from file", cfg.Variables["direct"])
 	nested, ok := cfg.Variables["nested"].(Variables)
 	require.True(t, ok)

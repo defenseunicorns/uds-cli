@@ -32,7 +32,7 @@ func toInternalConfig(cfg *UDSBundleConfig) *bundleinternal.UDSBundleConfig {
 
 	var options *bundleinternal.ConfigOptions
 	if cfg.Options != nil {
-		converted := bundleinternal.ConfigOptions(*cfg.Options)
+		converted := toInternalConfigOptions(*cfg.Options)
 		options = &converted
 	}
 	return &bundleinternal.UDSBundleConfig{
@@ -59,7 +59,41 @@ func toInternalVerificationPolicy(policy *VerificationPolicy) *bundleinternal.Si
 
 // toInternalConfigOptions converts public configuration options to internal options.
 func toInternalConfigOptions(opts ConfigOptions) bundleinternal.ConfigOptions {
-	return bundleinternal.ConfigOptions(opts)
+	var zarfInit *bundleinternal.ZarfInitOptions
+	if opts.ZarfInit != nil {
+		converted := bundleinternal.ZarfInitOptions(*opts.ZarfInit)
+		zarfInit = &converted
+	}
+	return bundleinternal.ConfigOptions{
+		LogLevel:              opts.LogLevel,
+		Architecture:          opts.Architecture,
+		PlainHTTP:             opts.PlainHTTP,
+		SkipTLSVerify:         opts.SkipTLSVerify,
+		CacheDir:              opts.CacheDir,
+		TmpDir:                opts.TmpDir,
+		Concurrency:           opts.Concurrency,
+		SkipArchitectureCheck: opts.SkipArchitectureCheck,
+		ZarfInit:              zarfInit,
+	}
+}
+
+func fromInternalConfigOptions(opts bundleinternal.ConfigOptions) ConfigOptions {
+	var zarfInit *ZarfInitOptions
+	if opts.ZarfInit != nil {
+		converted := ZarfInitOptions(*opts.ZarfInit)
+		zarfInit = &converted
+	}
+	return ConfigOptions{
+		LogLevel:              opts.LogLevel,
+		Architecture:          opts.Architecture,
+		PlainHTTP:             opts.PlainHTTP,
+		SkipTLSVerify:         opts.SkipTLSVerify,
+		CacheDir:              opts.CacheDir,
+		TmpDir:                opts.TmpDir,
+		Concurrency:           opts.Concurrency,
+		SkipArchitectureCheck: opts.SkipArchitectureCheck,
+		ZarfInit:              zarfInit,
+	}
 }
 
 // toInternalVariables recursively converts public variables to internal variables.

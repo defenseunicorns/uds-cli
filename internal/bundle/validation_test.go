@@ -4,14 +4,23 @@
 package bundle
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zarf-dev/zarf/src/pkg/pki"
+	"github.com/zarf-dev/zarf/src/pkg/state"
 )
 
 // validBaseConfig returns a fully-valid UDSBundleConfig used as the starting
@@ -147,6 +156,129 @@ func TestValidateTmpDir(t *testing.T) {
 		assert.Contains(t, err.Error(), "tmp_dir")
 		assert.Contains(t, err.Error(), "path is not a directory")
 	})
+}
+
+func TestValidateConfig_ZarfInit(t *testing.T) {
+	validTLS, err := pki.GeneratePKI(state.ZarfAgentHost)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		options *ZarfInitOptions
+		wantErr string
+	}{
+		{name: "omitted"},
+		{name: "empty block", options: &ZarfInitOptions{}},
+		{
+			name: "external services",
+			options: &ZarfInitOptions{
+				RegistryMode:         "external",
+				RegistryURL:          "registry.example.com",
+				RegistryPushUsername: "registry-user",
+				RegistryPushPassword: "registry-password",
+				GitURL:               "https://git.example.com",
+				GitPushUsername:      "git-user",
+				GitPushPassword:      "git-password",
+			},
+		},
+		{name: "proxy without injector image", options: &ZarfInitOptions{RegistryMode: "proxy"}},
+		{name: "valid port boundaries", options: &ZarfInitOptions{RegistryPort: 65535, InjectorPort: 1}},
+		{name: "negative registry port", options: &ZarfInitOptions{RegistryPort: -1}, wantErr: "registry_port"},
+		{name: "registry port overflow", options: &ZarfInitOptions{RegistryPort: 65536}, wantErr: "registry_port"},
+		{name: "negative injector port", options: &ZarfInitOptions{InjectorPort: -1}, wantErr: "injector_port"},
+		{name: "injector port overflow", options: &ZarfInitOptions{InjectorPort: 65536}, wantErr: "injector_port"},
+		{name: "invalid registry mode", options: &ZarfInitOptions{RegistryMode: "invalid"}, wantErr: "registry_mode"},
+		{name: "external mode requires URL", options: &ZarfInitOptions{RegistryMode: "external"}, wantErr: "registry_url"},
+		{name: "registry URL requires push user", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistryPushPassword: "secret"}, wantErr: "registry_push_username"},
+		{name: "registry URL requires push password", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistryPushUsername: "user"}, wantErr: "registry_push_password"},
+		{name: "registry URL conflicts with nodeport", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistryMode: "nodeport", RegistryPushUsername: "user", RegistryPushPassword: "secret"}, wantErr: "registry_mode"},
+		{name: "registry URL conflicts with port", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistryPort: 5000, RegistryPushUsername: "user", RegistryPushPassword: "secret"}, wantErr: "registry_port"},
+		{name: "registry URL conflicts with secret", options: &ZarfInitOptions{RegistryURL: "registry.example.com", RegistrySecret: "secret", RegistryPushUsername: "user", RegistryPushPassword: "password"}, wantErr: "registry_secret"},
+		{name: "registry URL conflicts with injector port", options: &ZarfInitOptions{RegistryURL: "registry.example.com", InjectorPort: 5000, RegistryPushUsername: "user", RegistryPushPassword: "secret"}, wantErr: "injector_port"},
+		{name: "registry URL conflicts with injector image", options: &ZarfInitOptions{RegistryURL: "registry.example.com", InjectorImage: "injector:v1", RegistryPushUsername: "user", RegistryPushPassword: "secret"}, wantErr: "injector_image"},
+		{name: "Git URL requires push credentials", options: &ZarfInitOptions{GitURL: "https://git.example.com"}, wantErr: "git_push_username"},
+		{name: "invalid mutation policy", options: &ZarfInitOptions{AgentMutationPolicy: "invalid"}, wantErr: "agent_mutation_policy"},
+		{name: "partial agent TLS", options: &ZarfInitOptions{AgentTLSCA: string(validTLS.CA)}, wantErr: "must be provided together"},
+		{name: "invalid agent TLS", options: &ZarfInitOptions{AgentTLSCA: "ca", AgentTLSCert: "cert", AgentTLSKey: "key"}, wantErr: "certificate and key"},
+		{
+			name: "valid agent TLS",
+			options: &ZarfInitOptions{
+				AgentTLSCA:   string(validTLS.CA),
+				AgentTLSCert: string(validTLS.Cert),
+				AgentTLSKey:  string(validTLS.Key),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validBaseConfig()
+			cfg.Options.ZarfInit = tt.options
+			err := ValidateConfig(cfg)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, ErrInvalidZarfInitOptions)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.NotContains(t, err.Error(), "registry-password")
+			assert.NotContains(t, err.Error(), "git-password")
+		})
+	}
+}
+
+func TestValidateConfig_ZarfInitAgentTLSChain(t *testing.T) {
+	now := time.Now()
+	issue := func(serial int64, name string, isCA bool, parent *x509.Certificate, signer ed25519.PrivateKey) (*x509.Certificate, ed25519.PrivateKey, string) {
+		t.Helper()
+		pub, key, err := ed25519.GenerateKey(rand.Reader)
+		require.NoError(t, err)
+		template := &x509.Certificate{
+			SerialNumber:          big.NewInt(serial),
+			Subject:               pkix.Name{CommonName: name},
+			NotBefore:             now.Add(-time.Hour),
+			NotAfter:              now.Add(time.Hour),
+			BasicConstraintsValid: true,
+			IsCA:                  isCA,
+		}
+		if isCA {
+			template.KeyUsage = x509.KeyUsageCertSign
+		} else {
+			template.DNSNames = []string{name}
+			template.KeyUsage = x509.KeyUsageDigitalSignature
+			template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+		}
+		if parent == nil {
+			parent, signer = template, key
+		}
+		der, err := x509.CreateCertificate(rand.Reader, template, parent, pub, signer)
+		require.NoError(t, err)
+		cert, err := x509.ParseCertificate(der)
+		require.NoError(t, err)
+		return cert, key, string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	}
+
+	root, rootKey, rootPEM := issue(1, "test root", true, nil, nil)
+	issuer, issuerKey, issuerPEM := issue(2, "test intermediate", true, root, rootKey)
+	_, leafKey, leafPEM := issue(3, state.ZarfAgentHost, false, issuer, issuerKey)
+	_, _, otherRootPEM := issue(4, "unrelated test root", true, nil, nil)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(leafKey)
+	require.NoError(t, err)
+
+	cfg := validBaseConfig()
+	cfg.Options.ZarfInit = &ZarfInitOptions{
+		AgentTLSCA:   rootPEM,
+		AgentTLSCert: leafPEM + issuerPEM,
+		AgentTLSKey:  string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})),
+	}
+	require.NoError(t, ValidateConfig(cfg))
+
+	cfg.Options.ZarfInit.AgentTLSCert = leafPEM
+	require.ErrorIs(t, ValidateConfig(cfg), ErrInvalidAgentTLS)
+
+	cfg.Options.ZarfInit.AgentTLSCert = leafPEM + issuerPEM + rootPEM
+	cfg.Options.ZarfInit.AgentTLSCA = otherRootPEM
+	require.ErrorIs(t, ValidateConfig(cfg), ErrInvalidAgentTLS)
 }
 
 func TestValidateConfig_StopsOnFirstError(t *testing.T) {

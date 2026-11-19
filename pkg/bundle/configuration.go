@@ -32,4 +32,28 @@ type ConfigOptions struct {
 	TmpDir                string
 	Concurrency           int
 	SkipArchitectureCheck bool
+	ZarfInit              *ZarfInitOptions
+}
+
+// ZarfInitOptions holds Zarf initialization settings supplied during deployment.
+type ZarfInitOptions struct {
+	RegistryURL          string
+	RegistryMode         string
+	RegistryPort         int
+	RegistrySecret       string
+	RegistryPushUsername string
+	RegistryPushPassword string
+	RegistryPullUsername string
+	RegistryPullPassword string
+	GitURL               string
+	GitPushUsername      string
+	GitPushPassword      string
+	GitPullUsername      string
+	GitPullPassword      string
+	InjectorImage        string
+	InjectorPort         int
+	AgentMutationPolicy  string
+	AgentTLSCA           string
+	AgentTLSCert         string
+	AgentTLSKey          string
 }

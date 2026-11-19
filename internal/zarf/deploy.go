@@ -24,6 +24,7 @@ import (
 	"github.com/zarf-dev/zarf/src/pkg/feature"
 	"github.com/zarf-dev/zarf/src/pkg/packager"
 	"github.com/zarf-dev/zarf/src/pkg/packager/layout"
+	"github.com/zarf-dev/zarf/src/pkg/pki"
 	"github.com/zarf-dev/zarf/src/pkg/state"
 	"github.com/zarf-dev/zarf/src/pkg/value"
 )
@@ -358,7 +359,7 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 		NamespaceOverride:     pkg.Namespace, // empty string is fine - Zarf ignores it
 	}
 	if pkgLayout.Definition().IsInitConfig() {
-		deployOpts.AgentMutationPolicy = state.MutationPolicyAll
+		applyZarfInitOptions(&deployOpts, opts.Config.Options.ZarfInit)
 	}
 
 	log.Info("deploying zarf package to cluster", "name", pkg.Name)
@@ -394,6 +395,47 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 
 	log.Info("package deployed", "name", pkg.Name)
 	return nil
+}
+
+func applyZarfInitOptions(deployOpts *packager.DeployOptions, opts *bundleinternal.ZarfInitOptions) {
+	if opts == nil {
+		return
+	}
+
+	registryMode := state.RegistryMode(opts.RegistryMode)
+	if registryMode == state.RegistryModeExternal {
+		// Zarf infers external mode from the address on first init. On re-init,
+		// passing external explicitly would change the mode without changing the address.
+		// The update creds tool is required to update the address.
+		registryMode = ""
+	}
+	deployOpts.RegistryInfo = state.RegistryInfo{
+		Address:      opts.RegistryURL,
+		RegistryMode: registryMode,
+		Port:         opts.RegistryPort,
+		Secret:       opts.RegistrySecret,
+		PushUsername: opts.RegistryPushUsername,
+		PushPassword: opts.RegistryPushPassword,
+		PullUsername: opts.RegistryPullUsername,
+		PullPassword: opts.RegistryPullPassword,
+	}
+	deployOpts.GitServer = state.GitServerInfo{
+		Address:      opts.GitURL,
+		PushUsername: opts.GitPushUsername,
+		PushPassword: opts.GitPushPassword,
+		PullUsername: opts.GitPullUsername,
+		PullPassword: opts.GitPullPassword,
+	}
+	deployOpts.InjectorImage = opts.InjectorImage
+	deployOpts.InjectorPort = opts.InjectorPort
+	deployOpts.AgentMutationPolicy = state.MutationPolicy(opts.AgentMutationPolicy)
+	if opts.AgentTLSCA != "" {
+		deployOpts.AgentTLS = &pki.GeneratedPKI{
+			CA:   []byte(opts.AgentTLSCA),
+			Cert: []byte(opts.AgentTLSCert),
+			Key:  []byte(opts.AgentTLSKey),
+		}
+	}
 }
 
 func isRetryableStagingError(err error) bool {

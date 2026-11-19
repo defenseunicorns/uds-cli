@@ -124,7 +124,7 @@ creation. Do not deploy a bundle, operate a cluster, or write to a registry.
 
 ## Included documentation: docs/how-to-guides/migrate-legacy-to-next.mdx
 
-<!-- Source SHA256: 41f4f22b902258bc7f17e9dbbf1e3482fbd35aace86196c91f5c35e9c13aebf3 -->
+<!-- Source SHA256: fa6ee7318a952480144ac5153258f9042268ab4dd7b98cd1ac08887889b2f1ed -->
 
 import { Steps } from '@astrojs/starlight/components';
 
@@ -317,6 +317,7 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
    - Keep `architecture`, `log_level`, `tmp_dir`, and `uds_cache` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`; `--uds-cache` keeps its name.
    - Next caches package and bundle OCI bytes under `<uds-cache>/bundle-oci/images`, separate from Legacy cache content. Explicit `--uds-cache` overrides `options.uds_cache`.
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
+   - If your bundle customizes Zarf init, move supported `INIT_*` settings to [`options.zarf_init`](/cli/reference/next/config-uds-hcl/#zarf-init-options) in `config.uds.hcl`. For example, `INIT_REGISTRY_NODEPORT` becomes `registry_port`. Configure storage classes through the init package's values instead.
    - Next has no equivalents for `retries` or `UDS_<NAME>` environment variables.
 
    Next applies built-in defaults, then `config.uds.hcl` values, then explicit command-line flags. `config.uds.hcl` overrides matching values in the adjacent `defaults.uds.hcl`, then command-line flags override `config.uds.hcl`.
@@ -593,7 +594,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: 5e348c891626a203219da83b29863f68a5bda333191f916cdb0f9c3d85bef0ff -->
+<!-- Source SHA256: 5e42540934b5d90b188208cf6fd937d0259376328471baf4e645e3bccfc6a7af -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -604,7 +605,7 @@ This file is distinct from `bundle.uds.hcl`, which defines the bundle, and `defa
 The file supports these top-level attributes and blocks.
 
 | Attribute or block | Type | Required | Default | Purpose |
-|---|---|---:|---|---|
+| --- | --- | ---: | --- | --- |
 | `options` | block | No | Operation defaults | Configure CLI operation options. |
 | `signature_verification` | block | No | No policy | Configure trust for bundle artifact signatures. |
 | `variables` | object | No | Omitted | Supply deploy-time values to the bundle. |
@@ -633,8 +634,8 @@ CLI_FEATURES=NextMode=true uds bundle deploy \
 
 The `options` block configures operation-wide behavior. Config values override built-in defaults and yield to explicit CLI flags.
 
-| Attribute | Type | Effective default | Validation and behavior |
-|---|---|---|---|
+| Attribute or block | Type | Effective default | Validation and behavior |
+| --- | --- | --- | --- |
 | `log_level` | string | `"info"` | Accepts `debug`, `info`, `warn`, or `error`. `warning` is accepted as an alias for `warn`. |
 | `architecture` | string | The current runtime architecture | Selects the target architecture for architecture-aware bundle and package operations. |
 | `skip_architecture_check` | boolean | `false` | Skips package-to-cluster architecture compatibility checks for `bundle deploy` and `bundle dev deploy`. |
@@ -643,6 +644,7 @@ The `options` block configures operation-wide behavior. Config values override b
 | `tmp_dir` | string | The operating system temporary directory | Must name an existing directory when set. |
 | `uds_cache` | string | `~/.uds-cache` | Cache root. `~` and `~/` expand to your home directory. Explicit `--uds-cache` overrides this value with the same expansion. |
 | `concurrency` | integer | `10` | Values from `1` to `25` are accepted. `0` is treated as unset and uses the default of `10`. |
+| [`zarf_init`](#zarf-init-options) | block | Zarf defaults | Configures Zarf init options for init packages in the bundle. |
 
 > [!WARNING]
 > `skip_architecture_check` disables architecture compatibility validation. It does not modify package images or verify that they can run in the eventual target environment. Before using it, independently verify that the package architecture is appropriate for the deployment workflow.
@@ -672,6 +674,42 @@ options {
 }
 ```
 
+### Zarf init options
+
+Use the optional `options.zarf_init` block to customize Zarf initialization. `bundle deploy` and `bundle dev deploy` apply the same settings to every Zarf init package in the bundle, other packages do not receive these settings.
+For example, to initialize with an external registry, replace the address and username below and create `secrets/registry-password.txt` relative to `config.uds.hcl`.
+
+```hcl title="config.uds.hcl"
+options {
+  zarf_init {
+    registry_mode          = "external"
+    registry_url           = "registry.example.com:5000"
+    registry_pull_username = "zarf-pull"
+    registry_pull_password = file("secrets/registry-password.txt")
+  }
+}
+```
+
+| Attribute | Type | Purpose |
+| --- | --- | --- |
+| `registry_mode` | string | `nodeport`, `proxy`, or `external`. `external` requires `registry_url`. |
+| `registry_url` | string | External registry address, without a URL scheme. Requires both registry push credentials. Do not combine with an internal registry mode, registry port or secret, or injector settings. |
+| `registry_push_username`, `registry_push_password` | string | Credentials with permission to push images. |
+| `registry_pull_username`, `registry_pull_password` | string | Separate credentials for pulling images. |
+| `registry_port` | integer | Internal registry port for `nodeport` or `proxy` mode. |
+| `registry_secret` | string | Secret value for the internal registry, not a Kubernetes Secret name. |
+| `git_url` | string | External Git server URL. Requires both Git push credentials. |
+| `git_push_username`, `git_push_password` | string | Credentials with permission to push repositories. The password can be a token. |
+| `git_pull_username`, `git_pull_password` | string | Separate credentials for pulling repositories. |
+| `injector_image` | string | Bootstrap injector image. In `proxy` mode, Zarf can reuse a previously saved injector image. |
+| `injector_port` | integer | Port for the bootstrap injector. |
+| `agent_mutation_policy` | string | `all` mutates by default; `labeled` requires an opt-in label. |
+| `agent_tls_ca`, `agent_tls_cert`, `agent_tls_key` | string | PEM contents, not paths. Supply all three together. The certificate must match the key and be valid for the Zarf agent. |
+
+**On an existing cluster:** Redeploying init does not replace the saved registry or Git endpoints or credentials, internal registry secret, or agent TLS. Use `CLI_FEATURES=NextMode=true uds tools zarf tools update-creds` for supported updates, including switching to an external registry. Internal registry mode and port and injector settings follow Zarf's re-init behavior.
+
+Configure chart settings such as storage classes through the init package's values, not `zarf_init`.
+
 ## `signature_verification`
 
 This block defines the consumer's trust policy for a bundle artifact. It is separate from the package signature policy in each `package` block of `bundle.uds.hcl`, and it is separate from the signing options used by `bundle create` and `bundle sign`.
@@ -685,7 +723,7 @@ signature_verification {
 ```
 
 | Attribute or block | Type | Required | Description |
-|---|---|---:|---|
+| --- | --- | ---: | --- |
 | `public_key` | string | One method | Public key contents used to verify a key-signed bundle. Use `file()` when the key is stored in a file. |
 | `keyless` | block | One method | Constraints for a keyless certificate and its OIDC issuer. |
 | `keyless.certificate_identity` | string | One identity | Exact certificate identity to trust. |
@@ -744,7 +782,7 @@ Config variables do not change the bundle definition, package sources, package s
 The two configuration categories resolve independently:
 
 | Category | Lowest precedence | Higher precedence | Highest precedence |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Operation options | Built-in defaults | `config.uds.hcl` `options` | Explicit CLI flags |
 | Bundle variables | Adjacent or embedded `defaults.uds.hcl` | `config.uds.hcl` `variables` | Deploy `--set` flags |
 
@@ -783,8 +821,9 @@ The path must identify an existing regular UTF-8 file. Missing files, directorie
 These settings apply to the following bundle commands.
 
 | Config content | Commands that consume it | Effect |
-|---|---|---|
-| `options` | All `uds bundle` commands that resolve common options | Sets logging, architecture, registry transport, cache and temporary directories, and concurrency behavior. |
+| --- | --- | --- |
+| General `options` attributes | All `uds bundle` commands that resolve common options | Sets logging, architecture, registry transport, cache and temporary directories, and concurrency behavior. |
+| `options.zarf_init` | `bundle dev deploy`, `bundle deploy` | Applies initialization settings only to Zarf init packages. |
 | `variables` | `bundle dev deploy`, `bundle deploy` | Renders package values files and supplies supported top-level scalar Zarf variables. |
 | `signature_verification` | `bundle inspect`, `bundle verify`, `bundle pull`, `bundle deploy`, `bundle reconfigure`, `bundle remove` (artifact sources only) | Supplies the default consumer policy for bundle artifact signature verification. |
 

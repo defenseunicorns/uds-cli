@@ -26,6 +26,12 @@ func TestConfigurationReachesPublicPackageHooks(t *testing.T) {
 	config.Options.LogLevel = "debug"
 	config.Options.PlainHTTP = true
 	config.Options.SkipTLSVerify = true
+	config.Options.ZarfInit = &bundle.ZarfInitOptions{
+		RegistryMode:         "external",
+		RegistryURL:          "registry.example.com",
+		RegistryPushUsername: "registry-user",
+		RegistryPushPassword: "registry-password",
+	}
 	config.Variables = bundle.Variables{
 		"domain": "example.test", "enabled": true, "replicas": 2,
 		"nested": bundle.Variables{"name": "api"},
@@ -45,12 +51,55 @@ func TestConfigurationReachesPublicPackageHooks(t *testing.T) {
 	require.ErrorIs(t, err, stop)
 	require.NotNil(t, observed)
 	assert.Equal(t, config.Options, observed.Options)
+	require.NotSame(t, config.Options.ZarfInit, observed.Options.ZarfInit)
 	want, err := json.Marshal(config.Variables)
 	require.NoError(t, err)
 	got, err := json.Marshal(observed.Variables)
 	require.NoError(t, err)
 	assert.JSONEq(t, string(want), string(got))
 	assert.Equal(t, filepath.Dir(source.BundlePath), bundleDir)
+}
+
+func TestDeployRejectsInvalidZarfInitBeforePackageHooks(t *testing.T) {
+	source := preparedLibrarySource(t)
+	config := libraryFixtureConfig(t)
+	config.Options.ZarfInit = &bundle.ZarfInitOptions{RegistryMode: "invalid"}
+	called := false
+
+	_, err := bundle.Deploy(t.Context(), source, bundle.DeployOptions{
+		Config: config,
+		PackageDeployHooks: bundle.PackageDeployHooks{PreDeploy: func(context.Context, *spec.Package, *bundle.ZarfPackageLayout, *bundle.DeployPackageOptions) error {
+			called = true
+			return nil
+		}},
+	})
+
+	require.ErrorIs(t, err, bundle.ErrInvalidConfig)
+	assert.False(t, called)
+}
+
+func TestPackagePreDeployCannotChangeBundleWideZarfInit(t *testing.T) {
+	source := preparedLibrarySource(t)
+	config := libraryFixtureConfig(t)
+	config.Options.ZarfInit = &bundle.ZarfInitOptions{AgentMutationPolicy: "all"}
+
+	_, err := bundle.Deploy(t.Context(), source, bundle.DeployOptions{
+		Config: config,
+		BundleDeployHooks: bundle.BundleDeployHooks{PreDeploy: func(_ context.Context, _ *spec.UDSBundle, opts *bundle.DeployOptions) error {
+			opts.Config.Options.ZarfInit.AgentMutationPolicy = "labeled"
+			return nil
+		}},
+		PackageDeployHooks: bundle.PackageDeployHooks{PreDeploy: func(_ context.Context, _ *spec.Package, _ *bundle.ZarfPackageLayout, opts *bundle.DeployPackageOptions) error {
+			assert.Equal(t, "labeled", opts.Config.Options.ZarfInit.AgentMutationPolicy)
+			opts.Config.Options.ZarfInit.AgentMutationPolicy = "all"
+			return nil
+		}},
+	})
+
+	require.ErrorIs(t, err, bundle.ErrPackageHookChangedZarfInit)
+	require.ErrorIs(t, err, bundle.ErrInvalidConfig)
+	require.ErrorContains(t, err, "use BundleDeployHooks.PreDeploy")
+	assert.Equal(t, "all", config.Options.ZarfInit.AgentMutationPolicy)
 }
 
 func TestDefaultsMergePreservesCallerConfiguration(t *testing.T) {
@@ -132,6 +181,12 @@ func TestPublicOptionsValidateConfiguration(t *testing.T) {
 		})
 	}
 	require.ErrorIs(t, (bundle.DeployPackageOptions{Config: libraryFixtureConfig(t)}).Validate(), bundle.ErrBundleDirRequired)
+
+	invalidInit := libraryFixtureConfig(t)
+	invalidInit.Options.ZarfInit = &bundle.ZarfInitOptions{RegistryMode: "invalid"}
+	require.ErrorIs(t, (bundle.DeployOptions{Config: invalidInit}).Validate(), bundle.ErrInvalidConfig)
+	require.ErrorIs(t, (bundle.PullOptions{Config: invalidInit}).Validate(), bundle.ErrInvalidConfig)
+	require.ErrorIs(t, (bundle.RemoveOptions{Config: invalidInit}).Validate(), bundle.ErrInvalidConfig)
 }
 
 func TestDeployTemplatesPublicVariables(t *testing.T) {

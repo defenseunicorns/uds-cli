@@ -13,6 +13,8 @@ import (
 var (
 	// ErrInvalidConfig occurs when bundle configuration fails validation.
 	ErrInvalidConfig = errors.New("invalid bundle configuration")
+	// ErrPackageHookChangedZarfInit occurs when a package pre-deploy hook changes bundle-wide Zarf init options.
+	ErrPackageHookChangedZarfInit = errors.New("package pre-deploy hooks cannot change ZarfInit")
 	// ErrInvalidDeployOptions occurs when a deployment timeout or retry count is invalid.
 	ErrInvalidDeployOptions = errors.New("invalid deployment options")
 	// ErrValidateDependencies occurs when bundle dependency relationships cannot be evaluated.

@@ -196,6 +196,7 @@ For an AI-assisted first pass, follow [Migrate a legacy bundle with an AI coding
    - Keep `architecture`, `log_level`, `tmp_dir`, and `uds_cache` in the Next `options` block. Change `oci_concurrency` to `concurrency`. The legacy `--tmpdir` flag becomes `--tmp-dir`; `--uds-cache` keeps its name.
    - Next caches package and bundle OCI bytes under `<uds-cache>/bundle-oci/images`, separate from Legacy cache content. Explicit `--uds-cache` overrides `options.uds_cache`.
    - Replace `insecure` with `plain_http` or `skip_tls_verify`, depending on the registry behavior you need. Configure signature verification separately.
+   - If your bundle customizes Zarf init, move supported `INIT_*` settings to [`options.zarf_init`](/cli/reference/next/config-uds-hcl/#zarf-init-options) in `config.uds.hcl`. For example, `INIT_REGISTRY_NODEPORT` becomes `registry_port`. Configure storage classes through the init package's values instead.
    - Next has no equivalents for `retries` or `UDS_<NAME>` environment variables.
 
    Next applies built-in defaults, then `config.uds.hcl` values, then explicit command-line flags. `config.uds.hcl` overrides matching values in the adjacent `defaults.uds.hcl`, then command-line flags override `config.uds.hcl`.
