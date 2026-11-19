@@ -97,7 +97,7 @@ package "app" {
 }
 ```
 
-Local names must be unique. References to an undefined local and cyclic local dependencies fail during parsing. The `file(path)` function is also available in a file-backed bundle definition. Relative paths are resolved from the directory containing `bundle.uds.hcl`; absolute paths are used as-is. The function returns regular UTF-8 file contents.
+Local names must be unique. References to an undefined local and cyclic local dependencies fail during parsing. The `file(path)` function is also available in a file-backed bundle definition. Relative paths are resolved from the directory containing `bundle.uds.hcl`; absolute paths are used as-is. The function returns regular UTF-8 file contents. See the [HCL helper function reference](/cli/reference/next/helper-functions/) for supported contexts and error behavior.
 
 ## `package "<id>"`
 
