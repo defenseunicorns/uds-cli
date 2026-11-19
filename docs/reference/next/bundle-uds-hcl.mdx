@@ -9,6 +9,8 @@ sidebar:
 
 The file must be named exactly `bundle.uds.hcl`. It is distinct from `defaults.uds.hcl`, which supplies bundle-level default variables, and `config.uds.hcl`, which supplies consumer-owned deploy-time settings.
 
+Mark sensitive default variables with `sensitive(value)`. Sensitivity metadata does not encrypt defaults stored in bundle artifacts. See the [variable reference](/cli/reference/next/config-uds-hcl/) for merge and output behavior.
+
 ## Top-level structure
 
 The top-level blocks identify the bundle and declare its packages.
