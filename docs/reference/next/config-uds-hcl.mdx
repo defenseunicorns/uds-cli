@@ -162,7 +162,10 @@ variables = {
 }
 ```
 
-Create `secrets/password.txt` beside `config.uds.hcl`. Nested marks apply to the top-level variable and survive defaults, config, and `--set` overrides. `--set` cannot call `sensitive()`.
+Create `secrets/password.txt` beside `config.uds.hcl`. Nested marks apply to the top-level variable and survive defaults, config, and `--set` overrides.
+
+> [!WARNING]
+> `--set` cannot call `sensitive()`.
 
 Templates and Zarf receive unchanged values:
 

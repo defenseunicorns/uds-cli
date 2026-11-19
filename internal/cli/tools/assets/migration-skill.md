@@ -595,7 +595,7 @@ Direct development deployment attempts package verification and warns instead of
 
 ## Included documentation: docs/reference/next/config-uds-hcl.mdx
 
-<!-- Source SHA256: c44ae23c693c53e32d1e2e915bccbddcc3c38e6e0ad5d4c376474b13836166be -->
+<!-- Source SHA256: f3845339b04ef388c9bd8c1adebc199832e5357fa95660ac483b6f31b1e8e37a -->
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
@@ -754,7 +754,10 @@ variables = {
 }
 ```
 
-Create `secrets/password.txt` beside `config.uds.hcl`. Nested marks apply to the top-level variable and survive defaults, config, and `--set` overrides. `--set` cannot call `sensitive()`.
+Create `secrets/password.txt` beside `config.uds.hcl`. Nested marks apply to the top-level variable and survive defaults, config, and `--set` overrides.
+
+> [!WARNING]
+> `--set` cannot call `sensitive()`.
 
 Templates and Zarf receive unchanged values:
 
