@@ -5,6 +5,7 @@ package zarf
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -13,8 +14,10 @@ import (
 
 	packageoci "github.com/defenseunicorns/pkg/oci"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
+	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -26,6 +29,56 @@ import (
 	zarfTypes "github.com/zarf-dev/zarf/src/types"
 	"oras.land/oras-go/v2/errdef"
 )
+
+func TestRemoteSourceIngestionReportsPackagePull(t *testing.T) {
+	server := httptest.NewServer(registry.New())
+	t.Cleanup(server.Close)
+
+	pkgDir := t.TempDir()
+	writeFilteredPackageFiles(t, pkgDir)
+	pkgLayout, err := layout.LoadFromDir(t.Context(), pkgDir, layout.PackageLayoutOptions{VerificationStrategy: layout.VerifyNever})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, pkgLayout.Cleanup()) })
+
+	ref := strings.TrimPrefix(server.URL, "http://") + "/test/progress:1.0.0"
+	remote, err := zoci.NewRemote(t.Context(), ref, ocispec.Platform{Architecture: "amd64", OS: packageoci.MultiOS}, zoci.RemoteClientOptions{RemoteOptions: zarfTypes.RemoteOptions{PlainHTTP: true}})
+	require.NoError(t, err)
+	_, err = remote.PushPackage(t.Context(), pkgLayout, zoci.PublishOptions{OCIConcurrency: 1})
+	require.NoError(t, err)
+
+	for _, verify := range []bool{false, true} {
+		for _, level := range []string{"info", "warn"} {
+			t.Run(fmt.Sprintf("verify=%t/level=%s", verify, level), func(t *testing.T) {
+				streams, _, out, errOut := iostreams.NewTestIOStreams()
+				source := &remoteSource{
+					ref: ref, arch: "amd64",
+					opts:    bundleinternal.ConfigOptions{PlainHTTP: true, TmpDir: t.TempDir(), Concurrency: 1},
+					streams: logger.Bind(streams, level),
+				}
+				store := newTestStore(t)
+				filter := filters.Combine(filters.ForDeploy("included"))
+				var err error
+				if verify {
+					_, err = source.VerifyAndIngestFiltered(t.Context(), t.TempDir(), layout.PackageLayoutOptions{
+						Filter: filter, VerificationStrategy: layout.VerifyNever,
+					}, store)
+				} else {
+					_, err = source.IngestFiltered(t.Context(), filter, store)
+				}
+				require.NoError(t, err)
+
+				if level == "info" {
+					assert.Contains(t, errOut.String(), "pulling package")
+					assert.Contains(t, errOut.String(), "size=")
+					assert.Contains(t, errOut.String(), "finished pulling package layers")
+				} else {
+					assert.Empty(t, errOut.String())
+				}
+				assert.Empty(t, out.String(), "download diagnostics must not enter structured output")
+			})
+		}
+	}
+}
 
 func TestRemoteSourceVerifyAndIngestFilteredRegistryPackage(t *testing.T) {
 	server := httptest.NewServer(registry.New())
