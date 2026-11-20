@@ -130,7 +130,7 @@ func (p *HCLParser) ParseBundleFile(ctx context.Context, filePath string) (*spec
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrReadBundleFile, filePath, err)
 	}
-	return p.parseBundleContent(ctx, src, filePath, filepath.Dir(filePath), true)
+	return p.ParseBundleContent(ctx, src, filePath, filepath.Dir(filePath), true)
 }
 
 // ParseBundleBytes parses HCL bundle content from an in-memory byte slice.
@@ -140,7 +140,7 @@ func (p *HCLParser) ParseBundleBytes(ctx context.Context, src []byte) (*spec.UDS
 	if len(src) == 0 {
 		return nil, EmptyParameterError{Name: "src"}
 	}
-	return p.parseBundleContent(ctx, src, "bundle.uds.hcl", "", false)
+	return p.ParseBundleContent(ctx, src, "bundle.uds.hcl", "", false)
 }
 
 // ParseAndMaterializeBundleFile reads a source bundle once, using those bytes
@@ -150,7 +150,7 @@ func (p *HCLParser) ParseAndMaterializeBundleFile(ctx context.Context, path stri
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w %q: %w", ErrReadBundleFile, path, err)
 	}
-	bundle, err := p.parseBundleContent(ctx, src, path, filepath.Dir(path), true)
+	bundle, err := p.ParseBundleContent(ctx, src, path, filepath.Dir(path), true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -161,10 +161,10 @@ func (p *HCLParser) ParseAndMaterializeBundleFile(ctx context.Context, path stri
 	return bundle, materialized, nil
 }
 
-// parseBundleContent parses HCL content using a two-pass approach: first extracting
-// and evaluating locals, then decoding the full bundle with an EvalContext containing
-// those locals. filename is used only for error message attribution.
-func (p *HCLParser) parseBundleContent(ctx context.Context, src []byte, filename, baseDir string, allowFile bool) (*spec.UDSBundle, error) {
+// ParseBundleContent evaluates locals and decodes a bundle from HCL bytes.
+// filename identifies the source in diagnostics. For trusted authoring files,
+// allowFile enables file() and baseDir resolves its relative paths.
+func (p *HCLParser) ParseBundleContent(ctx context.Context, src []byte, filename, baseDir string, allowFile bool) (*spec.UDSBundle, error) {
 	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
 		return nil, fmt.Errorf("%w %q: %w", ErrParseHCL, filename, hclDiagnostics)

@@ -1,8 +1,13 @@
+// Copyright 2026 Defense Unicorns
+// SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Defense-Unicorns-Commercial
+
 package bundle
 
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/defenseunicorns/uds-cli/internal/bundle/analysis"
@@ -15,7 +20,6 @@ type LintOptions struct {
 	Path string
 	analysis.Options
 	iostreams.IOStreams
-	unsupportedFlag string
 }
 
 // NewLintCommand creates the single-bundle source lint command.
@@ -29,10 +33,10 @@ func NewLintCommand(streams iostreams.IOStreams) *cobra.Command {
 Accepts a directory containing bundle.uds.hcl or a direct definition path;
 defaults to the current directory. Nested bundles are not searched.
 Adjacent defaults.uds.hcl loads automatically; config loads only with --config.
-Values templates execute by default. Supply representative variables or use
---skip-template-evaluation to check template syntax without executing it.
-Output-format, registry, cache, temporary-directory, concurrency, and prompt
-flags do not apply and are rejected when supplied.`,
+When variables are configured, lint checks and executes values templates.
+Use --skip-template-evaluation to check template syntax without executing it.
+Lint prints text output. Output-format, registry, cache, temporary-directory,
+concurrency, and prompt flags are rejected when supplied.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := o.Complete(cmd, args); err != nil {
@@ -56,18 +60,17 @@ func (o *LintOptions) Complete(cmd *cobra.Command, args []string) error {
 		o.Path = args[0]
 	}
 	if flag := cmd.Flag("config"); flag != nil {
-		o.ConfigPath, _ = cmd.Flags().GetString("config")
+		o.ConfigPath = flag.Value.String()
 		if flag.Changed && strings.TrimSpace(o.ConfigPath) == "" {
 			return fmt.Errorf("--config must not be empty: %w", ErrInvalidArgument)
 		}
 	}
 	if flag := cmd.Flag("architecture"); flag != nil && flag.Changed {
-		o.Architecture, _ = cmd.Flags().GetString("architecture")
+		o.Architecture = flag.Value.String()
 	}
 	for _, name := range []string{"output", "concurrency", "uds-cache", "tmp-dir", "plain-http", "skip-tls-verify", "prompt"} {
 		if flag := cmd.Flag(name); flag != nil && flag.Changed {
-			o.unsupportedFlag = name
-			break
+			return fmt.Errorf("--%s is not supported by bundle lint: %w", name, ErrInvalidArgument)
 		}
 	}
 	return nil
@@ -75,9 +78,6 @@ func (o *LintOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate checks lint-specific CLI inputs.
 func (o *LintOptions) Validate() error {
-	if o.unsupportedFlag != "" {
-		return fmt.Errorf("--%s is not supported by bundle lint: %w", o.unsupportedFlag, ErrInvalidArgument)
-	}
 	if strings.TrimSpace(o.Path) == "" {
 		return fmt.Errorf("bundle path must not be empty: %w", ErrInvalidArgument)
 	}
@@ -94,8 +94,17 @@ func (o *LintOptions) Run(ctx context.Context) error {
 		_, err := fmt.Fprintln(o.Out(), "No issues found.")
 		return err
 	}
+	cwd, err := os.Getwd()
 	for _, d := range diagnostics {
-		location := d.Path
+		path := d.Path
+		if err == nil && filepath.IsAbs(path) && filepath.Clean(path) == path {
+			// Use absolute paths outside the working directory so a leading
+			// parent segment does not depend on how the caller entered it.
+			if rel, relErr := filepath.Rel(cwd, path); relErr == nil && filepath.IsLocal(rel) {
+				path = rel
+			}
+		}
+		location := filepath.ToSlash(path)
 		if d.Line > 0 {
 			location += fmt.Sprintf(":%d", d.Line)
 			if d.Column > 0 {

@@ -4,6 +4,7 @@
 package artifact
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,6 +32,38 @@ func mustTestCreateStore(t *testing.T) *oci.Store {
 	t.Helper()
 	store, _ := newTestCreateStore(t)
 	return store
+}
+
+func TestCreateBundleDefinitionManifestUsesSourceValuesPathRules(t *testing.T) {
+	bundleDir := t.TempDir()
+	target := t.TempDir()
+	child := filepath.Join(target, "child")
+	require.NoError(t, os.Mkdir(child, filesystem.PrivateDirectoryMode))
+	require.NoError(t, os.Symlink(child, filepath.Join(bundleDir, "link")))
+	const bundleValues = "bundle: true"
+	const targetValues = "target: true"
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "values.yaml"), []byte(bundleValues), filesystem.PrivateFileMode))
+	require.NoError(t, os.WriteFile(filepath.Join(target, "values.yaml"), []byte(targetValues), filesystem.PrivateFileMode))
+	path := "link" + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "values.yaml"
+
+	layout := t.TempDir()
+	ctx := t.Context()
+	desc, err := createBundleDefinitionManifest(ctx, iostreams.IOStreams{}, layout, []byte("bundle definition"), nil, bundleDir, []spec.Package{
+		{Name: "app", ValuesFiles: []string{path, bundleDir + string(os.PathSeparator) + path}},
+	})
+	require.NoError(t, err)
+	store, err := oci.OpenReadOnlyStore(layout)
+	require.NoError(t, err)
+	data, err := oci.FetchBytes(ctx, store, desc)
+	require.NoError(t, err)
+	var manifest ocispec.Manifest
+	require.NoError(t, json.Unmarshal(data, &manifest))
+	require.Len(t, manifest.Layers, 3)
+	for index, want := range []string{bundleValues, targetValues} {
+		got, err := oci.FetchBytes(ctx, store, manifest.Layers[index+1])
+		require.NoError(t, err)
+		assert.Equal(t, want, string(got))
+	}
 }
 
 func TestIngestSourceVerificationBoundary(t *testing.T) {

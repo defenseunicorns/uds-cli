@@ -39,12 +39,16 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 	if bundleFile == "" {
 		return nil, fmt.Errorf("bundle file is required: %w", ErrBundleFileRequired)
 	}
+	bundlePath, err := filepath.Abs(bundleFile)
+	if err != nil {
+		return nil, fmt.Errorf("%w: resolving bundle path: %w", ErrCreateBundle, err)
+	}
 
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 
 	s.Info("reading bundle definition", "source", bundleFile)
 	s.Debug("parsing bundle file", "path", bundleFile)
-	b, bundleHCL, err := parseAndMaterializeBundleFile(ctx, opts.Config.Options.Architecture, s, bundleFile)
+	b, bundleHCL, err := parseAndMaterializeBundleFile(ctx, opts.Config.Options.Architecture, s, bundlePath)
 	if err != nil {
 		return nil, fmt.Errorf("%w from %q: %w", ErrCreateBundle, bundleFile, err)
 	}
@@ -56,7 +60,7 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 	s.Debug("bundle validated")
 	s.Info("building bundle artifact", "name", b.Metadata.Name, "packages", len(b.Packages))
 
-	srcDir := filepath.Dir(bundleFile)
+	srcDir := filepath.Dir(bundlePath)
 	var defaultsHCL []byte
 	defaultsPath := filepath.Join(srcDir, bundleDefaultsFileName)
 	if _, err := os.Stat(defaultsPath); err == nil {
@@ -86,5 +90,9 @@ func Create(ctx context.Context, bundleFile string, opts CreateOptions) (*Create
 		}
 		return nil, fmt.Errorf("%w: signing created bundle: %w", ErrCreateBundle, err)
 	}
-	return &CreateResult{BundleName: b.Metadata.Name, OutputPath: result.OutputPath}, nil
+	outputPath := result.OutputPath
+	if filepath.IsLocal(bundleFile) {
+		outputPath = filepath.Join(filepath.Dir(bundleFile), filepath.Base(outputPath))
+	}
+	return &CreateResult{BundleName: b.Metadata.Name, OutputPath: outputPath}, nil
 }

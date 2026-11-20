@@ -436,19 +436,13 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 	return zarfValues, setVars, nil
 }
 
-// resolveValuesFiles resolves values file paths relative to bundleDir.
-// Absolute paths are returned unchanged. nil input returns nil.
 func resolveValuesFiles(files []string, bundleDir string) []string {
 	if files == nil {
 		return nil
 	}
 	resolved := make([]string, len(files))
 	for i, f := range files {
-		if filepath.IsAbs(f) {
-			resolved[i] = filepath.Clean(f)
-		} else {
-			resolved[i] = filepath.Join(bundleDir, f)
-		}
+		resolved[i] = bundleinternal.ResolveValuesFilePath(bundleDir, f)
 	}
 	return resolved
 }

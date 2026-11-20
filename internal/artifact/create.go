@@ -274,10 +274,7 @@ func createBundleDefinitionManifest(ctx context.Context, streams iostreams.IOStr
 	// Values files as subsequent layers, preserving logical path in the annotation.
 	for _, pkg := range pkgs {
 		for i, vf := range pkg.ValuesFiles {
-			src := vf
-			if !filepath.IsAbs(src) {
-				src = filepath.Join(bundleDir, vf)
-			}
+			src := bundleinternal.ResolveValuesFilePath(bundleDir, vf)
 			st, err := os.Stat(src)
 			if err != nil {
 				return ocispec.Descriptor{}, ValueFileStatError{Package: pkg.Name, Path: vf, Err: err}
