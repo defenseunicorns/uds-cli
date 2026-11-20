@@ -137,6 +137,8 @@ func (s *remoteSource) PullFiltered(ctx context.Context, tmpDir string, loadOpti
 }
 
 func (s *remoteSource) pullFilteredWithSelection(ctx context.Context, tmpDir string, loadOptions layout.PackageLayoutOptions) (*layout.PackageLayout, []ocispec.Descriptor, string, error) {
+	// Zarf captures the logger when constructing the remote and uses it for pull progress.
+	ctx = newZarfLoggerContext(ctx, s.streams)
 	resolved, err := s.resolveFilteredLayers(ctx, loadOptions.Filter)
 	if err != nil {
 		return nil, nil, "", err
