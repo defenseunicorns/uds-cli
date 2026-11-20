@@ -23,7 +23,7 @@ import (
 
 func TestParseBundleFilePreservesHCLDiagnostics(t *testing.T) {
 	parser := NewHCLParser("", iostreams.IOStreams{})
-	_, err := parser.parseBundleContent(t.Context(), []byte("not valid HCL {"), "bundle.uds.hcl", "", false)
+	_, err := parser.ParseBundleContent(t.Context(), []byte("not valid HCL {"), "bundle.uds.hcl", "", false)
 
 	require.ErrorIs(t, err, ErrParseHCL)
 	var diags hcl.Diagnostics
@@ -37,6 +37,35 @@ func TestParseBundleFileRejectsEmptyPath(t *testing.T) {
 	var parameterErr EmptyParameterError
 	require.ErrorAs(t, err, &parameterErr)
 	assert.Equal(t, "filePath", parameterErr.Name)
+}
+
+func TestParseSavedFileSnapshots(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "shared.txt"), []byte("snapshot"), 0o600))
+	bundlePath := filepath.Join(root, "bundle.uds.hcl")
+	defaultsPath := filepath.Join(root, "defaults.uds.hcl")
+	configPath := filepath.Join(root, "config.uds.hcl")
+	for _, path := range []string{bundlePath, defaultsPath, configPath} {
+		require.NoError(t, os.WriteFile(path, []byte("changed on disk {"), 0o600))
+	}
+
+	parser := NewHCLParser("", iostreams.IOStreams{})
+	definition, err := parser.ParseBundleContent(t.Context(), []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = file("shared.txt") }
+package "app" { source = "./app.tar.zst" }
+`), bundlePath, root, true)
+	require.NoError(t, err)
+	assert.Equal(t, "snapshot", definition.Metadata.Name)
+
+	src := []byte(`variables = { domain = file("shared.txt") }`)
+	defaults, err := ParseDefaultsFileContent(defaultsPath, src)
+	require.NoError(t, err)
+	assert.Equal(t, Variables{"domain": "snapshot"}, defaults)
+
+	config, err := ParseBundleConfigFileContent(configPath, src)
+	require.NoError(t, err)
+	assert.Equal(t, Variables{"domain": "snapshot"}, config.Variables)
 }
 
 func TestParseBundleFile_SpecCompliant(t *testing.T) {

@@ -448,17 +448,17 @@ func decodePackageDependsOn(body hcl.Body) ([]decodedPackageRef, error) {
 
 		// Validate the traversal structure: must be "package.<name>"
 		if len(traversal) != 2 {
-			return nil, fmt.Errorf("invalid package reference at %s: expected package.<name>: %w", expr.Range(), ErrInvalidPackageReference)
+			return nil, &InvalidPackageReferenceError{Range: expr.Range(), Reason: "expected package.<name>"}
 		}
 
 		root, ok := traversal[0].(hcl.TraverseRoot)
 		if !ok || root.Name != "package" {
-			return nil, fmt.Errorf("invalid package reference at %s: must start with 'package': %w", expr.Range(), ErrInvalidPackageReference)
+			return nil, &InvalidPackageReferenceError{Range: expr.Range(), Reason: "must start with 'package'"}
 		}
 
 		attrStep, ok := traversal[1].(hcl.TraverseAttr)
 		if !ok {
-			return nil, fmt.Errorf("invalid package reference at %s: expected package.<name>: %w", expr.Range(), ErrInvalidPackageReference)
+			return nil, &InvalidPackageReferenceError{Range: expr.Range(), Reason: "expected package.<name>"}
 		}
 
 		refs = append(refs, decodedPackageRef{

@@ -6,6 +6,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	"github.com/defenseunicorns/uds-cli/internal/printer"
@@ -72,7 +73,11 @@ func (o *CreateOptions) Complete(cmd *cobra.Command, args []string) error {
 	}
 	flags := SnapshotFlags(cmd)
 	o.Prompt = flags.Prompt
-	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, o.BundlePath)
+	bundlePath, err := filepath.Abs(o.BundlePath)
+	if err != nil {
+		return fmt.Errorf("resolve bundle path: %w", err)
+	}
+	cfg, _, err := NewConfigResolver().Resolve(ctx, o.IOStreams, flags, bundlePath)
 	if err != nil {
 		return err
 	}

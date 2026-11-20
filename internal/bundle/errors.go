@@ -135,3 +135,15 @@ func (e *LocalEvaluationError) Error() string {
 }
 
 func (e *LocalEvaluationError) Unwrap() error { return e.Diags }
+
+// InvalidPackageReferenceError identifies a malformed depends_on reference.
+type InvalidPackageReferenceError struct {
+	Range  hcl.Range
+	Reason string
+}
+
+func (e *InvalidPackageReferenceError) Error() string {
+	return fmt.Sprintf("invalid package reference at %s: %s: %v", e.Range, e.Reason, ErrInvalidPackageReference)
+}
+
+func (e *InvalidPackageReferenceError) Unwrap() error { return ErrInvalidPackageReference }

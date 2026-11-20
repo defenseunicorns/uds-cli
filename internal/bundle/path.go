@@ -8,6 +8,15 @@ import (
 	"path/filepath"
 )
 
+// ResolveValuesFilePath joins relative values paths to the bundle directory.
+// Absolute paths are used as supplied.
+func ResolveValuesFilePath(bundleDir, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(bundleDir, path)
+}
+
 // ResolveBundlePath resolves a user-provided bundle reference to the path of
 // the bundle.uds.hcl file. If ref is a directory, the bundle file inside it is
 // returned; otherwise ref is returned as-is.

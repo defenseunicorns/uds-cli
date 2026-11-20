@@ -31,6 +31,7 @@ func NewBundleCommand(streams iostreams.IOStreams) *cobra.Command {
 	bundleCmd.PersistentFlags().StringP("output", "o", "text", "output format (text, json, yaml)")
 
 	// Add subcommands
+	bundleCmd.AddCommand(NewLintCommand(streams))
 	bundleCmd.AddCommand(NewInspectCommand(streams))
 	bundleCmd.AddCommand(NewCreateCommand(streams))
 	bundleCmd.AddCommand(NewPushCommand(streams))

@@ -183,10 +183,16 @@ func TestResolveValuesFiles(t *testing.T) {
 			want:      []string{"/bundle/values/a.yaml"},
 		},
 		{
-			name:      "parent traversal resolved",
-			files:     []string{"../sibling/a.yaml"},
-			bundleDir: "/bundle/sub",
-			want:      []string{"/bundle/sibling/a.yaml"},
+			name:      "relative parent traversal is normalized lexically",
+			files:     []string{"absent/../values.yaml"},
+			bundleDir: "/bundle",
+			want:      []string{"/bundle/values.yaml"},
+		},
+		{
+			name:      "absolute parent traversal is preserved",
+			files:     []string{"/abs/link/../values.yaml"},
+			bundleDir: "/bundle",
+			want:      []string{"/abs/link/../values.yaml"},
 		},
 		{
 			name:      "empty bundleDir leaves relative path as-is",

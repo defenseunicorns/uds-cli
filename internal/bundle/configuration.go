@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -82,7 +83,17 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrReadConfigFile, filePath, err)
 	}
+	cfg, err := ParseBundleConfigFileContent(filePath, src)
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
 
+// ParseBundleConfigFileContent evaluates a saved config snapshot using its
+// path to resolve relative file() calls. If only variables fail, it returns
+// the decoded config alongside the error.
+func ParseBundleConfigFileContent(filePath string, src []byte) (*UDSBundleConfig, error) {
 	hclFile, hclDiagnostics := hclsyntax.ParseConfig(src, filePath, hcl.Pos{Line: 1, Column: 1})
 	if hclDiagnostics.HasErrors() {
 		return nil, fmt.Errorf("%w %q: %w", ErrParseConfig, filePath, hclDiagnostics)
@@ -100,7 +111,7 @@ func (p *HCLParser) ParseBundleConfig(_ context.Context, filePath string) (*UDSB
 	if cfg.Remain != nil {
 		vars, err := extractVariablesFromRemain(cfg.Remain, evalContext, filePath)
 		if err != nil {
-			return nil, err
+			return cfg, err
 		}
 		cfg.Variables = vars
 	}
@@ -211,6 +222,12 @@ func ctyValueToGo(val cty.Value) (any, error) {
 	}
 }
 
+// ParseValuesTemplate parses a values template with deployment's missing-key
+// behavior. Callers choose whether to execute it and where rendered output goes.
+func ParseValuesTemplate(name, source string) (*template.Template, error) {
+	return template.New(name).Option("missingkey=error").Parse(source)
+}
+
 // ParseSetVariables parses key=value CLI entries into deploy-time variables.
 // Booleans, numbers, lists, objects, and explicitly quoted strings use HCL
 // syntax; all other values are treated as unquoted strings.
@@ -283,6 +300,12 @@ func ParseDefaultsBytes(_ context.Context, src []byte) (Variables, error) {
 		return nil, EmptyParameterError{Name: "src"}
 	}
 	return parseDefaultsContentWithoutFile(src, BundleDefaultsFileName)
+}
+
+// ParseDefaultsFileContent evaluates a saved defaults snapshot using its path
+// to resolve relative file() calls.
+func ParseDefaultsFileContent(path string, src []byte) (Variables, error) {
+	return parseDefaultsContent(src, path)
 }
 
 // parseDefaultsContent decodes variables from defaults HCL content.
