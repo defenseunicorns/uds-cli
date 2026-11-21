@@ -25,7 +25,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
 	"net/http"
 	"time"
@@ -100,7 +102,6 @@ func GetKeypairAndToken(ctx context.Context, ko options.KeyOpts, cert, certChain
 			DisableProviders: ko.OIDCDisableProviders,
 			Provider:         ko.OIDCProvider,
 			AuthFlow:         ko.FulcioAuthFlow,
-			SkipConfirm:      ko.SkipConfirmation,
 			OIDCServices:     ko.SigningConfig.OIDCProviderURLs(),
 			ClientID:         ko.OIDCClientID,
 			ClientSecret:     ko.OIDCClientSecret,
@@ -116,26 +117,13 @@ func GetKeypairAndToken(ctx context.Context, ko options.KeyOpts, cert, certChain
 }
 
 // ShouldUploadToTlog determines whether the user wants to upload the entry to Rekor.
-func ShouldUploadToTlog(ctx context.Context, ko options.KeyOpts, ref name.Reference, tlogUpload bool) (bool, error) {
-	upload := shouldUploadToTlog(ctx, ko, ref, tlogUpload)
-	var statementErr error
-	if upload {
-		privacy.StatementOnce.Do(func() {
-			ui.Infof(ctx, privacy.Statement)
-			ui.Infof(ctx, privacy.StatementConfirmation)
-			if !ko.SkipConfirmation {
-				if err := ui.ConfirmContinue(ctx); err != nil {
-					statementErr = err
-				}
-			}
-		})
-	}
-	return upload, statementErr
-}
-
-func shouldUploadToTlog(ctx context.Context, ko options.KeyOpts, ref name.Reference, tlogUpload bool) bool {
+func ShouldUploadToTlog(ctx context.Context, ko options.KeyOpts, ref name.Reference, tlogUpload bool) bool {
 	// return false if not uploading to the tlog has been requested
 	if !tlogUpload {
+		return false
+	}
+
+	if ko.SigningConfig != nil && len(ko.SigningConfig.RekorLogURLs()) == 0 {
 		return false
 	}
 
@@ -157,6 +145,83 @@ func shouldUploadToTlog(ctx context.Context, ko options.KeyOpts, ref name.Refere
 		}
 	}
 	return true
+}
+
+// ConfirmPrivacyStatement prompts the user with the Sigstore privacy statement
+// if the operation will record data to a public transparency log.
+func ConfirmPrivacyStatement(ctx context.Context, ko options.KeyOpts) error {
+	isKeyless := (ko.KeyRef == "" && !ko.Sk) || ko.IssueCertificateForExistingKey
+	// The privacy statement applies when publishing to the public Rekor
+	// transparency log or the public Fulcio Certificate Transparency (CT) log.
+	if hasPublicGoodRekorURL(ko.SigningConfig) ||
+		(isKeyless && hasPublicGoodFulcioURL(ko.SigningConfig)) {
+		var statementErr error
+		privacy.StatementOnce.Do(func() {
+			ui.Infof(ctx, privacy.Statement)
+			ui.Infof(ctx, privacy.StatementConfirmation)
+			if !ko.SkipConfirmation {
+				if err := ui.ConfirmContinue(ctx); err != nil {
+					statementErr = err
+				}
+			}
+		})
+		return statementErr
+	}
+	return nil
+}
+
+// publicGoodHostSuffixes are the hostname suffixes of services operated as part
+// of the sigstore public good instance (production and staging). A literal
+// comparison against options.DefaultRekorURL or options.DefaultFulcioURL is not
+// sufficient because the public good instance is served from multiple region-
+// and year-specific hostnames.
+var publicGoodHostSuffixes = []string{".sigstore.dev", ".sigstage.dev"}
+
+// hasPublicGoodRekorURL reports whether a signing config contains a rekor URL that
+// points at the sigstore public good instance (production or staging).
+func hasPublicGoodRekorURL(sc *root.SigningConfig) bool {
+	if sc == nil {
+		return false
+	}
+	for _, s := range sc.RekorLogURLs() {
+		if isPublicGoodURL(s.URL) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasPublicGoodFulcioURL reports whether a signing config contains a fulcio URL that
+// points at the sigstore public good instance (production or staging).
+func hasPublicGoodFulcioURL(sc *root.SigningConfig) bool {
+	if sc == nil {
+		return false
+	}
+	for _, s := range sc.FulcioCertificateAuthorityURLs() {
+		if isPublicGoodURL(s.URL) {
+			return true
+		}
+	}
+	return false
+}
+
+// isPublicGoodURL reports whether a URL points at the sigstore public good
+// instance (production or staging).
+func isPublicGoodURL(rawURL string) bool {
+	if rawURL == "" {
+		return false
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Hostname() == "" {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	for _, suffix := range publicGoodHostSuffixes {
+		if host == suffix[1:] || strings.HasSuffix(host, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func signerFromKeyOpts(ctx context.Context, certPath string, certChainPath string, ko options.KeyOpts) (*SignerVerifier, bool, error) {
@@ -423,12 +488,31 @@ func ParseSignatureAlgorithmFlag(signingAlgorithm string) (pb_go_v1.PublicKeyDet
 	return signature.ParseSignatureAlgorithmFlag(signingAlgorithm)
 }
 
-// LoadTrustedMaterialAndSigningConfig loads the trusted material and signing config from the given options.
-func LoadTrustedMaterialAndSigningConfig(ctx context.Context, ko *options.KeyOpts, useSigningConfig bool, signingConfigPath string,
-	rekorURL, fulcioURL, oidcIssuer, tsaServerURL, trustedRootPath string,
-	tlogUpload bool, newBundleFormat bool, bundlePath string, keyRef string, issueCertificate bool,
+// ValidateSigningOptions checks signing option compatibility and emits deprecation warnings.
+func ValidateSigningOptions(ctx context.Context, useSigningConfig bool, signingConfigPath string,
+	rekorURL, fulcioURL, oidcIssuer, tsaServerURL string,
+	tlogUpload bool, newBundleFormat bool, bundlePath string,
 	output, outputAttestation, outputCertificate, outputPayload, outputSignature, outputTimestamp string) error {
-	var err error
+	// TODO: Remove deprecated output flags warning in a future release (when flags are removed)
+	if newBundleFormat && outputSignature != "" {
+		ui.Warnf(ctx, "--output-signature is deprecated when using --new-bundle-format and will be ignored")
+	}
+	if newBundleFormat && outputAttestation != "" {
+		ui.Warnf(ctx, "--output-attestation is deprecated when using --new-bundle-format and will be ignored")
+	}
+	if newBundleFormat && outputCertificate != "" {
+		ui.Warnf(ctx, "--output-certificate is deprecated when using --new-bundle-format and will be ignored")
+	}
+	if newBundleFormat && outputPayload != "" {
+		ui.Warnf(ctx, "--output-payload is deprecated when using --new-bundle-format and will be ignored")
+	}
+	if newBundleFormat && outputTimestamp != "" {
+		ui.Warnf(ctx, "--rfc3161-timestamp is deprecated when using --new-bundle-format and will be ignored")
+	}
+	if newBundleFormat && output != "" {
+		ui.Warnf(ctx, "--output is deprecated when using --new-bundle-format and will be ignored")
+	}
+
 	// If a signing config is used, then service URLs cannot be specified
 	if (useSigningConfig || signingConfigPath != "") &&
 		((rekorURL != "" && rekorURL != options.DefaultRekorURL) ||
@@ -444,23 +528,13 @@ func LoadTrustedMaterialAndSigningConfig(ctx context.Context, ko *options.KeyOpt
 	if (useSigningConfig || signingConfigPath != "") && !newBundleFormat && bundlePath == "" {
 		return fmt.Errorf("must provide --new-bundle-format or --bundle where applicable with --signing-config or --use-signing-config")
 	}
-	// Fetch a trusted root when:
-	// * requesting a certificate and no CT log key is provided to verify an SCT
-	// * using a signing config
-	if ((keyRef == "" || issueCertificate) && env.Getenv(env.VariableSigstoreCTLogPublicKeyFile) == "") ||
-		(useSigningConfig || signingConfigPath != "") {
-		if trustedRootPath != "" {
-			ko.TrustedMaterial, err = root.NewTrustedRootFromPath(trustedRootPath)
-			if err != nil {
-				return fmt.Errorf("loading trusted root: %w", err)
-			}
-		} else {
-			ko.TrustedMaterial, err = cosign.TrustedRoot()
-			if err != nil {
-				ui.Warnf(ctx, "Could not fetch trusted_root.json from the TUF repository. Continuing with individual targets. Error from TUF: %v", err)
-			}
-		}
-	}
+
+	return nil
+}
+
+// LoadSigningConfigAndTrustedMaterial loads the signing config and trusted material from the given options.
+func LoadSigningConfigAndTrustedMaterial(ctx context.Context, ko *options.KeyOpts, useSigningConfig bool, signingConfigPath, trustedRootPath string) error {
+	var err error
 	if signingConfigPath != "" {
 		ko.SigningConfig, err = root.NewSigningConfigFromPath(signingConfigPath)
 		if err != nil {
@@ -473,27 +547,33 @@ func LoadTrustedMaterialAndSigningConfig(ctx context.Context, ko *options.KeyOpt
 		}
 	}
 
-	// TODO: Remove deprecated output flags warning in a future release (when flags are removed)
-	if newBundleFormat && outputSignature != "" {
-		ui.Warnf(context.Background(), "--output-signature is deprecated when using --new-bundle-format and will be ignored")
-	}
-	if newBundleFormat && outputAttestation != "" {
-		ui.Warnf(context.Background(), "--output-attestation is deprecated when using --new-bundle-format and will be ignored")
-	}
-	if newBundleFormat && outputCertificate != "" {
-		ui.Warnf(context.Background(), "--output-certificate is deprecated when using --new-bundle-format and will be ignored")
-	}
-	if newBundleFormat && outputPayload != "" {
-		ui.Warnf(context.Background(), "--output-payload is deprecated when using --new-bundle-format and will be ignored")
-	}
-	if newBundleFormat && outputTimestamp != "" {
-		ui.Warnf(context.Background(), "--rfc3161-timestamp is deprecated when using --new-bundle-format and will be ignored")
-	}
-	if newBundleFormat && output != "" {
-		ui.Warnf(context.Background(), "--output is deprecated when using --new-bundle-format and will be ignored")
+	// Fetch a trusted root when:
+	// * an explicit --trusted-root path is provided
+	// * requesting a certificate and no CT log key is provided to verify an SCT
+	// * using a signing config with at least one service configured
+	if trustedRootPath != "" {
+		ko.TrustedMaterial, err = root.NewTrustedRootFromPath(trustedRootPath)
+		if err != nil {
+			return fmt.Errorf("loading trusted root: %w", err)
+		}
+	} else if ((ko.KeyRef == "" || ko.IssueCertificateForExistingKey) && env.Getenv(env.VariableSigstoreCTLogPublicKeyFile) == "") ||
+		signingConfigHasServices(ko.SigningConfig) {
+		ko.TrustedMaterial, err = cosign.TrustedRoot()
+		if err != nil {
+			ui.Warnf(ctx, "Could not fetch trusted_root.json from the TUF repository. Continuing without trusted root. Error from TUF: %v", err)
+		}
 	}
 
 	return nil
+}
+
+func signingConfigHasServices(sc *root.SigningConfig) bool {
+	if sc == nil {
+		return false
+	}
+	return len(sc.FulcioCertificateAuthorityURLs()) > 0 ||
+		len(sc.RekorLogURLs()) > 0 ||
+		len(sc.TimestampAuthorityURLs()) > 0
 }
 
 // ExtractComponentsFromProtoBundle extracts the components from a protobuf bundle.
@@ -600,7 +680,7 @@ func NewLegacyBundleFromProtoBundleComponents(bc *BundleComponents) ([]byte, err
 
 // NewSigningConfigFromKeyOpts creates a signing config from key options.
 // This only supports Rekor v1. Rekor v2 requires a user-provided signing config.
-func NewSigningConfigFromKeyOpts(ko options.KeyOpts, tlogUpload bool) (*root.SigningConfig, error) {
+func NewSigningConfigFromKeyOpts(ko options.KeyOpts) (*root.SigningConfig, error) {
 	var fulcioServices []root.Service
 	if ko.FulcioURL != "" {
 		fulcioServices = append(fulcioServices, root.Service{
@@ -621,7 +701,7 @@ func NewSigningConfigFromKeyOpts(ko options.KeyOpts, tlogUpload bool) (*root.Sig
 
 	var rekorServices []root.Service
 	var rekorConfig root.ServiceConfiguration
-	if ko.RekorURL != "" && tlogUpload {
+	if ko.RekorURL != "" {
 		rekorServices = append(rekorServices, root.Service{
 			URL:                 ko.RekorURL,
 			MajorAPIVersion:     1,
