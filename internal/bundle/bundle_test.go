@@ -811,7 +811,7 @@ func TestParseDefaults(t *testing.T) {
 				require.NoError(t, os.WriteFile(path, []byte(tt.hcl), filesystem.PrivateFileMode))
 			}
 
-			vars, err := ParseDefaults(t.Context(), path)
+			vars, _, err := ParseDefaults(t.Context(), path)
 
 			if !tt.wantOK {
 				require.Error(t, err)
@@ -1298,7 +1298,7 @@ package "example" { source = "oci://example.com/package:v1" }`,
 			file:    BundleDefaultsFileName,
 			content: `variables = { nested = { value = "${file("value.txt")}" } }`,
 			parse: func(ctx context.Context, path string) error {
-				_, err := ParseDefaults(ctx, path)
+				_, _, err := ParseDefaults(ctx, path)
 				return err
 			},
 		},
@@ -1407,13 +1407,13 @@ variables = {
 }
 `), filesystem.PrivateFileMode))
 
-	materialized, err := materializeDefaultsFile(path)
+	materialized, err := MaterializeDefaultsFile(path)
 	require.NoError(t, err)
 	assert.NotContains(t, string(materialized), "file(")
 
 	materializedPath := filepath.Join(dir, "materialized.uds.hcl")
 	require.NoError(t, os.WriteFile(materializedPath, materialized, filesystem.PrivateFileMode))
-	variables, err := ParseDefaults(t.Context(), materializedPath)
+	variables, _, err := ParseDefaults(t.Context(), materializedPath)
 	require.NoError(t, err)
 	assert.Equal(t, []any{"from file"}, variables["values"])
 	assert.Equal(t, "ok", variables["value"])
@@ -1429,14 +1429,14 @@ package "example" { source = "oci://example.com/package:v1" }
 }
 
 func TestParseDefaultsBytesRejectsFileFunction(t *testing.T) {
-	_, err := ParseDefaultsBytes(t.Context(), []byte(`
+	_, _, err := ParseDefaultsBytes(t.Context(), []byte(`
 variables = { value = file("/etc/hostname") }
 `))
 	require.ErrorContains(t, err, "requires a file-backed bundle source")
 }
 
 func TestSensitiveVariables(t *testing.T) {
-	vars, sensitive, err := ParseDefaultsBytesWithSensitivity(t.Context(), []byte(`variables = {
+	vars, sensitive, err := ParseDefaultsBytes(t.Context(), []byte(`variables = {
   token = sensitive("canary")
   nested = { items = ["visible", sensitive("also-canary")] }
   plain = false
@@ -1464,7 +1464,7 @@ variables = {
 }
 
 func TestTypedNullVariablesReturnValidationErrors(t *testing.T) {
-	defaults, _, err := ParseDefaultsBytesWithSensitivity(t.Context(), []byte(`variables = true ? null : { token = "unused" }`))
+	defaults, _, err := ParseDefaultsBytes(t.Context(), []byte(`variables = true ? null : { token = "unused" }`))
 	require.ErrorIs(t, err, ErrConvertVariables)
 	assert.Nil(t, defaults)
 
@@ -1489,7 +1489,7 @@ func TestVariableErrorsDoNotRevealValues(t *testing.T) {
 		for name, expr := range map[string]string{"unmarked": tt.expr, "sensitive": "sensitive(" + tt.expr + ")"} {
 			t.Run(tt.name+"/"+name, func(t *testing.T) {
 				source := []byte("variables = { token = " + expr + " }")
-				_, _, err := ParseDefaultsBytesWithSensitivity(t.Context(), source)
+				_, _, err := ParseDefaultsBytes(t.Context(), source)
 				require.ErrorIs(t, err, tt.defaultsError)
 				assert.NotContains(t, err.Error(), "SECRET_CANARY")
 				var diags hcl.Diagnostics
@@ -1514,11 +1514,11 @@ func TestSensitiveVariablesRejectsStructuredOptionWithoutPanic(t *testing.T) {
 }
 
 func TestSensitiveVariableConversionErrorDoesNotRevealObjectKeys(t *testing.T) {
-	_, _, err := ParseDefaultsBytesWithSensitivity(t.Context(), []byte(`variables = { credential = sensitive({ "secret-canary" = null }) }`))
+	_, _, err := ParseDefaultsBytes(t.Context(), []byte(`variables = { credential = sensitive({ "secret-canary" = null }) }`))
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "secret-canary")
 
-	_, _, err = ParseDefaultsBytesWithSensitivity(t.Context(), []byte(`variables = [sensitive({ "secret-canary" = null })]`))
+	_, _, err = ParseDefaultsBytes(t.Context(), []byte(`variables = [sensitive({ "secret-canary" = null })]`))
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "secret-canary")
 }
@@ -1529,11 +1529,11 @@ func TestMaterializeDefaultsFilePreservesSensitiveFileExpression(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("canary-secret"), filesystem.PrivateFileMode))
 	require.NoError(t, os.WriteFile(path, []byte(`variables = { secret = { nested = [sensitive(file("secret.txt"))] } }`), filesystem.PrivateFileMode))
 
-	materialized, err := materializeDefaultsFile(path)
+	materialized, err := MaterializeDefaultsFile(path)
 	require.NoError(t, err)
 	assert.Contains(t, string(materialized), `sensitive("canary-secret")`)
 	assert.NotContains(t, string(materialized), "file(")
-	vars, sensitive, err := ParseDefaultsBytesWithSensitivity(t.Context(), materialized)
+	vars, sensitive, err := ParseDefaultsBytes(t.Context(), materialized)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]bool{"secret": true}, sensitive)
 	assert.Equal(t, Variables{"nested": []any{"canary-secret"}}, vars["secret"])

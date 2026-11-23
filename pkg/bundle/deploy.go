@@ -402,7 +402,7 @@ func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, default
 		return nil, fmt.Errorf("config must not be nil")
 	}
 	if !artifactSource {
-		defaults, sensitive, err = bundleinternal.ParseDefaultsWithSensitivity(ctx, defaultsPath)
+		defaults, sensitive, err = bundleinternal.ParseDefaults(ctx, defaultsPath)
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
@@ -411,7 +411,7 @@ func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, default
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
-		defaults, sensitive, err = bundleinternal.ParseDefaultsBytesWithSensitivity(ctx, defaultsData)
+		defaults, sensitive, err = bundleinternal.ParseDefaultsBytes(ctx, defaultsData)
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}

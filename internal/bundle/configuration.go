@@ -296,15 +296,9 @@ func parseSetValue(raw string) (any, error) {
 
 // ParseDefaults reads a defaults file from disk and validates it.
 // A valid defaults file contains at most one top-level attribute named "variables"
-// and no blocks. Returns the parsed Variables, or nil if the file has no variables.
+// and no blocks. It returns the variables and their top-level sensitivity marks.
 // The context parameter is currently unused as none of the HCL parsing methods supports cancellation.
-func ParseDefaults(ctx context.Context, path string) (Variables, error) {
-	variables, _, err := ParseDefaultsWithSensitivity(ctx, path)
-	return variables, err
-}
-
-// ParseDefaultsWithSensitivity reads defaults variables and their top-level sensitivity metadata.
-func ParseDefaultsWithSensitivity(_ context.Context, path string) (Variables, map[string]bool, error) {
+func ParseDefaults(_ context.Context, path string) (Variables, map[string]bool, error) {
 	if path == "" {
 		return nil, nil, EmptyParameterError{Name: "path"}
 	}
@@ -312,30 +306,19 @@ func ParseDefaultsWithSensitivity(_ context.Context, path string) (Variables, ma
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w %q: %w", ErrReadDefaultsFile, path, err)
 	}
-	return parseDefaultsContentWithSensitivity(src, path, true)
+	return parseDefaultsContent(src, path, true)
 }
 
-// ParseDefaultsBytes parses defaults HCL without enabling file-backed expressions.
-func ParseDefaultsBytes(ctx context.Context, src []byte) (Variables, error) {
-	variables, _, err := ParseDefaultsBytesWithSensitivity(ctx, src)
-	return variables, err
-}
-
-// ParseDefaultsBytesWithSensitivity parses defaults HCL and returns top-level sensitivity metadata.
-func ParseDefaultsBytesWithSensitivity(_ context.Context, src []byte) (Variables, map[string]bool, error) {
+// ParseDefaultsBytes returns defaults variables and their top-level sensitivity without enabling file-backed expressions.
+func ParseDefaultsBytes(_ context.Context, src []byte) (Variables, map[string]bool, error) {
 	if len(src) == 0 {
 		return nil, nil, EmptyParameterError{Name: "src"}
 	}
-	return parseDefaultsContentWithSensitivity(src, BundleDefaultsFileName, false)
+	return parseDefaultsContent(src, BundleDefaultsFileName, false)
 }
 
 // parseDefaultsContent decodes variables from defaults HCL content.
-func parseDefaultsContent(src []byte, path string) (Variables, error) {
-	variables, _, err := parseDefaultsContentWithSensitivity(src, path, true)
-	return variables, err
-}
-
-func parseDefaultsContentWithSensitivity(src []byte, path string, allowFile bool) (Variables, map[string]bool, error) {
+func parseDefaultsContent(src []byte, path string, allowFile bool) (Variables, map[string]bool, error) {
 	hclFile, diags := hclsyntax.ParseConfig(src, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, nil, fmt.Errorf("%w %q: invalid HCL at %s", ErrParseDefaults, path, hclDiagnosticLocation(diags))

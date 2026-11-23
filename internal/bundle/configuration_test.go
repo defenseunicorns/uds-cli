@@ -97,7 +97,7 @@ func TestVariableSourcesRejectFloat64Overflow(t *testing.T) {
 			wantErr: ErrConvertVariables.Error(),
 			parse: func(t *testing.T, value string) error {
 				t.Helper()
-				_, err := ParseDefaultsBytes(t.Context(), fmt.Appendf(nil, "variables = { replicas = %s }", value))
+				_, _, err := ParseDefaultsBytes(t.Context(), fmt.Appendf(nil, "variables = { replicas = %s }", value))
 				return err
 			},
 		},
@@ -613,7 +613,7 @@ func TestSensitivityMarkSurvivesSerialization(t *testing.T) {
 	want := map[string]bool{"nested": true}
 	require.Equal(t, want, markedTopLevelVariables(value))
 	serialized := append([]byte("variables = "), valueTokens(value).Bytes()...)
-	_, flags, err := ParseDefaultsBytesWithSensitivity(t.Context(), serialized)
+	_, flags, err := ParseDefaultsBytes(t.Context(), serialized)
 	require.NoError(t, err)
 	assert.Equal(t, want, flags)
 }

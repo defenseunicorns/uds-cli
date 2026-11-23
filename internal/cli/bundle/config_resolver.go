@@ -314,7 +314,7 @@ func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, streams iostrea
 	}
 
 	streams.Debug("loading bundle defaults", "path", defaultsPath)
-	vars, sensitive, err := bundleinternal.ParseDefaultsWithSensitivity(ctx, defaultsPath)
+	vars, sensitive, err := bundleinternal.ParseDefaults(ctx, defaultsPath)
 	if err != nil {
 		return nil, err
 	}

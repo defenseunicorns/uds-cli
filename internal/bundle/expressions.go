@@ -124,21 +124,16 @@ func rejectFileFunctionWithoutSourcePath(hclFile *hcl.File, fileKind string) err
 	return fmt.Errorf("file() requires a file-backed bundle source; %s cannot use file() at %s: %w", fileKind, callRange, ErrFileFunctionUnavailable)
 }
 
-// materializeDefaultsFile resolves file function calls in a defaults file.
-func materializeDefaultsFile(path string) ([]byte, error) {
+// MaterializeDefaultsFile resolves file() calls in a defaults file.
+func MaterializeDefaultsFile(path string) ([]byte, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrReadDefaultsFile, path, err)
 	}
-	if _, err := parseDefaultsContent(src, path); err != nil {
+	if _, _, err := parseDefaultsContent(src, path, true); err != nil {
 		return nil, err
 	}
 	return materializeFileCallExpressions(src, path, variableEvalContext(path), nil)
-}
-
-// MaterializeDefaultsFile resolves file() calls in a defaults file.
-func MaterializeDefaultsFile(path string) ([]byte, error) {
-	return materializeDefaultsFile(path)
 }
 
 // materializeBundleFileCalls resolves file function calls in bundle HCL source.
