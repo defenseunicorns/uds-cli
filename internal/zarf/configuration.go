@@ -28,9 +28,10 @@ func newTempDirConfig() *tempDirConfig {
 
 // UDSBundleConfig is the private resolved deployment configuration.
 type UDSBundleConfig struct {
-	Options   *bundleinternal.ConfigOptions `hcl:"options,block"`
-	Variables bundleinternal.Variables
-	Remain    hcl.Body `hcl:",remain"`
+	Options            *bundleinternal.ConfigOptions `hcl:"options,block"`
+	Variables          bundleinternal.Variables
+	SensitiveVariables map[string]bool
+	Remain             hcl.Body `hcl:",remain"`
 }
 
 // WithTempDir runs an operation while Zarf's process-global temporary directory

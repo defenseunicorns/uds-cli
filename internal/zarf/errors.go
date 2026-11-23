@@ -4,9 +4,20 @@
 package zarf
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
+
+// redactError preserves cancellation identities without retaining value-derived causes.
+func redactError(err, kind error) error {
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+		if errors.Is(err, cause) {
+			kind = fmt.Errorf("%w: %w", kind, cause)
+		}
+	}
+	return kind
+}
 
 var (
 	ErrNotImplemented               = errors.New("not yet implemented")

@@ -43,6 +43,25 @@ func configEvalContext(filePath string) *hcl.EvalContext {
 	}
 }
 
+func variableEvalContext(filePath string) *hcl.EvalContext {
+	ctx := configEvalContext(filePath)
+	ctx.Functions["sensitive"] = sensitiveFunction()
+	return ctx
+}
+
+// sensitiveMark connects HCL evaluation, redaction flags, and defaults serialization.
+const sensitiveMark = "sensitive"
+
+func sensitiveFunction() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{{Name: "value", Type: cty.DynamicPseudoType}},
+		Type:   func(args []cty.Value) (cty.Type, error) { return args[0].Type(), nil },
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+			return args[0].Mark(sensitiveMark), nil
+		},
+	})
+}
+
 // newFileFunction returns the file() implementation for a file-backed HCL document.
 func newFileFunction(baseDir string) function.Function {
 	return function.New(&function.Spec{
@@ -105,21 +124,16 @@ func rejectFileFunctionWithoutSourcePath(hclFile *hcl.File, fileKind string) err
 	return fmt.Errorf("file() requires a file-backed bundle source; %s cannot use file() at %s: %w", fileKind, callRange, ErrFileFunctionUnavailable)
 }
 
-// materializeDefaultsFile resolves file function calls in a defaults file.
-func materializeDefaultsFile(path string) ([]byte, error) {
+// MaterializeDefaultsFile resolves file() calls in a defaults file.
+func MaterializeDefaultsFile(path string) ([]byte, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrReadDefaultsFile, path, err)
 	}
-	if _, err := parseDefaultsContent(src, path); err != nil {
+	if _, _, err := parseDefaultsContent(src, path, true); err != nil {
 		return nil, err
 	}
-	return materializeFileCallExpressions(src, path, configEvalContext(path), nil)
-}
-
-// MaterializeDefaultsFile resolves file() calls in a defaults file.
-func MaterializeDefaultsFile(path string) ([]byte, error) {
-	return materializeDefaultsFile(path)
+	return materializeFileCallExpressions(src, path, variableEvalContext(path), nil)
 }
 
 // materializeBundleFileCalls resolves file function calls in bundle HCL source.
@@ -164,9 +178,9 @@ func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.Ev
 		}
 		value, diags := expr.Value(exprEvalCtx)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("evaluating HCL expression containing file(): %w: %w", ErrEvaluateHCLExpression, diags)
+			return nil, fmt.Errorf("evaluating HCL expression containing file() in %q: %w", filename, ErrEvaluateHCLExpression)
 		}
-		replacements = append(replacements, replacement{r.Start.Byte, r.End.Byte, hclwrite.TokensForValue(value).Bytes()})
+		replacements = append(replacements, replacement{r.Start.Byte, r.End.Byte, valueTokens(value).Bytes()})
 	}
 	sort.Slice(replacements, func(i, j int) bool { return replacements[i].start > replacements[j].start })
 	out := append([]byte(nil), src...)
@@ -177,6 +191,41 @@ func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.Ev
 		out = append(replaced, out[replacement.end:]...)
 	}
 	return out, nil
+}
+
+func valueTokens(value cty.Value) hclwrite.Tokens {
+	value, marks := value.Unmark()
+	var tokens hclwrite.Tokens
+	switch {
+	case value.IsNull():
+		tokens = hclwrite.TokensForValue(value)
+	case value.Type().IsObjectType():
+		attrs := value.Type().AttributeTypes()
+		keys := make([]string, 0, len(attrs))
+		for key := range attrs {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		parts := make([]hclwrite.ObjectAttrTokens, 0, len(keys))
+		for _, key := range keys {
+			parts = append(parts, hclwrite.ObjectAttrTokens{Name: hclwrite.TokensForValue(cty.StringVal(key)), Value: valueTokens(value.GetAttr(key))})
+		}
+		tokens = hclwrite.TokensForObject(parts)
+	case value.Type().IsTupleType() || value.Type().IsListType() || value.Type().IsSetType():
+		var parts []hclwrite.Tokens
+		it := value.ElementIterator()
+		for it.Next() {
+			_, elem := it.Element()
+			parts = append(parts, valueTokens(elem))
+		}
+		tokens = hclwrite.TokensForTuple(parts)
+	default:
+		tokens = hclwrite.TokensForValue(value)
+	}
+	if _, ok := marks[sensitiveMark]; ok {
+		tokens = hclwrite.TokensForFunctionCall("sensitive", tokens)
+	}
+	return tokens
 }
 
 // fileCallContainingExpressions returns attribute expressions that contain a file()
