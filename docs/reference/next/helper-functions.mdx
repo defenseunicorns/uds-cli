@@ -1,0 +1,51 @@
+---
+title: Next HCL helper functions
+description: Reference the helper functions available in file-backed Next bundle, defaults, and config HCL files.
+sidebar:
+  order: 4.600
+---
+
+Next supports `file()` in file-backed `bundle.uds.hcl`, `defaults.uds.hcl`, and `config.uds.hcl` inputs. It supports `sensitive()` only for values in the `variables` object of `defaults.uds.hcl` and `config.uds.hcl`. These are the only registered HCL helper functions; `base64encode()` and `base64decode()` are not available. These HCL functions do not extend Go text/template functions used in package values files.
+
+| Function | Supported context |
+|---|---|
+| `file(path)` | Expressions in file-backed `bundle.uds.hcl`; `variables` in file-backed `defaults.uds.hcl`; string-valued expressions throughout file-backed `config.uds.hcl`, including options and trust fields. |
+| `sensitive(value)` | Values inside `variables` in `defaults.uds.hcl` and `config.uds.hcl`. |
+
+## `file(path)`
+
+`file(path)` reads a regular UTF-8 file and returns its contents as a string. The argument must be a string. Relative paths resolve from the directory containing the HCL file; absolute paths are used as-is. The CLI process must be able to access the path.
+
+Use it in bundle expressions, including `locals`, metadata, and package fields. In `config.uds.hcl`, a trust field can load a public key. The example needs `keys/cosign.pub` under the directory containing the config file:
+
+```hcl title="config.uds.hcl"
+signature_verification {
+  public_key = file("keys/cosign.pub")
+}
+```
+
+The path must exist and identify a regular file containing valid UTF-8. A missing or unreadable file, directory, invalid UTF-8, or invalid argument makes HCL evaluation fail. `file()` is unavailable when parsing in-memory bundle or defaults bytes because those inputs have no source directory.
+
+## `sensitive(value)`
+
+`sensitive(value)` accepts one value of any supported variable type, returns that value unchanged, and marks it sensitive. Use it inside `variables` in `config.uds.hcl` or `defaults.uds.hcl`:
+
+```hcl title="config.uds.hcl"
+variables = {
+  password = sensitive(file("secrets/password.txt"))
+  registry = { token = sensitive("replace-me") }
+}
+```
+
+For the file-backed example, create `secrets/password.txt` beside `config.uds.hcl`.
+
+A mark anywhere inside a top-level variable marks that entire variable. Sensitivity metadata survives defaults, config, and `--set` merging. `--set` values cannot call `sensitive()`; mark the corresponding value in a HCL variables file.
+
+Sensitivity is metadata, not encryption. The value passed to templates and Zarf is unchanged. Marked values are omitted from CLI-managed deployment diagnostics and errors, and exact known values are redacted from standard logs. Redaction can miss transformed or partial values, or redact matching text in unrelated logs; direct stdout/stderr and explicit loggers that bypass the standard logger are not covered. Materializing `sensitive(file(...))` embeds the file contents as plaintext while preserving the sensitivity mark.
+
+Calling `sensitive()` outside the `variables` object in those two files is invalid. In particular, it is not available in `bundle.uds.hcl` or structured config fields such as `options` and `signature_verification`.
+
+## Related documentation
+
+- [Bundle definition reference](/cli/reference/next/bundle-uds-hcl/) - Bundle fields, locals, and package expressions.
+- [Config reference](/cli/reference/next/config-uds-hcl/) - Deploy-time options, trust settings, variables, and precedence.
