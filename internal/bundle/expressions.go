@@ -5,6 +5,7 @@ package bundle
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"sort"
 	"unicode/utf8"
 
+	"github.com/defenseunicorns/uds-cli/internal/redact"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -34,13 +36,27 @@ func sysVars(arch string) cty.Value {
 	})
 }
 
-// configEvalContext returns the functions available to a file-backed HCL document.
-func configEvalContext(filePath string) *hcl.EvalContext {
-	return &hcl.EvalContext{
-		Functions: map[string]function.Function{
-			"file": newFileFunction(filepath.Dir(filePath)),
-		},
+// hclFunctions is shared by every Next HCL document. Only a file-backed source can read files.
+func hclFunctions(baseDir string, scope *redact.Scope) map[string]function.Function {
+	funcs := map[string]function.Function{"sensitive": sensitiveFunction(scope)}
+	if baseDir != "" {
+		funcs["file"] = newFileFunction(baseDir)
 	}
+	return funcs
+}
+
+// sensitiveMark connects HCL evaluation, redaction flags, and defaults serialization.
+const sensitiveMark = "sensitive"
+
+func sensitiveFunction(scope *redact.Scope) function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{{Name: "value", Type: cty.DynamicPseudoType, AllowNull: true}},
+		Type:   func(args []cty.Value) (cty.Type, error) { return args[0].Type(), nil },
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+			recordSensitive(scope, args[0])
+			return args[0].Mark(sensitiveMark), nil
+		},
+	})
 }
 
 // newFileFunction returns the file() implementation for a file-backed HCL document.
@@ -89,15 +105,7 @@ func rejectFileFunctionWithoutSourcePath(hclFile *hcl.File, fileKind string) err
 		return ErrUnexpectedHCLBody
 	}
 
-	var callRange *hcl.Range
-	_ = hclsyntax.VisitAll(body, func(node hclsyntax.Node) hcl.Diagnostics {
-		call, ok := node.(*hclsyntax.FunctionCallExpr)
-		if ok && call.Name == "file" && callRange == nil {
-			rangeCopy := call.Range()
-			callRange = &rangeCopy
-		}
-		return nil
-	})
+	callRange := functionCallRange(body, "file")
 	if callRange == nil {
 		return nil
 	}
@@ -105,29 +113,25 @@ func rejectFileFunctionWithoutSourcePath(hclFile *hcl.File, fileKind string) err
 	return fmt.Errorf("file() requires a file-backed bundle source; %s cannot use file() at %s: %w", fileKind, callRange, ErrFileFunctionUnavailable)
 }
 
-// materializeDefaultsFile resolves file function calls in a defaults file.
-func materializeDefaultsFile(path string) ([]byte, error) {
+// MaterializeDefaultsFile resolves file() calls in a defaults file.
+func MaterializeDefaultsFile(ctx context.Context, path string) ([]byte, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrReadDefaultsFile, path, err)
 	}
-	if _, err := parseDefaultsContent(src, path); err != nil {
+	scope := redact.FromContext(ctx)
+	if _, _, err := parseDefaultsContent(src, path, filepath.Dir(path), scope); err != nil {
 		return nil, err
 	}
-	return materializeFileCallExpressions(src, path, configEvalContext(path), nil)
-}
-
-// MaterializeDefaultsFile resolves file() calls in a defaults file.
-func MaterializeDefaultsFile(path string) ([]byte, error) {
-	return materializeDefaultsFile(path)
+	return materializeFileCallExpressions(src, path, &hcl.EvalContext{Functions: hclFunctions(filepath.Dir(path), scope)}, nil)
 }
 
 // materializeBundleFileCalls resolves file function calls in bundle HCL source.
-func (p *HCLParser) materializeBundleFileCalls(src []byte, filename, baseDir string) ([]byte, error) {
-	funcs := map[string]function.Function{"file": newFileFunction(baseDir)}
+func (p *HCLParser) materializeBundleFileCalls(src []byte, filename, baseDir string, scope *redact.Scope) ([]byte, error) {
+	funcs := hclFunctions(baseDir, scope)
 	hclFile, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("%w %q: %w", ErrParseHCL, filename, diags)
+		return nil, fmt.Errorf("%w %q: %w", ErrParseHCL, filename, NewHCLDiagnosticError(diags))
 	}
 	locals, localEvalContexts, err := p.extractLocals(hclFile, funcs)
 	if err != nil {
@@ -144,7 +148,7 @@ func (p *HCLParser) materializeBundleFileCalls(src []byte, filename, baseDir str
 func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.EvalContext, localEvalContexts map[int]*hcl.EvalContext) ([]byte, error) {
 	hclFile, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("%w %q: %w", ErrParseHCL, filename, diags)
+		return nil, fmt.Errorf("%w %q: %w", ErrParseHCL, filename, NewHCLDiagnosticError(diags))
 	}
 	body, ok := hclFile.Body.(*hclsyntax.Body)
 	if !ok {
@@ -164,9 +168,9 @@ func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.Ev
 		}
 		value, diags := expr.Value(exprEvalCtx)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("evaluating HCL expression containing file(): %w: %w", ErrEvaluateHCLExpression, diags)
+			return nil, fmt.Errorf("evaluating HCL expression containing file() in %q: %w: %w", filename, ErrEvaluateHCLExpression, NewHCLDiagnosticError(diags))
 		}
-		replacements = append(replacements, replacement{r.Start.Byte, r.End.Byte, hclwrite.TokensForValue(value).Bytes()})
+		replacements = append(replacements, replacement{r.Start.Byte, r.End.Byte, valueTokens(value).Bytes()})
 	}
 	sort.Slice(replacements, func(i, j int) bool { return replacements[i].start > replacements[j].start })
 	out := append([]byte(nil), src...)
@@ -179,6 +183,37 @@ func materializeFileCallExpressions(src []byte, filename string, evalCtx *hcl.Ev
 	return out, nil
 }
 
+func valueTokens(value cty.Value) hclwrite.Tokens {
+	value, marks := value.Unmark()
+	var tokens hclwrite.Tokens
+	switch {
+	case value.IsNull():
+		tokens = hclwrite.TokensForValue(value)
+	case value.Type().IsObjectType() || value.Type().IsMapType():
+		var parts []hclwrite.ObjectAttrTokens
+		it := value.ElementIterator()
+		for it.Next() {
+			key, elem := it.Element()
+			parts = append(parts, hclwrite.ObjectAttrTokens{Name: hclwrite.TokensForValue(key), Value: valueTokens(elem)})
+		}
+		tokens = hclwrite.TokensForObject(parts)
+	case value.Type().IsTupleType() || value.Type().IsListType() || value.Type().IsSetType():
+		var parts []hclwrite.Tokens
+		it := value.ElementIterator()
+		for it.Next() {
+			_, elem := it.Element()
+			parts = append(parts, valueTokens(elem))
+		}
+		tokens = hclwrite.TokensForTuple(parts)
+	default:
+		tokens = hclwrite.TokensForValue(value)
+	}
+	if _, ok := marks[sensitiveMark]; ok {
+		tokens = hclwrite.TokensForFunctionCall("sensitive", tokens)
+	}
+	return tokens
+}
+
 // fileCallContainingExpressions returns attribute expressions that contain a file()
 // call. Materializing the entire expression preserves HCL's iterator scopes and
 // lazy conditional evaluation when the expression is evaluated.
@@ -187,7 +222,7 @@ func fileCallContainingExpressions(body *hclsyntax.Body) []hcl.Expression {
 	var collect func(*hclsyntax.Body)
 	collect = func(body *hclsyntax.Body) {
 		for _, attr := range body.Attributes {
-			if expressionContainsFileCall(attr.Expr) {
+			if functionCallRange(attr.Expr, "file") != nil {
 				expressions = append(expressions, attr.Expr)
 			}
 		}
@@ -199,21 +234,17 @@ func fileCallContainingExpressions(body *hclsyntax.Body) []hcl.Expression {
 	return expressions
 }
 
-// expressionContainsFileCall reports whether an expression invokes the file function.
-func expressionContainsFileCall(expr hcl.Expression) bool {
-	node, ok := expr.(hclsyntax.Node)
-	if !ok {
-		return false
-	}
-	hasFileCall := false
-	_ = hclsyntax.VisitAll(node, func(node hclsyntax.Node) hcl.Diagnostics {
-		call, ok := node.(*hclsyntax.FunctionCallExpr)
-		if ok && call.Name == "file" {
-			hasFileCall = true
+// functionCallRange returns a source location for a call to name in an HCL syntax tree.
+func functionCallRange(root hclsyntax.Node, name string) *hcl.Range {
+	var found *hcl.Range
+	_ = hclsyntax.VisitAll(root, func(node hclsyntax.Node) hcl.Diagnostics {
+		if call, ok := node.(*hclsyntax.FunctionCallExpr); ok && call.Name == name && found == nil {
+			r := call.Range()
+			found = &r
 		}
 		return nil
 	})
-	return hasFileCall
+	return found
 }
 
 // localDependencies returns the local.<name> references used by an expression
@@ -331,7 +362,7 @@ func (p *HCLParser) extractLocals(hclFile *hcl.File, funcs map[string]function.F
 
 	content, _, diags := hclFile.Body.PartialContent(schema)
 	if diags.HasErrors() {
-		return nil, nil, &LocalsBlockError{Diags: diags}
+		return nil, nil, &LocalsBlockError{Diagnostic: NewHCLDiagnosticError(diags)}
 	}
 
 	exprs := make(map[string]hcl.Expression)
@@ -346,7 +377,7 @@ func (p *HCLParser) extractLocals(hclFile *hcl.File, funcs map[string]function.F
 
 		attrs, diags := block.Body.JustAttributes()
 		if diags.HasErrors() {
-			return nil, nil, &LocalsAttributeError{Diags: diags}
+			return nil, nil, &LocalsAttributeError{Diagnostic: NewHCLDiagnosticError(diags)}
 		}
 
 		// JustAttributes returns a map, so sort by source position before building sourceOrder
@@ -403,7 +434,7 @@ func (p *HCLParser) extractLocals(hclFile *hcl.File, funcs map[string]function.F
 
 		val, diags := exprs[name].Value(ctx)
 		if diags.HasErrors() {
-			return nil, nil, &LocalEvaluationError{Name: name, Diags: diags}
+			return nil, nil, &LocalEvaluationError{Name: name, Diagnostic: NewHCLDiagnosticError(diags)}
 		}
 
 		locals[name] = val
@@ -424,7 +455,7 @@ func decodePackageDependsOn(body hcl.Body) ([]decodedPackageRef, error) {
 
 	content, _, diags := body.PartialContent(attrSchema)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("%w from depends_on attribute: %w", ErrReadPackageDependencies, diags)
+		return nil, fmt.Errorf("%w from depends_on attribute: %w", ErrReadPackageDependencies, NewHCLDiagnosticError(diags))
 	}
 
 	attr, exists := content.Attributes["depends_on"]
@@ -435,7 +466,7 @@ func decodePackageDependsOn(body hcl.Body) ([]decodedPackageRef, error) {
 	// Get the list of expressions
 	exprs, diags := hcl.ExprList(attr.Expr)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("depends_on must be a list of package references: %w: %w", ErrInvalidPackageDependencies, diags)
+		return nil, fmt.Errorf("depends_on must be a list of package references: %w: %w", ErrInvalidPackageDependencies, NewHCLDiagnosticError(diags))
 	}
 
 	var refs []decodedPackageRef
@@ -443,7 +474,7 @@ func decodePackageDependsOn(body hcl.Body) ([]decodedPackageRef, error) {
 		// Each element must be a static traversal (e.g., package.core_base)
 		traversal, diags := hcl.AbsTraversalForExpr(expr)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("depends_on element must be a package reference (e.g., package.core_base): %w: %w", ErrInvalidPackageReference, diags)
+			return nil, fmt.Errorf("depends_on element must be a package reference (e.g., package.core_base): %w: %w", ErrInvalidPackageReference, NewHCLDiagnosticError(diags))
 		}
 
 		// Validate the traversal structure: must be "package.<name>"

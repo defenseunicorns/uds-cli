@@ -8,7 +8,20 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
+	"github.com/defenseunicorns/uds-cli/internal/redact"
 )
+
+// MaskedError indicates that a bundle diagnostic contains redacted values.
+// Its Error method and unwrapped causes are safe to display. Using errors.As
+// to request an underlying error type gives access to its original data,
+// which may include sensitive values.
+type MaskedError = redact.MaskedError
+
+// HCLDiagnosticError reports the location of an HCL diagnostic while protecting
+// sensitive expression data.
+type HCLDiagnosticError = bundleinternal.HCLDiagnosticError
 
 var (
 	// ErrInvalidConfig occurs when bundle configuration fails validation.
@@ -70,13 +83,17 @@ var _ error = (*DependencyViolationError)(nil)
 
 type DependencyViolationError struct {
 	// Violations maps a package name to its related package names (sorted).
-	Violations map[string][]string
-	header     string
-	relation   string
+	Violations    map[string][]string
+	header        string
+	relation      string
+	maskedMessage string
 }
 
 // Error formats the dependency violations for command-line display.
 func (e *DependencyViolationError) Error() string {
+	if e.maskedMessage != "" {
+		return e.maskedMessage
+	}
 	names := make([]string, 0, len(e.Violations))
 	for k := range e.Violations {
 		names = append(names, k)
@@ -90,6 +107,13 @@ func (e *DependencyViolationError) Error() string {
 		fmt.Fprintf(&b, "  - %q %s: %s\n", n, e.relation, strings.Join(e.Violations[n], ", "))
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// WithMaskedMessage returns a copy with a redacted display message and the
+// original structured fields.
+func (e DependencyViolationError) WithMaskedMessage(message string) error {
+	e.maskedMessage = message
+	return &e
 }
 
 // formatDependencyError builds a public dependency violation error from the

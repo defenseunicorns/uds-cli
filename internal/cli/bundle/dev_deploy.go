@@ -74,7 +74,7 @@ local and OCI bundle artifacts must use uds bundle deploy instead.`,
 
 	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.Variables)
 
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills development deploy options from command-line arguments.
@@ -106,7 +106,7 @@ func (o *DevDeployOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := applySetVariables(baseConfig, o.Variables); err != nil {
+	if err := applySetVariables(ctx, baseConfig, o.Variables); err != nil {
 		return err
 	}
 	o.Config = baseConfig

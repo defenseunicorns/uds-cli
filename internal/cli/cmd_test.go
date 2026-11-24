@@ -4,6 +4,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/defenseunicorns/uds-cli/internal/mode"
@@ -35,11 +37,24 @@ func TestRootCommand_LogLevelFlag(t *testing.T) {
 			err := root.Execute()
 			if tt.wantErr {
 				require.ErrorContains(t, err, "unknown log level")
+				require.NotContains(t, err.Error(), tt.level)
 			} else {
 				require.NoError(t, err)
 			}
 		})
 	}
+}
+
+func TestRootInvalidLogLevelOverrideHidesValue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.uds.hcl")
+	require.NoError(t, os.WriteFile(path, []byte(`options { log_level = sensitive("info") }`), 0o600))
+	streams, _, _, stderr := iostreams.NewTestIOStreams()
+	root := NewRootCommand(streams, mode.FeatureSet{})
+	root.SetArgs([]string{"bundle", "create", "--config", path, "--log-level", "private-value", "--unsigned"})
+	err := root.Execute()
+	require.ErrorContains(t, err, "invalid log level")
+	require.NotContains(t, err.Error(), "private-value")
+	require.NotContains(t, stderr.String(), "private-value")
 }
 
 func TestRootCommand_EmptyArchitectureFlagFails(t *testing.T) {

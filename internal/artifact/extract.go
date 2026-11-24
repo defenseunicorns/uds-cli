@@ -54,7 +54,7 @@ type ExtractedBundle struct {
 // responsible for cleanup in all cases.
 func ExtractArtifact(ctx context.Context, streams iostreams.IOStreams, tarPath, dstDir string) (*ExtractedBundle, error) {
 	streams.Info("extracting bundle artifact")
-	streams.Debug("extracting bundle artifact", "source", tarPath, "output", dstDir)
+	streams.Debug("extracting bundle artifact", "output", dstDir)
 
 	if err := ExtractTarZst(ctx, streams, tarPath, dstDir); err != nil {
 		return nil, fmt.Errorf("%w %q to %q: %w", ErrExtractingBundleArtifact, tarPath, dstDir, err)

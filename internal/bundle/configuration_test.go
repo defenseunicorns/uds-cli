@@ -12,6 +12,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestParseSetVariables(t *testing.T) {
@@ -48,12 +49,12 @@ func TestParseSetVariables(t *testing.T) {
 		{name: "empty key", entries: []string{"=value"}, wantErr: "expected key=value"},
 		{name: "empty value", entries: []string{"domain="}, wantErr: "expected key=value"},
 		{name: "malformed collection", entries: []string{"ports=[8080,"}, wantErr: `parsing --set variable "ports"`},
-		{name: "null value", entries: []string{"domain=null"}, wantErr: "null values are not supported"},
+		{name: "null value", entries: []string{"domain=null"}, wantErr: "converting --set value: invalid variables"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseSetVariables(tt.entries)
+			got, _, err := ParseSetVariables(t.Context(), tt.entries)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -64,10 +65,25 @@ func TestParseSetVariables(t *testing.T) {
 	}
 }
 
+func TestParseSensitiveSetVariables(t *testing.T) {
+	values, marked, err := ParseSetVariables(t.Context(), []string{
+		`name=sensitive("private")`, `name=replacement`, `settings={ ports = [sensitive(443)] }`,
+		`literal="sensitive(123)"`, `flag=sensitive(false)`,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, Variables{"name": "replacement", "settings": Variables{"ports": []any{float64(443)}}, "literal": "sensitive(123)", "flag": false}, values)
+	assert.Equal(t, map[string]bool{"name": true, "settings": true, "flag": true}, marked)
+	for _, entry := range []string{`name=sensitive ("secret-canary"`, `name=sensitive(file("secret-canary"))`, `name=sensitive({ nested = null })`} {
+		_, _, err := ParseSetVariables(t.Context(), []string{entry})
+		require.ErrorIs(t, err, ErrInvalidVariables)
+		assert.NotContains(t, err.Error(), "secret-canary")
+	}
+}
+
 func TestParseSetValue_NonFiniteSpellingsRemainStrings(t *testing.T) {
 	for _, raw := range []string{"NaN", "-NaN", "+NaN", "Inf", "+Inf", "-Inf", "Infinity", "+Infinity", "-Infinity"} {
 		t.Run(raw, func(t *testing.T) {
-			value, err := parseSetValue(raw)
+			value, _, err := parseSetValue(raw, nil)
 			require.NoError(t, err)
 			assert.Equal(t, raw, value)
 		})
@@ -76,26 +92,34 @@ func TestParseSetValue_NonFiniteSpellingsRemainStrings(t *testing.T) {
 
 func TestVariableSourcesRejectFloat64Overflow(t *testing.T) {
 	tests := []struct {
-		name  string
-		parse func(*testing.T, string) error
+		name    string
+		parse   func(*testing.T, string) error
+		want    error
+		wantErr string
 	}{
 		{
-			name: "set variables",
-			parse: func(_ *testing.T, value string) error {
-				_, err := ParseSetVariables([]string{"replicas=" + value})
+			name:    "set variables",
+			want:    ErrInvalidVariables,
+			wantErr: "converting --set value",
+			parse: func(t *testing.T, value string) error {
+				_, _, err := ParseSetVariables(t.Context(), []string{"replicas=" + value})
 				return err
 			},
 		},
 		{
-			name: "defaults HCL",
+			name:    "defaults HCL",
+			want:    ErrConvertVariables,
+			wantErr: ErrConvertVariables.Error(),
 			parse: func(t *testing.T, value string) error {
 				t.Helper()
-				_, err := ParseDefaultsBytes(t.Context(), fmt.Appendf(nil, "variables = { replicas = %s }", value))
+				_, _, err := ParseDefaultsBytes(t.Context(), fmt.Appendf(nil, "variables = { replicas = %s }", value))
 				return err
 			},
 		},
 		{
-			name: "config HCL",
+			name:    "config HCL",
+			want:    ErrConvertVariables,
+			wantErr: ErrConvertVariables.Error(),
 			parse: func(t *testing.T, value string) error {
 				t.Helper()
 				path := filepath.Join(t.TempDir(), "config.uds.hcl")
@@ -110,15 +134,26 @@ func TestVariableSourcesRejectFloat64Overflow(t *testing.T) {
 		for _, value := range []string{"1e400", "-1e400"} {
 			t.Run(tt.name+"/"+value, func(t *testing.T) {
 				err := tt.parse(t, value)
-				require.ErrorIs(t, err, ErrInvalidVariables)
-				require.ErrorContains(t, err, "outside the supported float64 range")
+				require.ErrorIs(t, err, tt.want)
+				require.ErrorContains(t, err, tt.wantErr)
 			})
 		}
 	}
 
-	variables, err := ParseSetVariables([]string{"replicas=1e308"})
+	variables, _, err := ParseSetVariables(t.Context(), []string{"replicas=1e308"})
 	require.NoError(t, err)
 	assert.InEpsilon(t, float64(1e308), variables["replicas"], 1e-15)
+}
+
+func TestParseBundleConfigConversionErrorOmitsVariableValue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.uds.hcl")
+	const canary = "secret-canary"
+	require.NoError(t, os.WriteFile(path, []byte(`variables = { credential = { "secret-canary" = null } }`), 0o600))
+
+	_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), path)
+	require.ErrorIs(t, err, ErrConvertVariables)
+	require.ErrorContains(t, err, path)
+	assert.NotContains(t, err.Error(), canary)
 }
 
 func TestVariables_Flatten(t *testing.T) {
@@ -580,4 +615,20 @@ func TestMergeVariables_DoesNotMutateBaseNestedMap(t *testing.T) {
 
 	a := base["a"].(Variables)
 	assert.Equal(t, true, a["b"])
+}
+
+func TestSensitivityMarkSurvivesSerialization(t *testing.T) {
+	value := cty.ObjectVal(map[string]cty.Value{
+		"nested": cty.ObjectVal(map[string]cty.Value{
+			"token": cty.StringVal("secret").Mark(sensitiveMark),
+		}),
+		"unrelated": cty.StringVal("visible").Mark("other"),
+		"plain":     cty.StringVal("visible"),
+	})
+	want := map[string]bool{"nested": true}
+	require.Equal(t, want, markedTopLevelVariables(value))
+	serialized := append([]byte("variables = "), valueTokens(value).Bytes()...)
+	_, flags, err := ParseDefaultsBytes(t.Context(), serialized)
+	require.NoError(t, err)
+	assert.Equal(t, want, flags)
 }

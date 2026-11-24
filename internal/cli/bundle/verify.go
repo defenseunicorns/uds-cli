@@ -48,7 +48,7 @@ func NewVerifyCommand(streams iostreams.IOStreams) *cobra.Command {
 		},
 	}
 	addVerificationFlags(cmd, o, false)
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills verification options from command arguments, config, and flags.

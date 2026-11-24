@@ -55,7 +55,7 @@ func NewCreateCommand(streams iostreams.IOStreams) *cobra.Command {
 	addSigningFlags(cmd, &o.Signing)
 	cmd.Flags().Bool("unsigned", false, "create an unsigned bundle")
 
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills in options from command line args.

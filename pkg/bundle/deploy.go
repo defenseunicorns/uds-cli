@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/internal/redact"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -108,6 +109,7 @@ type DeploySource struct {
 	// Loader overrides how package layouts are obtained; nil means use the default source loader.
 	Loader ZarfPackageLayoutLoader
 
+	sensitiveValues  []string // marks discovered while preparing an artifact in a separate operation
 	packageZarfNames map[string]string
 	resumePrepared   bool
 	requiresLoader   bool
@@ -156,23 +158,33 @@ type DeployPackageResult struct {
 // Deploy deploys a UDS bundle to a Kubernetes cluster.
 // It delegates bundle-level deployment (DAG traversal, ordering, parallelism,
 // and concurrency limits) to the deployment adapter.
+// Sensitive backend deployments redact exact known values in process-wide standard
+// Go logs without serializing deployments. Transformed values may not match.
+// Callers must not reconfigure global logging during deployment.
 func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*DeployResult, error) {
+	ctx, scope := redact.Bind(ctx, &opts.Streams)
+	if opts.Config != nil && len(opts.Config.SensitiveVariables) > 0 {
+		scope.Add(toInternalVariables(opts.Config.Variables).SensitiveValues(opts.Config.SensitiveVariables)...)
+	}
+	if source != nil {
+		scope.Add(source.sensitiveValues...)
+	}
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, scope.Error(err)
 	}
 	if source == nil {
-		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
+		return nil, scope.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if source.BundlePath == "" && source.Bundle == nil {
-		return nil, fmt.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)
+		return nil, scope.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)
 	}
 	if source.requiresLoader && source.Loader == nil {
-		return nil, ErrPackageLayoutLoaderRequired
+		return nil, scope.Error(ErrPackageLayoutLoaderRequired)
 	}
 	if source.DefaultsPath != "" {
 		config, err := applyEmbeddedDefaults(ctx, opts.Config, source.DefaultsPath, source.Loader != nil)
 		if err != nil {
-			return nil, fmt.Errorf("%w: applying embedded defaults: %w", ErrDeployBundle, err)
+			return nil, scope.Errorf("%w: applying embedded defaults: %w", ErrDeployBundle, err)
 		}
 		opts.Config = config
 	}
@@ -193,20 +205,20 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 			b, err = parseBundleFile(ctx, opts.Config.Options.Architecture, s, source.BundlePath)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to parse bundle: %w", ErrDeployBundle, err)
+			return nil, scope.Errorf("%w: failed to parse bundle: %w", ErrDeployBundle, err)
 		}
 		s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 	}
 	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: bundle validation failed: %w", ErrDeployBundle, err)
+		return nil, scope.Errorf("%w: bundle validation failed: %w", ErrDeployBundle, err)
 	}
 	if !opts.Force {
 		if err := validateDeploySafety(ctx, s, b, opts.Packages); err != nil {
-			return nil, fmt.Errorf("%w: unable to deploy safely: %w", ErrDeployBundle, err)
+			return nil, scope.Errorf("%w: unable to deploy safely: %w", ErrDeployBundle, err)
 		}
 	}
 	if opts.Resume && !source.resumePrepared {
-		return nil, fmt.Errorf("%w: call PrepareDeploySource before deploying with resume", ErrResumeSourceNotPrepared)
+		return nil, scope.Errorf("%w: call PrepareDeploySource before deploying with resume", ErrResumeSourceNotPrepared)
 	}
 
 	deployer := newZarfDeployer(s, source.Loader)
@@ -215,13 +227,13 @@ func Deploy(ctx context.Context, source *DeploySource, opts DeployOptions) (*Dep
 		if ctxErr := ctx.Err(); ctxErr != nil && !errors.Is(err, ctxErr) {
 			err = errors.Join(err, ctxErr)
 		}
-		return result, fmt.Errorf("%w %q: %w", ErrDeployBundle, b.Metadata.Name, err)
+		return result, scope.Errorf("%w %q: %w", ErrDeployBundle, b.Metadata.Name, err)
 	}
 	if err := ctx.Err(); err != nil {
-		return result, fmt.Errorf("%w %q: %w", ErrDeployBundle, b.Metadata.Name, err)
+		return result, scope.Errorf("%w %q: %w", ErrDeployBundle, b.Metadata.Name, err)
 	}
 	if result == nil {
-		return nil, fmt.Errorf("%w: deployer returned no result", ErrDeployBundle)
+		return nil, scope.Errorf("%w: deployer returned no result", ErrDeployBundle)
 	}
 	s.Info("bundle deployed", "name", result.BundleName, "packages", len(result.Packages))
 	return result, nil
@@ -290,7 +302,7 @@ func toZarfConfig(cfg *UDSBundleConfig) *internalzarf.UDSBundleConfig {
 		converted := bundleinternal.ConfigOptions(*cfg.Options)
 		options = &converted
 	}
-	return &internalzarf.UDSBundleConfig{Options: options, Variables: bundleinternal.Variables(cfg.Variables)}
+	return &internalzarf.UDSBundleConfig{Options: options, Variables: toInternalVariables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
 }
 
 func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
@@ -302,7 +314,7 @@ func fromZarfConfig(cfg *internalzarf.UDSBundleConfig) *UDSBundleConfig {
 		converted := ConfigOptions(*cfg.Options)
 		options = &converted
 	}
-	return &UDSBundleConfig{Options: options, Variables: Variables(cfg.Variables)}
+	return &UDSBundleConfig{Options: options, Variables: fromInternalVariables(cfg.Variables), SensitiveVariables: cfg.SensitiveVariables}
 }
 
 func toZarfDeployPackageOptions(opts DeployPackageOptions) internalzarf.DeployPackageOptions {
@@ -391,14 +403,15 @@ func toZarfDeployOptions(opts DeployOptions, source *DeploySource) internalzarf.
 
 func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, defaultsPath string, artifactSource bool) (*UDSBundleConfig, error) {
 	var (
-		defaults bundleinternal.Variables
-		err      error
+		defaults  bundleinternal.Variables
+		sensitive map[string]bool
+		err       error
 	)
 	if config == nil {
 		return nil, fmt.Errorf("config must not be nil")
 	}
 	if !artifactSource {
-		defaults, err = bundleinternal.ParseDefaults(ctx, defaultsPath)
+		defaults, sensitive, err = bundleinternal.ParseDefaults(ctx, defaultsPath)
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
@@ -407,13 +420,16 @@ func applyEmbeddedDefaults(ctx context.Context, config *UDSBundleConfig, default
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
-		defaults, err = bundleinternal.ParseDefaultsBytes(ctx, defaultsData)
+		defaults, sensitive, err = bundleinternal.ParseDefaultsBytes(ctx, defaultsData)
 		if err != nil {
 			return nil, fmt.Errorf("loading embedded defaults: %w", err)
 		}
 	}
 	merged := *config
-	merged.Variables = fromInternalVariables(bundleinternal.MergeVariables(bundleinternal.Variables(defaults), toInternalVariables(config.Variables)))
+	resolved := bundleinternal.MergeVariables(defaults, toInternalVariables(config.Variables))
+	merged.Variables = fromInternalVariables(resolved)
+	merged.SensitiveVariables = bundleinternal.MergeSensitiveVariables(sensitive, config.SensitiveVariables)
+	redact.FromContext(ctx).Add(resolved.SensitiveValues(merged.SensitiveVariables)...)
 	return &merged, nil
 }
 
@@ -447,17 +463,18 @@ func fromInternalVariableValue(value any) any {
 
 // PrepareDeploySource prepares a bundle directory or verified tar.zst artifact.
 func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path, tmpDir, architecture string) (*DeploySource, error) {
+	ctx, scope := redact.Bind(ctx, &streams)
 	if path == "" {
-		return nil, fmt.Errorf("path must not be empty: %w", ErrSourceRequired)
+		return nil, scope.Errorf("path must not be empty: %w", ErrSourceRequired)
 	}
 	if !artifact.IsTarZst(path) {
 		bundlePath, err := filepath.Abs(bundleinternal.ResolveBundlePath(path))
 		if err != nil {
-			return nil, fmt.Errorf("%w: resolving bundle path: %w", ErrPrepareDeploySource, err)
+			return nil, scope.Errorf("%w: resolving bundle path: %w", ErrPrepareDeploySource, err)
 		}
 		defaultsPath, err := bundleinternal.AdjacentDefaultsPath(filepath.Dir(bundlePath))
 		if err != nil {
-			return nil, fmt.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
+			return nil, scope.Errorf("%w: discovering adjacent defaults: %w", ErrPrepareDeploySource, err)
 		}
 		return &DeploySource{BundlePath: bundlePath, DefaultsPath: defaultsPath, resumePrepared: true}, nil
 	}
@@ -467,32 +484,32 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 	}
 	tmpDir, err := filepath.Abs(tmpDir)
 	if err != nil {
-		return nil, fmt.Errorf("%w: resolving temporary directory: %w", ErrPrepareDeploySource, err)
+		return nil, scope.Errorf("%w: resolving temporary directory: %w", ErrPrepareDeploySource, err)
 	}
 	workspaceDir, err := os.MkdirTemp(tmpDir, "uds-bundle-deploy-*")
 	if err != nil {
-		return nil, fmt.Errorf("%w: creating workspace for bundle artifact: %w", ErrPrepareDeploySource, err)
+		return nil, scope.Errorf("%w: creating workspace for bundle artifact: %w", ErrPrepareDeploySource, err)
 	}
 	cleanup := func() error { return os.RemoveAll(workspaceDir) }
 	extracted, err := artifact.ExtractArtifact(ctx, streams, path, workspaceDir)
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("%w: extracting bundle artifact: %w", ErrPrepareDeploySource, err)
+		return nil, scope.Errorf("%w: extracting bundle artifact: %w", ErrPrepareDeploySource, err)
 	}
 	bundleBytes, err := os.ReadFile(extracted.BundleDefPath)
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("%w: reading extracted bundle definition: %w", ErrPrepareDeploySource, err)
+		return nil, scope.Errorf("%w: reading extracted bundle definition: %w", ErrPrepareDeploySource, err)
 	}
 	preparedBundle, err := bundleinternal.NewHCLParser(architecture, streams).ParseBundleBytes(ctx, bundleBytes)
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("%w: parsing extracted bundle definition: %w", ErrPrepareDeploySource, err)
+		return nil, scope.Errorf("%w: parsing extracted bundle definition: %w", ErrPrepareDeploySource, err)
 	}
 	defaultsPath, err := prepareMaterializedBundle(preparedBundle, extracted, path, "artifact")
 	if err != nil {
 		_ = cleanup()
-		return nil, err
+		return nil, scope.Error(err)
 	}
 
 	artifactLoader := &extractedArtifactPackageLayoutLoader{loader: &internalzarf.ExtractedArtifactPackageLayoutLoader{
@@ -502,6 +519,7 @@ func PrepareDeploySource(ctx context.Context, streams iostreams.IOStreams, path,
 		BundlePath:       extracted.BundleDefPath,
 		DefaultsPath:     defaultsPath,
 		Bundle:           preparedBundle,
+		sensitiveValues:  scope.Values(),
 		Loader:           artifactLoader,
 		packageZarfNames: extracted.PackageZarfNames,
 		resumePrepared:   true,
@@ -526,14 +544,15 @@ type TargetDeploySourceOptions struct {
 // PrepareDeploySourceFromTarget prepares a bundle from a read-only ORAS target.
 // Close the returned source after use. Resume is not supported.
 func PrepareDeploySourceFromTarget(ctx context.Context, streams iostreams.IOStreams, opts TargetDeploySourceOptions) (*DeploySource, error) {
+	ctx, scope := redact.Bind(ctx, &streams)
 	if opts.Target == nil {
-		return nil, fmt.Errorf("target is required: %w", ErrSourceRequired)
+		return nil, scope.Errorf("target is required: %w", ErrSourceRequired)
 	}
 	if opts.Reference == "" {
-		return nil, fmt.Errorf("reference is required: %w", ErrSourceRequired)
+		return nil, scope.Errorf("reference is required: %w", ErrSourceRequired)
 	}
 	if opts.Loader == nil {
-		return nil, ErrPackageLayoutLoaderRequired
+		return nil, scope.Error(ErrPackageLayoutLoaderRequired)
 	}
 
 	tmpDir := opts.TmpDir
@@ -542,30 +561,31 @@ func PrepareDeploySourceFromTarget(ctx context.Context, streams iostreams.IOStre
 	}
 	tmpDir, err := filepath.Abs(tmpDir)
 	if err != nil {
-		return nil, fmt.Errorf("%w: resolving temporary directory: %w", ErrPrepareDeploySource, err)
+		return nil, scope.Errorf("%w: resolving temporary directory: %w", ErrPrepareDeploySource, err)
 	}
 	workspaceDir, err := os.MkdirTemp(tmpDir, "uds-bundle-deploy-*")
 	if err != nil {
-		return nil, fmt.Errorf("%w: creating workspace for bundle target: %w", ErrPrepareDeploySource, err)
+		return nil, scope.Errorf("%w: creating workspace for bundle target: %w", ErrPrepareDeploySource, err)
 	}
 	cleanup := func() error { return os.RemoveAll(workspaceDir) }
 	extracted, preparedBundle, err := artifact.MaterializeTargetDefinition(ctx, streams, opts.Target, opts.Reference, opts.Architecture, workspaceDir)
 	if err != nil {
 		_ = cleanup()
-		return nil, fmt.Errorf("%w: reading bundle target %q: %w", ErrPrepareDeploySource, opts.Reference, err)
+		return nil, scope.Errorf("%w: reading bundle target %q: %w", ErrPrepareDeploySource, opts.Reference, err)
 	}
 	defaultsPath, err := prepareMaterializedBundle(preparedBundle, extracted, opts.Reference, "target")
 	if err != nil {
 		_ = cleanup()
-		return nil, err
+		return nil, scope.Error(err)
 	}
 	return &DeploySource{
-		BundlePath:     extracted.BundleDefPath,
-		DefaultsPath:   defaultsPath,
-		Bundle:         preparedBundle,
-		Loader:         opts.Loader,
-		requiresLoader: true,
-		close:          cleanup,
+		BundlePath:      extracted.BundleDefPath,
+		DefaultsPath:    defaultsPath,
+		Bundle:          preparedBundle,
+		sensitiveValues: scope.Values(),
+		Loader:          opts.Loader,
+		requiresLoader:  true,
+		close:           cleanup,
 	}, nil
 }
 

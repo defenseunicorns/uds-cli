@@ -389,3 +389,50 @@ package "pkg1" {
 		}
 	}
 }
+
+func TestCreateSensitiveMetadataKeepsResultAndMasksDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	writeMinimalZarfPackage(t, filepath.Join(dir, "pkg"))
+	path := filepath.Join(dir, "bundle.uds.hcl")
+	require.NoError(t, os.WriteFile(path, []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+metadata { name = sensitive("private-name") }
+package "pkg" {
+  source = "pkg"
+  signature_verification { verify = false }
+}
+`), tmpFilePerm))
+	streams, _, _, diagnostics := iostreams.NewTestIOStreams()
+	result, err := Create(t.Context(), path, CreateOptions{Config: newTestConfig(), Signing: SigningOptions{Mode: SigningModeUnsigned}, Streams: streams})
+	require.NoError(t, err)
+	assert.Equal(t, "private-name", result.BundleName)
+	assert.Contains(t, result.OutputPath, "private-name")
+	assert.Contains(t, diagnostics.String(), "***")
+	assert.NotContains(t, diagnostics.String(), "private-name")
+
+	diagnostics.Reset()
+	opts := ReconfigureOptions{
+		Config: newTestConfig(), Streams: streams, OutputDir: t.TempDir(), Suffix: "-prod",
+		Signing: SigningOptions{Mode: SigningModeUnsigned}, SkipSignatureVerification: true,
+	}
+	defaults := writeDefaultsFile(t, `variables = {}`)
+	reconfigured, err := Reconfigure(t.Context(), result.OutputPath, defaults, opts)
+	require.NoError(t, err)
+	assert.Contains(t, reconfigured.OutputPath, "private-name")
+	assert.NotContains(t, diagnostics.String(), "private-name")
+	_, err = Reconfigure(t.Context(), result.OutputPath, defaults, opts)
+	require.ErrorContains(t, err, "already exists")
+	assert.NotContains(t, err.Error(), "private-name")
+
+	opts.OutputDir = defaults // A regular file cannot contain the derived archive.
+	_, err = Reconfigure(t.Context(), result.OutputPath, defaults, opts)
+	require.ErrorContains(t, err, "checking output path")
+	assert.NotContains(t, err.Error(), "private-name")
+
+	_, err = Inspect(t.Context(), InspectOptions{
+		Source: result.OutputPath, Config: newTestConfig(),
+		Verification: VerificationPolicy{PublicKey: "verification-key.pub"},
+	})
+	require.ErrorIs(t, err, ErrBundleNotSigned)
+	assert.NotContains(t, err.Error(), "private-name")
+}

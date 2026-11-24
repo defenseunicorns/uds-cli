@@ -31,12 +31,23 @@ var (
 
 // UnsupportedBundleAPIVersionError occurs when a bundle uses an API version other than the supported version.
 type UnsupportedBundleAPIVersionError struct {
-	Actual   string
-	Expected string
+	Actual        string
+	Expected      string
+	maskedMessage string
 }
 
 func (e *UnsupportedBundleAPIVersionError) Error() string {
+	if e.maskedMessage != "" {
+		return e.maskedMessage
+	}
 	return fmt.Sprintf("uds.bundle_api_version %q is not supported; expected %q", e.Actual, e.Expected)
+}
+
+// WithMaskedMessage returns a copy with a redacted display message and the
+// original Actual and Expected versions.
+func (e UnsupportedBundleAPIVersionError) WithMaskedMessage(message string) error {
+	e.maskedMessage = message
+	return &e
 }
 
 // PackageNameRequiredError occurs when a package block omits its name label.

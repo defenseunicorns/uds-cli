@@ -13,6 +13,7 @@ import (
 
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
+	"github.com/defenseunicorns/uds-cli/internal/redact"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/spf13/cobra"
@@ -183,24 +184,26 @@ func (r *ConfigResolver) resolveBase(ctx context.Context, streams iostreams.IOSt
 		return nil, "", err
 	}
 
-	options := r.resolveOptions(userCfg, flags)
+	sensitiveOptions := userCfg.SensitiveOptions
+	options := r.OverlayCLI(flags, r.MergeHCL(r.Defaults(), fromInternalOptions(userCfg.Options)))
+	scope := redact.FromContext(ctx)
+	scope.Add(bundleinternal.ConfigOptions(options).SensitiveValues(sensitiveOptions)...)
 	options.CacheDir, err = expandCacheDir(options.CacheDir)
 	if err != nil {
 		return nil, "", err
 	}
-	if _, err := logger.ParseLevel(options.LogLevel); err != nil {
-		return nil, "", fmt.Errorf("invalid log level %q: %w", options.LogLevel, err)
+	if sensitiveOptions["uds_cache"] {
+		scope.Add(options.CacheDir)
 	}
-
-	var variables bundle.Variables
-	if userCfg != nil {
-		variables = mergeVariables(nil, userCfg.Variables)
+	if _, err := logger.ParseLevel(options.LogLevel); err != nil {
+		return nil, "", err
 	}
 
 	return &bundle.UDSBundleConfig{
 		Options:               &options,
-		SignatureVerification: userSignatureVerification(userCfg),
-		Variables:             variables,
+		SignatureVerification: fromInternalVerificationPolicy(userCfg.SignatureVerification),
+		Variables:             fromInternalVariables(userCfg.Variables),
+		SensitiveVariables:    bundleinternal.MergeSensitiveVariables(nil, userCfg.SensitiveVariables),
 	}, flags.ConfigPath, nil
 }
 
@@ -210,7 +213,7 @@ func expandCacheDir(path string) (string, error) {
 	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("expanding cache directory %q: %w", path, err)
+		return "", fmt.Errorf("expanding cache directory: %w: %w", ErrResolvePath, err)
 	}
 	if path == "~" {
 		return homeDir, nil
@@ -228,35 +231,30 @@ func (r *ConfigResolver) applyBundleDefaults(ctx context.Context, streams iostre
 
 	options := *base.Options
 	resolved := &bundle.UDSBundleConfig{Options: &options, SignatureVerification: base.SignatureVerification}
+	var variables bundle.Variables
+	var marks map[string]bool
 	if defaults != nil {
-		resolved.Variables = mergeVariables(defaults.Variables, base.Variables)
-	} else {
-		resolved.Variables = mergeVariables(nil, base.Variables)
+		variables = defaults.Variables
+		marks = defaults.SensitiveVariables
+	}
+	resolved.Variables = mergeVariables(variables, base.Variables)
+	resolved.SensitiveVariables = bundleinternal.MergeSensitiveVariables(marks, base.SensitiveVariables)
+	if len(resolved.SensitiveVariables) != 0 {
+		redact.FromContext(ctx).Add(toInternalVariables(resolved.Variables).SensitiveValues(resolved.SensitiveVariables)...)
 	}
 	return resolved, nil
 }
 
-func userSignatureVerification(cfg *bundle.UDSBundleConfig) *bundle.VerificationPolicy {
-	if cfg == nil {
-		return nil
-	}
-	return cfg.SignatureVerification
-}
-
-// parseUserConfig parses the config.uds.hcl referenced by --config, returning nil when unset.
-func (r *ConfigResolver) parseUserConfig(ctx context.Context, streams iostreams.IOStreams, flags CLIFlags) (*bundle.UDSBundleConfig, error) {
+// parseUserConfig returns an empty configuration when --config is omitted.
+func (r *ConfigResolver) parseUserConfig(ctx context.Context, streams iostreams.IOStreams, flags CLIFlags) (*bundleinternal.UDSBundleConfig, error) {
 	if flags.ConfigPath == "" {
-		return nil, nil
+		return &bundleinternal.UDSBundleConfig{}, nil
 	}
 	cfg, err := bundleinternal.NewHCLParser("", streams).ParseBundleConfig(ctx, flags.ConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w: %w", ErrParseConfig, err)
 	}
-	return &bundle.UDSBundleConfig{
-		Options:               fromInternalOptions(cfg.Options),
-		SignatureVerification: fromInternalVerificationPolicy(cfg.SignatureVerification),
-		Variables:             fromInternalVariables(cfg.Variables),
-	}, nil
+	return cfg, nil
 }
 
 func fromInternalVerificationPolicy(policy *bundleinternal.SignatureVerification) *bundle.VerificationPolicy {
@@ -272,15 +270,6 @@ func fromInternalVerificationPolicy(policy *bundleinternal.SignatureVerification
 		}
 	}
 	return result
-}
-
-// resolveOptions layers config.uds.hcl options and CLI flags onto Defaults().
-func (r *ConfigResolver) resolveOptions(userCfg *bundle.UDSBundleConfig, flags CLIFlags) bundle.ConfigOptions {
-	base := r.Defaults()
-	if userCfg != nil && userCfg.Options != nil {
-		base = r.MergeHCL(base, userCfg.Options)
-	}
-	return r.OverlayCLI(flags, base)
 }
 
 // loadBundleDefaults looks for defaults.uds.hcl in the bundle directory and parses it if present.
@@ -310,27 +299,30 @@ func (r *ConfigResolver) loadBundleDefaults(ctx context.Context, streams iostrea
 	}
 
 	streams.Debug("loading bundle defaults", "path", defaultsPath)
-	vars, err := bundleinternal.ParseDefaults(ctx, defaultsPath)
+	vars, sensitive, err := bundleinternal.ParseDefaults(ctx, defaultsPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &bundle.UDSBundleConfig{Variables: fromInternalVariables(vars)}, nil
+	return &bundle.UDSBundleConfig{Variables: fromInternalVariables(vars), SensitiveVariables: sensitive}, nil
 }
 
 func mergeVariables(base, overrides bundle.Variables) bundle.Variables {
 	return fromInternalVariables(bundleinternal.MergeVariables(toInternalVariables(base), toInternalVariables(overrides)))
 }
 
-func applySetVariables(config *bundle.UDSBundleConfig, entries []string) error {
+func applySetVariables(ctx context.Context, config *bundle.UDSBundleConfig, entries []string) error {
 	if len(entries) == 0 {
 		return nil
 	}
-	variables, err := bundleinternal.ParseSetVariables(entries)
+	variables, marked, err := bundleinternal.ParseSetVariables(ctx, entries)
 	if err != nil {
 		return err
 	}
-	config.Variables = mergeVariables(config.Variables, fromInternalVariables(variables))
+	merged := bundleinternal.MergeVariables(toInternalVariables(config.Variables), variables)
+	config.Variables = fromInternalVariables(merged)
+	config.SensitiveVariables = bundleinternal.MergeSensitiveVariables(config.SensitiveVariables, marked)
+	redact.FromContext(ctx).Add(merged.SensitiveValues(config.SensitiveVariables)...)
 	return nil
 }
 

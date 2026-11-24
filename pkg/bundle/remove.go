@@ -12,6 +12,7 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/internal/redact"
 	internalzarf "github.com/defenseunicorns/uds-cli/internal/zarf"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
@@ -60,14 +61,18 @@ const (
 // Remove validates and removes a UDS bundle from a Kubernetes cluster.
 // When opts.Packages is non-empty, only the specified packages are removed.
 func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*RemoveResult, error) {
+	ctx, scope := redact.Bind(ctx, &opts.Streams)
+	if source != nil {
+		scope.Add(source.sensitiveValues...)
+	}
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, scope.Error(err)
 	}
 	if source == nil {
-		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
+		return nil, scope.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if source.BundlePath == "" && source.Bundle == nil {
-		return nil, fmt.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)
+		return nil, scope.Errorf("source must provide BundlePath or Bundle: %w", ErrBundleInputRequired)
 	}
 
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
@@ -75,11 +80,11 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 	if udsoci.IsOCIReference(source.BundlePath) || artifact.IsTarZst(source.BundlePath) {
 		metadata, err := artifact.OpenMetadataSource(ctx, source.BundlePath, toInternalConfig(opts.Config), s)
 		if err != nil {
-			return nil, fmt.Errorf("%w %q: opening artifact metadata: %w", ErrRemoveBundle, source.BundlePath, err)
+			return nil, scope.Errorf("%w %q: opening artifact metadata: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
 		prepared, err := prepareArtifactRemoveSource(ctx, metadata, source.Bundle, opts, s)
 		if err != nil {
-			return nil, fmt.Errorf("%w %q: preparing artifact: %w", ErrRemoveBundle, source.BundlePath, err)
+			return nil, scope.Errorf("%w %q: preparing artifact: %w", ErrRemoveBundle, source.BundlePath, err)
 		}
 		source = prepared
 		defer func() { _ = prepared.Close() }()
@@ -91,25 +96,25 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		var err error
 		b, err = parseBundleFile(ctx, opts.Config.Options.Architecture, s, source.BundlePath)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to parse bundle: %w", ErrRemoveBundle, err)
+			return nil, scope.Errorf("%w: failed to parse bundle: %w", ErrRemoveBundle, err)
 		}
 	}
 	s.Debug("bundle parsed", "name", b.Metadata.Name, "packages", len(b.Packages))
 
 	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: bundle validation failed: %w", ErrRemoveBundle, err)
+		return nil, scope.Errorf("%w: bundle validation failed: %w", ErrRemoveBundle, err)
 	}
 	s.Debug("bundle validated")
 	if err := bundleinternal.ValidatePackageNames(opts.Packages, b.Packages); err != nil {
-		return nil, fmt.Errorf("%w %q: validating package selection: %w", ErrRemoveBundle, b.Metadata.Name, err)
+		return nil, scope.Errorf("%w %q: validating package selection: %w", ErrRemoveBundle, b.Metadata.Name, err)
 	}
 	deployedPackageNames, err := artifactPackageNames(source, b, opts.Packages)
 	if err != nil {
-		return nil, err
+		return nil, scope.Error(err)
 	}
 	if !opts.Force {
 		if err := validateRemovalSafety(ctx, s, b, opts.Packages); err != nil {
-			return nil, fmt.Errorf("%w: unable to remove safely: %w", ErrRemoveBundle, err)
+			return nil, scope.Errorf("%w: unable to remove safely: %w", ErrRemoveBundle, err)
 		}
 	}
 
@@ -121,10 +126,10 @@ func Remove(ctx context.Context, source *DeploySource, opts RemoveOptions) (*Rem
 		SafetyChecked:        !opts.Force,
 	})
 	if err != nil {
-		return result, fmt.Errorf("%w %q: %w", ErrRemoveBundle, b.Metadata.Name, err)
+		return result, scope.Errorf("%w %q: %w", ErrRemoveBundle, b.Metadata.Name, err)
 	}
 	if result == nil {
-		return nil, fmt.Errorf("%w: remover returned no result", ErrRemoveBundle)
+		return nil, scope.Errorf("%w: remover returned no result", ErrRemoveBundle)
 	}
 	removed, skipped := countRemovalResults(result.Packages)
 	s.Info("bundle removal complete", "name", result.BundleName, "removed", removed, "skipped", skipped)

@@ -6,10 +6,10 @@ package bundle
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/internal/redact"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	oras "oras.land/oras-go/v2"
 )
@@ -30,32 +30,33 @@ type PullResult struct {
 
 // Pull pulls a bundle artifact from an OCI registry into targetDir.
 func Pull(ctx context.Context, ref, targetDir string, opts PullOptions) (*PullResult, error) {
+	ctx, scope := redact.Bind(ctx, &opts.Streams)
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, scope.Error(err)
 	}
 	if !opts.SkipSignatureVerification {
 		if err := opts.Verification.Validate(); err != nil {
-			return nil, err
+			return nil, scope.Error(err)
 		}
 	}
 	if ref == "" {
-		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
+		return nil, scope.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if targetDir == "" {
-		return nil, fmt.Errorf("target directory is required: %w", ErrTargetDirRequired)
+		return nil, scope.Errorf("target directory is required: %w", ErrTargetDirRequired)
 	}
 	if err := validateOCIReference(ref); err != nil {
-		return nil, fmt.Errorf("%w %q: %w", ErrPullBundle, ref, err)
+		return nil, scope.Errorf("%w %q: %w", ErrPullBundle, ref, err)
 	}
 	result, err := pullBundle(ctx, ref, targetDir, opts, pullHooks{})
 	if err != nil {
 		if errors.Is(err, udsoci.ErrBundleSignatureNotFound) {
-			return result, fmt.Errorf("%w %q: %w: %w", ErrPullBundle, ref, ErrBundleNotSigned, err)
+			return result, scope.Errorf("%w %q: %w: %w", ErrPullBundle, ref, ErrBundleNotSigned, err)
 		}
-		return result, fmt.Errorf("%w %q: %w", ErrPullBundle, ref, err)
+		return result, scope.Errorf("%w %q: %w", ErrPullBundle, ref, err)
 	}
 	if result == nil {
-		return nil, fmt.Errorf("%w: puller returned no result", ErrPullBundle)
+		return nil, scope.Errorf("%w: puller returned no result", ErrPullBundle)
 	}
 	return result, nil
 }

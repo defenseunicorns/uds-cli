@@ -19,6 +19,7 @@ import (
 	bundleinternal "github.com/defenseunicorns/uds-cli/internal/bundle"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/internal/redact"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/hashicorp/hcl/v2"
@@ -55,25 +56,27 @@ type ReconfigureResult struct {
 // Reconfigure validates the defaults file and dispatches to the appropriate
 // implementation based on whether the source is a local tarball or OCI reference.
 func Reconfigure(ctx context.Context, source, defaultsFile string, opts ReconfigureOptions) (*ReconfigureResult, error) {
+	ctx, scope := redact.Bind(ctx, &opts.Streams)
+	maskArchivePath(ctx, source)
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, scope.Error(err)
 	}
 	if source == "" {
-		return nil, fmt.Errorf("source is required: %w", ErrSourceRequired)
+		return nil, scope.Errorf("source is required: %w", ErrSourceRequired)
 	}
 	if defaultsFile == "" {
-		return nil, fmt.Errorf("defaults file is required: %w", ErrDefaultsFileRequired)
+		return nil, scope.Errorf("defaults file is required: %w", ErrDefaultsFileRequired)
 	}
 	if udsoci.IsOCIReference(source) {
 		if err := validateOCIReference(source); err != nil {
-			return nil, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
+			return nil, scope.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
 		}
 	}
 	s := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
 	s.Info("reading bundle defaults", "source", defaultsFile)
-	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsFile)
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(ctx, defaultsFile)
 	if err != nil {
-		return nil, fmt.Errorf("%w: reading defaults file: %w", ErrReconfigureBundle, err)
+		return nil, scope.Errorf("%w: reading defaults file: %w", ErrReconfigureBundle, err)
 	}
 	state := &reconfigureState{}
 	if !opts.SkipSignatureVerification {
@@ -82,16 +85,16 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 			policy = *opts.Config.SignatureVerification
 		}
 		if err := policy.Validate(); err != nil {
-			return nil, err
+			return nil, scope.Error(err)
 		}
 		if udsoci.IsOCIReference(source) {
 			if err := resolveReconfigureOCIInput(ctx, source, opts, state); err != nil {
-				return nil, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
+				return nil, scope.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
 			}
 		} else {
 			cleanup, err := stageReconfigureLocalInput(opts.Config.Options.TmpDir, source, state)
 			if err != nil {
-				return nil, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
+				return nil, scope.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
 			}
 			defer cleanup()
 		}
@@ -102,7 +105,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 			TmpDir:  opts.Config.Options.TmpDir,
 			Streams: opts.Streams,
 		}); err != nil {
-			return nil, fmt.Errorf("%w: verifying input bundle: %w", ErrReconfigureBundle, err)
+			return nil, scope.Errorf("%w: verifying input bundle: %w", ErrReconfigureBundle, err)
 		}
 	} else {
 		warnSkippedSignatureVerification(opts.Streams)
@@ -112,7 +115,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 		reconfigurer := &ociReconfigurer{streams: s, remoteRepo: state.remoteRepo, remoteSource: state.remoteSource, sourceChild: state.sourceChild, sourceIndex: state.sourceIndex}
 		result, err := reconfigurer.reconfigureOCIArtifact(ctx, source, defaultsData, opts)
 		if err != nil {
-			return result, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
+			return result, scope.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
 		}
 		if opts.Signing.Mode == "" || opts.Signing.Mode == SigningModeUnsigned {
 			s.Warn("reconfigured bundle is unsigned; its integrity and origin are not established")
@@ -125,7 +128,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 	}
 	result, err := reconfigureLocalArtifact(ctx, s, inputSource, defaultsData, opts)
 	if err != nil {
-		return result, fmt.Errorf("%w %q with defaults %q: %w", ErrReconfigureBundle, source, defaultsFile, err)
+		return result, scope.Errorf("%w: %w", ErrReconfigureBundle, err)
 	}
 	if opts.Signing.Mode == "" || opts.Signing.Mode == SigningModeUnsigned {
 		s.Warn("reconfigured bundle is unsigned; its integrity and origin are not established")
@@ -133,7 +136,7 @@ func Reconfigure(ctx context.Context, source, defaultsFile string, opts Reconfig
 	}
 	if err := Sign(ctx, SignOptions{Source: result.OutputPath, Signing: opts.Signing, Config: opts.Config, TmpDir: opts.Config.Options.TmpDir, Streams: s}); err != nil {
 		_ = os.Remove(result.OutputPath)
-		return nil, fmt.Errorf("%w: signing reconfigured bundle: %w", ErrReconfigureBundle, err)
+		return nil, scope.Errorf("%w: signing reconfigured bundle: %w", ErrReconfigureBundle, err)
 	}
 	return result, nil
 }
@@ -217,9 +220,11 @@ func reconfigureLocalArtifact(ctx context.Context, streams iostreams.IOStreams, 
 	}
 	outName := reconfiguredFileOutputName(baseName, opts.Suffix)
 	outPath := filepath.Join(opts.OutputDir, outName)
+
 	if _, err := os.Stat(outPath); err == nil {
-		return nil, fmt.Errorf("output file already exists: %s", outPath)
+		return nil, errors.New("output file already exists")
 	} else if !errors.Is(err, os.ErrNotExist) {
+		maskArchivePath(ctx, outPath)
 		return nil, fmt.Errorf("checking output path: %w", err)
 	}
 
@@ -299,10 +304,11 @@ func reconfigureLocalArtifact(ctx context.Context, streams iostreams.IOStreams, 
 	}
 	newDefaultsDesc.Annotations = map[string]string{ocispec.AnnotationTitle: bundleDefaultsFileName}
 
-	splicedHCL, err := spliceHCLName(hclBytes, opts.Suffix)
+	splicedHCL, err := reconfigureHCL(ctx, hclBytes, idx.Annotations[udsoci.AnnotationBundleArchitecture], opts)
 	if err != nil {
 		return nil, fmt.Errorf("updating bundle name: %w", err)
 	}
+
 	newHCLDesc, err := store.PushBytes(ctx, udsoci.MediaTypeBundleHCL, splicedHCL)
 	if err != nil {
 		return nil, fmt.Errorf("writing updated HCL blob: %w", err)
@@ -461,7 +467,7 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 		return nil, fmt.Errorf("fetching HCL blob: %w", err)
 	}
 
-	splicedHCL, err := spliceHCLName(hclBytes, opts.Suffix)
+	splicedHCL, err := reconfigureHCL(ctx, hclBytes, idx.Annotations[udsoci.AnnotationBundleArchitecture], opts)
 	if err != nil {
 		return nil, fmt.Errorf("updating bundle name: %w", err)
 	}
@@ -532,6 +538,14 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 	return &ReconfigureResult{OCIReference: targetRef}, nil
 }
 
+// Evaluate the original metadata so diagnostics can mask names derived from it.
+func reconfigureHCL(ctx context.Context, data []byte, arch string, opts ReconfigureOptions) ([]byte, error) {
+	if _, err := bundleinternal.NewHCLParser(arch, opts.Streams).ParseBundleBytes(ctx, data); err != nil {
+		return nil, fmt.Errorf("reading bundle definition: %w", err)
+	}
+	return spliceHCLName(data, opts.Suffix)
+}
+
 // spliceHCLName uses the HCL AST to locate the metadata.name attribute and appends
 // the suffix to its value via in-byte replacement. This preserves all original
 // formatting, comments, template expressions, and whitespace.
@@ -542,7 +556,7 @@ func (r *ociReconfigurer) reconfigureOCIArtifact(ctx context.Context, source str
 func spliceHCLName(hclBytes []byte, suffix string) ([]byte, error) {
 	file, diags := hclsyntax.ParseConfig(hclBytes, bundleFileName, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to parse bundle HCL: %s", diags.Error())
+		return nil, fmt.Errorf("failed to parse bundle HCL: %w", bundleinternal.NewHCLDiagnosticError(diags))
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)

@@ -21,14 +21,15 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func TestParseBundleFilePreservesHCLDiagnostics(t *testing.T) {
+func TestParseBundleFileReportsDiagnosticPosition(t *testing.T) {
 	parser := NewHCLParser("", iostreams.IOStreams{})
-	_, err := parser.parseBundleContent(t.Context(), []byte("not valid HCL {"), "bundle.uds.hcl", "", false)
+	_, err := parser.parseBundleContent(t.Context(), []byte("not valid HCL {"), "bundle.uds.hcl", "")
 
 	require.ErrorIs(t, err, ErrParseHCL)
-	var diags hcl.Diagnostics
-	require.ErrorAs(t, err, &diags)
-	assert.NotEmpty(t, diags)
+	var diag *HCLDiagnosticError
+	require.ErrorAs(t, err, &diag)
+	assert.Equal(t, 1, diag.Line)
+	assert.Positive(t, diag.Column)
 }
 
 func TestParseBundleFileRejectsEmptyPath(t *testing.T) {
@@ -743,12 +744,12 @@ func TestParseDefaults(t *testing.T) {
 		{
 			name:    "rejects block (options)",
 			hcl:     `options { architecture = "amd64" }`,
-			wantErr: "block",
+			wantErr: ErrInvalidDefaults.Error(),
 		},
 		{
 			name:    "rejects block (arbitrary)",
 			hcl:     `something { foo = "bar" }`,
-			wantErr: "block",
+			wantErr: ErrInvalidDefaults.Error(),
 		},
 		{
 			name:    "rejects unknown top-level attribute",
@@ -794,9 +795,9 @@ func TestParseDefaults(t *testing.T) {
 			},
 		},
 		{
-			name:    "null in list rejected with path (defaults)",
+			name:    "null in list rejected (defaults)",
 			hcl:     `variables = { x = ["a", null] }`,
-			wantErr: "[1]:",
+			wantErr: ErrConvertVariables.Error(),
 		},
 	}
 
@@ -811,7 +812,7 @@ func TestParseDefaults(t *testing.T) {
 				require.NoError(t, os.WriteFile(path, []byte(tt.hcl), filesystem.PrivateFileMode))
 			}
 
-			vars, err := ParseDefaults(t.Context(), path)
+			vars, _, err := ParseDefaults(t.Context(), path)
 
 			if !tt.wantOK {
 				require.Error(t, err)
@@ -1156,11 +1157,11 @@ variables = {
 			},
 		},
 
-		// ---- null in collection produces path-aware error ----
+		// ---- null in collection is rejected ----
 		{
-			name:    "null in list rejected with index",
+			name:    "null in list rejected",
 			hcl:     `variables = { x = ["a", null] }`,
-			wantErr: "[1]:",
+			wantErr: ErrConvertVariables.Error(),
 		},
 	}
 
@@ -1228,29 +1229,24 @@ func TestParseBundleConfig_FileFunctionErrors(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "a-directory"), filesystem.PrivateDirectoryMode))
 
 	tests := []struct {
-		name    string
-		expr    string
-		wantErr string
+		name string
+		expr string
 	}{
 		{
-			name:    "non-string argument",
-			expr:    "file([])",
-			wantErr: "Invalid function argument",
+			name: "non-string argument",
+			expr: "file([])",
 		},
 		{
-			name:    "missing file",
-			expr:    `file("missing.txt")`,
-			wantErr: "stat file",
+			name: "missing file",
+			expr: `file("missing.txt")`,
 		},
 		{
-			name:    "directory",
-			expr:    `file("a-directory")`,
-			wantErr: "not a regular file",
+			name: "directory",
+			expr: `file("a-directory")`,
 		},
 		{
-			name:    "invalid UTF-8",
-			expr:    `file("invalid.txt")`,
-			wantErr: "not valid UTF-8",
+			name: "invalid UTF-8",
+			expr: `file("invalid.txt")`,
 		},
 	}
 
@@ -1260,8 +1256,10 @@ func TestParseBundleConfig_FileFunctionErrors(t *testing.T) {
 			require.NoError(t, os.WriteFile(configPath, []byte("variables = { value = "+tt.expr+" }"), filesystem.PrivateFileMode))
 
 			_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), configPath)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			require.ErrorIs(t, err, ErrEvaluateVariables)
+			assert.Contains(t, err.Error(), configPath)
+			var diags hcl.Diagnostics
+			assert.NotErrorAs(t, err, &diags)
 		})
 	}
 }
@@ -1301,7 +1299,7 @@ package "example" { source = "oci://example.com/package:v1" }`,
 			file:    BundleDefaultsFileName,
 			content: `variables = { nested = { value = "${file("value.txt")}" } }`,
 			parse: func(ctx context.Context, path string) error {
-				_, err := ParseDefaults(ctx, path)
+				_, _, err := ParseDefaults(ctx, path)
 				return err
 			},
 		},
@@ -1410,13 +1408,13 @@ variables = {
 }
 `), filesystem.PrivateFileMode))
 
-	materialized, err := materializeDefaultsFile(path)
+	materialized, err := MaterializeDefaultsFile(t.Context(), path)
 	require.NoError(t, err)
 	assert.NotContains(t, string(materialized), "file(")
 
 	materializedPath := filepath.Join(dir, "materialized.uds.hcl")
 	require.NoError(t, os.WriteFile(materializedPath, materialized, filesystem.PrivateFileMode))
-	variables, err := ParseDefaults(t.Context(), materializedPath)
+	variables, _, err := ParseDefaults(t.Context(), materializedPath)
 	require.NoError(t, err)
 	assert.Equal(t, []any{"from file"}, variables["values"])
 	assert.Equal(t, "ok", variables["value"])
@@ -1432,8 +1430,155 @@ package "example" { source = "oci://example.com/package:v1" }
 }
 
 func TestParseDefaultsBytesRejectsFileFunction(t *testing.T) {
-	_, err := ParseDefaultsBytes(t.Context(), []byte(`
+	_, _, err := ParseDefaultsBytes(t.Context(), []byte(`
 variables = { value = file("/etc/hostname") }
 `))
 	require.ErrorContains(t, err, "requires a file-backed bundle source")
+}
+
+func TestSensitiveVariables(t *testing.T) {
+	vars, sensitive, err := ParseDefaultsBytes(t.Context(), []byte(`variables = {
+  token = sensitive("canary")
+  nested = { items = ["visible", sensitive("also-canary")] }
+  plain = false
+  count = sensitive(7)
+}`))
+	require.NoError(t, err)
+	assert.Equal(t, Variables{
+		"token":  "canary",
+		"nested": Variables{"items": []any{"visible", "also-canary"}},
+		"plain":  false,
+		"count":  float64(7),
+	}, vars)
+	assert.Equal(t, map[string]bool{"token": true, "nested": true, "count": true}, sensitive)
+
+	path := filepath.Join(t.TempDir(), "config.uds.hcl")
+	require.NoError(t, os.WriteFile(path, []byte(`
+variables = {
+  token = sensitive("config-canary")
+  nested = { items = [sensitive("list-canary")] }
+}`), filesystem.PrivateFileMode))
+	cfg, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), path)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{"token": true, "nested": true}, cfg.SensitiveVariables)
+	assert.Equal(t, "config-canary", cfg.Variables["token"])
+}
+
+func TestTypedNullVariablesReturnValidationErrors(t *testing.T) {
+	defaults, _, err := ParseDefaultsBytes(t.Context(), []byte(`variables = true ? null : { token = "unused" }`))
+	require.ErrorIs(t, err, ErrConvertVariables)
+	assert.Nil(t, defaults)
+
+	path := filepath.Join(t.TempDir(), "config.uds.hcl")
+	require.NoError(t, os.WriteFile(path, []byte(`variables = true ? null : { token = "unused" }`), filesystem.PrivateFileMode))
+	cfg, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), path)
+	require.Nil(t, cfg)
+	require.ErrorIs(t, err, ErrConvertVariables)
+}
+
+func TestVariableErrorsDoNotRevealValues(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		expr          string
+		configError   error
+		defaultsError error
+	}{
+		{"syntax", `"%{ SECRET_CANARY }"`, ErrParseConfig, ErrParseDefaults},
+		{"evaluation", `unknown("SECRET_CANARY")`, ErrEvaluateVariables, ErrEvaluateVariables},
+		{"conversion", `{ "SECRET_CANARY" = null }`, ErrConvertVariables, ErrConvertVariables},
+	} {
+		for name, expr := range map[string]string{"unmarked": tt.expr, "sensitive": "sensitive(" + tt.expr + ")"} {
+			t.Run(tt.name+"/"+name, func(t *testing.T) {
+				source := []byte("variables = { token = " + expr + " }")
+				_, _, err := ParseDefaultsBytes(t.Context(), source)
+				require.ErrorIs(t, err, tt.defaultsError)
+				assert.NotContains(t, err.Error(), "SECRET_CANARY")
+				var diags hcl.Diagnostics
+				assert.NotErrorAs(t, err, &diags)
+
+				path := filepath.Join(t.TempDir(), "config.uds.hcl")
+				require.NoError(t, os.WriteFile(path, source, filesystem.PrivateFileMode))
+				_, err = NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), path)
+				require.ErrorIs(t, err, tt.configError)
+				assert.NotContains(t, err.Error(), "SECRET_CANARY")
+				assert.NotErrorAs(t, err, &diags)
+			})
+		}
+	}
+}
+
+func TestSensitiveOptions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.uds.hcl")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "arch"), []byte("private-arch"), filesystem.PrivateFileMode))
+	require.NoError(t, os.WriteFile(path, []byte(`options {
+  architecture = "prefix-${sensitive(file("arch"))}"
+  plain_http = sensitive(true)
+  concurrency = sensitive(2)
+  log_level = "debug"
+}
+variables = { architecture = "public" }`), filesystem.PrivateFileMode))
+	cfg, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), path)
+	require.NoError(t, err)
+	assert.Equal(t, "prefix-private-arch", cfg.Options.Architecture)
+	assert.True(t, cfg.Options.PlainHTTP)
+	assert.Equal(t, 2, cfg.Options.Concurrency)
+	assert.Equal(t, "debug", cfg.Options.LogLevel)
+	assert.Equal(t, map[string]bool{"architecture": true, "plain_http": true, "concurrency": true}, cfg.SensitiveOptions)
+	assert.Empty(t, cfg.SensitiveVariables)
+}
+
+func TestSensitiveOptionDiagnostics(t *testing.T) {
+	for _, src := range []string{
+		`options { concurrency = sensitive("secret-canary") }`,
+		`signature_verification { public_key = sensitive(["secret-canary"]) }`,
+	} {
+		path := filepath.Join(t.TempDir(), "config.uds.hcl")
+		require.NoError(t, os.WriteFile(path, []byte(src), filesystem.PrivateFileMode))
+		_, err := NewHCLParser("", iostreams.IOStreams{}).ParseBundleConfig(t.Context(), path)
+		require.ErrorIs(t, err, ErrDecodeConfig)
+		assert.NotContains(t, err.Error(), "secret-canary")
+	}
+}
+
+func TestSensitiveVariableConversionErrorDoesNotRevealObjectKeys(t *testing.T) {
+	_, _, err := ParseDefaultsBytes(t.Context(), []byte(`variables = { credential = sensitive({ "secret-canary" = null }) }`))
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "secret-canary")
+
+	_, _, err = ParseDefaultsBytes(t.Context(), []byte(`variables = [sensitive({ "secret-canary" = null })]`))
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "secret-canary")
+}
+
+func TestMaterializeDefaultsFilePreservesSensitiveFileExpression(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, BundleDefaultsFileName)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("canary-secret"), filesystem.PrivateFileMode))
+	require.NoError(t, os.WriteFile(path, []byte(`variables = { secret = { nested = [sensitive(file("secret.txt"))] } }`), filesystem.PrivateFileMode))
+
+	materialized, err := MaterializeDefaultsFile(t.Context(), path)
+	require.NoError(t, err)
+	assert.Contains(t, string(materialized), `sensitive("canary-secret")`)
+	assert.NotContains(t, string(materialized), "file(")
+	vars, sensitive, err := ParseDefaultsBytes(t.Context(), materialized)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{"secret": true}, sensitive)
+	assert.Equal(t, Variables{"nested": []any{"canary-secret"}}, vars["secret"])
+}
+
+func TestMaterializeBundleFilePreservesNullableLocal(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "existing.txt"), []byte("available"), filesystem.PrivateFileMode))
+	path := filepath.Join(dir, BundleFileName)
+	require.NoError(t, os.WriteFile(path, []byte(`
+uds { bundle_api_version = "uds.dev/v1alpha1" }
+locals { optional = true ? null : { text = file("existing.txt") } }
+metadata { name = "example" }
+package "example" { source = "oci://example.com/package:v1" }
+`), filesystem.PrivateFileMode))
+
+	_, materialized, err := NewHCLParser("", iostreams.IOStreams{}).ParseAndMaterializeBundleFile(t.Context(), path)
+	require.NoError(t, err)
+	assert.Contains(t, string(materialized), "optional = null")
 }

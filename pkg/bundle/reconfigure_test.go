@@ -410,7 +410,7 @@ func writeDefaultsFile(t *testing.T, content string) string {
 // runLocalReconfigure runs the local artifact implementation with a temp output dir and returns the result.
 func runLocalReconfigure(t *testing.T, source string, defaultsPath string, suffix string) (*ReconfigureResult, error) {
 	t.Helper()
-	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsPath)
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(t.Context(), defaultsPath)
 	if err != nil {
 		return nil, err
 	}
@@ -534,7 +534,7 @@ package "pkg1" {
 	expectedName := reconfiguredFileOutputName(filepath.Base(tarball), "-reconfigured")
 	require.NoError(t, os.WriteFile(filepath.Join(outDir, expectedName), []byte("exists"), tmpFilePerm))
 
-	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsPath)
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(t.Context(), defaultsPath)
 	require.NoError(t, err)
 	_, err = reconfigureLocalArtifact(t.Context(), iostreams.IOStreams{}, tarball, defaultsData, ReconfigureOptions{
 		Suffix:    "-reconfigured",
@@ -647,7 +647,7 @@ package "pkg1" {
 `, `variables = { old = "value" }`, "example.com/test/oci-reconfig:v1.0.0")
 
 	defaultsPath := writeDefaultsFile(t, `variables = { new = "replaced" }`)
-	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsPath)
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(t.Context(), defaultsPath)
 	require.NoError(t, err)
 	sourceChild, _, err := udsoci.ResolveBundleChild(t.Context(), store, "v1.0.0", "")
 	require.NoError(t, err)
@@ -698,7 +698,7 @@ package "pkg1" {
 }
 `, "", "example.com/test/oci-legacy-package-identity:v1.0.0")
 
-	defaultsData, err := bundleinternal.MaterializeDefaultsFile(writeDefaultsFile(t, `variables = { next = "value" }`))
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(t.Context(), writeDefaultsFile(t, `variables = { next = "value" }`))
 	require.NoError(t, err)
 	sourceChild, indexBytes, err := udsoci.ResolveBundleChild(t.Context(), store, "v1.0.0", "")
 	require.NoError(t, err)
@@ -735,7 +735,7 @@ package "pkg1" {
 	pushTestBundle(t, store, bundleHCL, "", "example.com/test/oci-exists:v1.0.0-reconfigured")
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
-	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsPath)
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(t.Context(), defaultsPath)
 	require.NoError(t, err)
 
 	r := &ociReconfigurer{}
@@ -754,7 +754,7 @@ func TestOCIReconfigure_SourceTagNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
-	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsPath)
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(t.Context(), defaultsPath)
 	require.NoError(t, err)
 
 	r := &ociReconfigurer{}
@@ -773,7 +773,7 @@ func TestOCIReconfigure_DigestReferenceRejected(t *testing.T) {
 	require.NoError(t, err)
 
 	defaultsPath := writeDefaultsFile(t, `variables = { a = "b" }`)
-	defaultsData, err := bundleinternal.MaterializeDefaultsFile(defaultsPath)
+	defaultsData, err := bundleinternal.MaterializeDefaultsFile(t.Context(), defaultsPath)
 	require.NoError(t, err)
 
 	r := &ociReconfigurer{}

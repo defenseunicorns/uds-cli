@@ -176,3 +176,19 @@ package "pkg1" {
 		})
 	}
 }
+
+func TestCreateMasksBundleDiagnosticsWithoutConfig(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "bundle.uds.hcl"), []byte(`
+uds { bundle_api_version = sensitive("private-version") }
+metadata { name = "demo" }
+package "pkg" { source = "unused.tar" }
+`), 0o600))
+	streams, _, _, diagnostics := iostreams.NewTestIOStreams()
+	cmd := NewBundleCommand(streams)
+	cmd.SetArgs([]string{"create", dir, "--unsigned"})
+	err := cmd.ExecuteContext(t.Context())
+	require.ErrorContains(t, err, "***")
+	assert.NotContains(t, err.Error(), "private-version")
+	assert.NotContains(t, diagnostics.String(), "private-version")
+}

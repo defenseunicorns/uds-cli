@@ -182,7 +182,7 @@ func walkTarZst(ctx context.Context, source string, visit func(*tar.Header, io.R
 
 // ExtractTarZst extracts a tar.zst archive into dst.
 func ExtractTarZst(ctx context.Context, streams iostreams.IOStreams, src, dst string) error {
-	streams.Debug("extracting tar.zst archive", "src", src, "dst", dst)
+	streams.Debug("extracting tar.zst archive", "dst", dst)
 	return zarfarchive.Decompress(ctx, src, dst, zarfarchive.DecompressOpts{OverwriteExisting: true})
 }
 

@@ -56,7 +56,7 @@ func NewInspectCommand(streams iostreams.IOStreams) *cobra.Command {
 	}
 	addVerificationFlags(cmd, &o.Verification, true)
 
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills in options from command line args.
@@ -145,7 +145,7 @@ func (o *InspectOptions) Validate() error {
 func (o *InspectOptions) Run(ctx context.Context) error {
 	policy := bundle.VerificationPolicy{}
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
-	o.Info("inspecting bundle", "source", o.BundlePath)
+	o.Info("inspecting bundle")
 	if o.verificationRequested() {
 		var err error
 		policy, err = o.Verification.policy()
