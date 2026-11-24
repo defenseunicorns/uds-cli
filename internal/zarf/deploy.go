@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -275,7 +276,12 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 	log := logger.Bind(d.streams, opts.Config.Options.LogLevel)
 	log.Debug("preparing package deployment", "name", pkg.Name, "source", pkg.Source)
 
-	ctx = newZarfLoggerContext(ctx, log)
+	// Zarf cannot mask Package Values; redact Helm's global logs and discard Zarf's context logs.
+	// Remove these workarounds once the upstream fix covers both paths and the canary tests pass without them.
+	// https://github.com/zarf-dev/zarf/issues/5658
+	redactor := newBackendLogRedactor(ctx, opts.Config)
+	backendLog := logger.Bind(iostreams.New(nil, nil, io.Discard), opts.Config.Options.LogLevel)
+	ctx = newZarfLoggerContext(ctx, backendLog)
 
 	loader := d.Loader
 	if loader == nil {
@@ -384,8 +390,11 @@ func (d *ZarfDeployer) DeployPackage(ctx context.Context, pkg *spec.Package, opt
 			})
 		}
 	}
-	if err := deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial); err != nil {
-		return fmt.Errorf("package %q: %w: %w", pkg.Name, ErrDeployPackage, err)
+	err = redactor.Run(func() error {
+		return deploy(ctx, pkgLayout, &deployOpts, opts.IsPartial)
+	})
+	if err != nil {
+		return fmt.Errorf("package %q: %w", pkg.Name, redactError(err, ErrDeployPackage))
 	}
 
 	if err := hooks.PostDeploy(ctx, pkg); err != nil {
@@ -429,7 +438,7 @@ func (d *ZarfDeployer) prepareValuesAndVariables(ctx context.Context, streams io
 		// 3. Parse YAML files with Zarf's value package
 		zarfValues, err = value.ParseFiles(ctx, filesToParse, value.ParseFilesOptions{})
 		if err != nil {
-			return nil, nil, fmt.Errorf("package %q: %w: %w", pkg.Name, ErrParseValues, err)
+			return nil, nil, fmt.Errorf("package %q: %w", pkg.Name, redactError(err, ErrParseValues))
 		}
 		loadedFileCount = len(filesToParse)
 	}
@@ -492,12 +501,12 @@ func templateValuesFiles(_ context.Context, files []string, vars bundleinternal.
 
 		tmpl, err := template.New(filepath.Base(f)).Option("missingkey=error").Parse(string(src))
 		if err != nil {
-			return result, fmt.Errorf("%w %q: %w", ErrParseValuesTemplate, f, err)
+			return result, fmt.Errorf("%w %q", ErrParseValuesTemplate, filepath.Base(f))
 		}
 
 		var buf bytes.Buffer
 		if err := tmpl.Execute(&buf, data); err != nil {
-			return result, fmt.Errorf("%w %q: %w", ErrRenderValues, f, err)
+			return result, fmt.Errorf("%w %q", redactError(err, ErrRenderValues), filepath.Base(f))
 		}
 
 		tmp, err := os.CreateTemp(tmpDir, "uds-values-*.yaml")

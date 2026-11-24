@@ -9,6 +9,8 @@ sidebar:
 
 The file must be named exactly `bundle.uds.hcl`. It is distinct from `defaults.uds.hcl`, which supplies bundle-level default variables, and `config.uds.hcl`, which supplies consumer-owned deploy-time settings.
 
+Use `sensitive(value)` in any evaluated HCL attribute, including locals, metadata, package fields, and defaults. For example, `namespace = sensitive("private-team")` passes the namespace to Zarf and masks it in diagnostics. Block labels and `depends_on` use static syntax. Artifacts and requested command results retain their actual values. See the [configuration reference](/cli/reference/next/config-uds-hcl/) for override behavior.
+
 ## Top-level structure
 
 The top-level blocks identify the bundle and declare its packages.

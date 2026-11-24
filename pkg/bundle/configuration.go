@@ -19,6 +19,7 @@ type UDSBundleConfig struct {
 	Options               *ConfigOptions
 	SignatureVerification *VerificationPolicy
 	Variables             Variables
+	SensitiveVariables    map[string]bool // Top-level variable names marked with sensitive(); true remains sticky through overrides.
 }
 
 // ConfigOptions holds bundle operation settings.

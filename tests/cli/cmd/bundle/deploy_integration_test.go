@@ -198,8 +198,31 @@ func (s *DeploySuite) TestDevDeployCommand_MissingTemplateVariable() {
 
 	_, err := executeCLI(s.T(), "", "bundle", "dev", "deploy", bundlePath, "--config", configPath)
 	s.Require().Error(err, "deploy with missing template variable should fail")
-	s.Contains(err.Error(), "map has no entry for key",
-		"error should indicate the missing variable")
+	s.Contains(err.Error(), "templating package values",
+		"error should indicate the safe template error category")
+	s.NotContains(err.Error(), "map has no entry for key",
+		"error should omit template execution details for all variables")
+}
+
+func (s *DeploySuite) TestDevDeployCommand_MalformedSensitiveValues() {
+	const canary = "sensitive-yaml-canary"
+	bundlePath := prepareClusterFreeVariablesBundle(s.T())
+	configPath := filepath.Join(bundlePath, "config.uds.hcl")
+	s.Require().NoError(os.WriteFile(configPath, []byte(`variables = { token = sensitive("`+canary+`") }`), 0o600))
+
+	// The YAML decoder includes duplicate keys in its raw diagnostic.
+	valuesPath := filepath.Join(bundlePath, "values", "podinfo.yaml")
+	values := `{{ .vars.token }}: first
+{{ .vars.token }}: second
+`
+	s.Require().NoError(os.WriteFile(valuesPath, []byte(values), 0o600))
+
+	output, err := executeCLI(s.T(), "", "bundle", "dev", "deploy", bundlePath,
+		"--config", configPath, "--packages", "podinfo", "--force")
+
+	s.Require().ErrorContains(err, "parsing package values")
+	s.NotContains(err.Error(), canary)
+	s.NotContains(output, canary)
 }
 
 func prepareClusterFreeVariablesBundle(t *testing.T) string {

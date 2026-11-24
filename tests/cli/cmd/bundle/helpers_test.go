@@ -74,6 +74,11 @@ type packageSignatureSummary struct {
 
 func createInspectArtifact(t *testing.T) string {
 	t.Helper()
+	return createInspectArtifactWithName(t, `"inspect-integration"`)
+}
+
+func createInspectArtifactWithName(t *testing.T, nameExpression string) string {
+	t.Helper()
 	root := t.TempDir()
 	pkgDir := filepath.Join(root, "pkg")
 	require.NoError(t, os.MkdirAll(pkgDir, 0o755))
@@ -85,7 +90,7 @@ func createInspectArtifact(t *testing.T) string {
   bundle_api_version = "uds.dev/v1alpha1"
 }
 metadata {
-  name    = "inspect-integration"
+  name    = `+nameExpression+`
   version = "1.0.0"
 }
 package "pkg" {

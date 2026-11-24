@@ -40,7 +40,7 @@ func NewSignCommand(streams iostreams.IOStreams) *cobra.Command {
 	}
 	addSigningFlags(cmd, &o.Signing)
 	cmd.Flags().BoolVar(&o.Signing.Overwrite, "overwrite", false, "replace existing bundle signature evidence")
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills sign options from command arguments and flags.

@@ -57,7 +57,7 @@ func NewPullCommand(streams iostreams.IOStreams) *cobra.Command {
 	cmd.Flags().StringVarP(&o.OutputDir, "output-dir", "d", ".", "directory to write the pulled bundle tarball")
 	addVerificationFlags(cmd, &o.Verification, true)
 
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills in options from command line args.

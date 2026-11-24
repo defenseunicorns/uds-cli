@@ -85,7 +85,7 @@ inputs and must use uds bundle dev deploy instead.`,
 	addDeployFlags(cmd, &o.Packages, &o.Force, &o.Resume, &o.Variables)
 	addVerificationFlags(cmd, &o.Verification, true)
 
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 func addDeployFlags(cmd *cobra.Command, packages *[]string, force *bool, resume *bool, variables *[]string) {
@@ -178,7 +178,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := applySetVariables(baseConfig, o.Variables); err != nil {
+	if err := applySetVariables(ctx, baseConfig, o.Variables); err != nil {
 		return err
 	}
 	o.Config = baseConfig
@@ -187,7 +187,7 @@ func (o *DeployOptions) Run(ctx context.Context) error {
 	}
 	o.IOStreams = logger.Bind(o.IOStreams, baseConfig.Options.LogLevel)
 
-	o.Info("preparing bundle for deployment", "source", o.BundlePath)
+	o.Info("preparing bundle for deployment")
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {
 		policy, err = o.policyForArtifactDeploy(ctx)

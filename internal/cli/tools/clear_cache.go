@@ -47,5 +47,5 @@ Use --prompt to request confirmation before removing cache content.`,
 	// Keep flags local so Zarf passthrough receives its own flags unchanged.
 	cmd.Flags().String("uds-cache", resolver.Defaults().CacheDir, "cache directory")
 	cmd.Flags().String("config", "", "path to config.uds.hcl for cache directory and logging options")
-	return cmd
+	return cmdbundle.WithHCLDiagnostics(cmd, &streams)
 }

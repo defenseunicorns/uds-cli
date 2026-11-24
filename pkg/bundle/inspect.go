@@ -15,6 +15,7 @@ import (
 	"github.com/defenseunicorns/uds-cli/internal/artifact"
 	"github.com/defenseunicorns/uds-cli/internal/logger"
 	udsoci "github.com/defenseunicorns/uds-cli/internal/oci"
+	"github.com/defenseunicorns/uds-cli/internal/redact"
 	"github.com/defenseunicorns/uds-cli/pkg/bundle/spec"
 	"github.com/defenseunicorns/uds-cli/pkg/iostreams"
 )
@@ -96,8 +97,10 @@ const (
 // Inspect reads metadata from a built local or OCI bundle. When a verification
 // policy is provided, it verifies the bundle before parsing its metadata.
 func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
+	ctx, scope := redact.Bind(ctx, &opts.Streams)
+	maskArchivePath(ctx, opts.Source)
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, scope.Error(err)
 	}
 
 	streams := logger.Bind(opts.Streams, opts.Config.Options.LogLevel)
@@ -109,14 +112,14 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 		var err error
 		metadata, err = checkSkippedSignatureEvidence(ctx, opts, streams)
 		if err != nil {
-			return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
+			return nil, scope.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 		}
 		status = BundleSignatureStatusSkipped
 		warnSkippedSignatureVerification(streams)
 	} else if policy.configured() {
 		verifiedSource, cleanup, err := stageInspectSource(ctx, opts, policy, streams)
 		if err != nil {
-			return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
+			return nil, scope.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 		}
 		defer cleanup()
 		opts.Source = verifiedSource
@@ -129,13 +132,13 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 		var err error
 		metadata, err = artifact.OpenMetadataSource(ctx, opts.Source, toInternalConfig(opts.Config), streams)
 		if err != nil {
-			return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
+			return nil, scope.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 		}
 	}
 	// Reuse the resolved source so a moving tag cannot change this inspection's bundle.
 	internalResult, err := artifact.InspectMetadata(ctx, metadata, streams)
 	if err != nil {
-		return nil, fmt.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
+		return nil, scope.Errorf("%w %q: %w", ErrInspectBundle, opts.Source, err)
 	}
 
 	result := &InspectResult{
@@ -152,7 +155,7 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	for i, pkg := range internalResult.Packages {
 		summary, ok := internalResult.PackageSignatures[pkg.Name]
 		if !ok {
-			return nil, fmt.Errorf("%w %q: package %q was not found in inspected bundle", ErrInspectBundle, opts.Source, pkg.Name)
+			return nil, scope.Errorf("%w %q: package %q was not found in inspected bundle", ErrInspectBundle, opts.Source, pkg.Name)
 		}
 		dependsOn := make([]string, len(pkg.DependsOn))
 		for j, dependency := range pkg.DependsOn {
@@ -172,6 +175,13 @@ func Inspect(ctx context.Context, opts InspectOptions) (*InspectResult, error) {
 	}
 
 	return result, nil
+}
+
+// Archive filenames can contain marked metadata before the definition has been verified and read.
+func maskArchivePath(ctx context.Context, path string) {
+	if artifact.IsTarZst(path) {
+		redact.FromContext(ctx).Add(path, filepath.Base(path))
+	}
 }
 
 // Validate validates inspection options without performing I/O.

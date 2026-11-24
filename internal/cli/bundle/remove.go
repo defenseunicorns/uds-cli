@@ -89,7 +89,7 @@ Examples:
 	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, "remove packages even if other bundle packages depend on them")
 	addVerificationFlags(cmd, &o.Verification, true)
 
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills in options from command line args.

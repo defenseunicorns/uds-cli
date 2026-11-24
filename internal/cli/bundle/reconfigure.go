@@ -67,7 +67,7 @@ func NewReconfigureCommand(streams iostreams.IOStreams) *cobra.Command {
 	cmd.Flags().Bool("unsigned", false, "create an unsigned reconfigured bundle")
 	addVerificationFlags(cmd, &o.Verification, true)
 
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills in options from command args and flags.
@@ -165,7 +165,7 @@ func (o *ReconfigureOptions) Run(ctx context.Context) error {
 			return nil
 		}
 	}
-	o.Info("reconfiguring bundle", "source", o.Source)
+	o.Info("reconfiguring bundle")
 
 	policy := bundle.VerificationPolicy{}
 	if !o.Verification.SkipSignatureVerification {

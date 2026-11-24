@@ -55,7 +55,7 @@ func NewPushCommand(streams iostreams.IOStreams) *cobra.Command {
 		},
 	}
 
-	return cmd
+	return WithHCLDiagnostics(cmd, &o.IOStreams)
 }
 
 // Complete fills in options from command line args.
@@ -109,7 +109,6 @@ func (o *PushOptions) Validate() error {
 // Run executes the push command.
 func (o *PushOptions) Run(ctx context.Context) error {
 	o.IOStreams = logger.Bind(o.IOStreams, o.Config.Options.LogLevel)
-	o.Debug("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
 	if o.Prompt {
 		confirmed, err := PromptConfirmation(o.IOStreams, "Push this bundle?")
 		if err != nil {
@@ -127,7 +126,7 @@ func (o *PushOptions) Run(ctx context.Context) error {
 	if err := pushOpts.Validate(); err != nil {
 		return err
 	}
-	o.Info("pushing bundle", "tarball", o.Tarball, "ref", o.OCIReference)
+	o.Info("pushing bundle")
 
 	result, err := bundle.Push(ctx, o.Tarball, o.OCIReference, pushOpts)
 	if err != nil {

@@ -7,6 +7,8 @@ sidebar:
 
 `config.uds.hcl` supplies consumer-owned settings when UDS CLI Next operates on a bundle. It is read with `--config` and is not part of the bundle artifact. Use it for settings that can change between environments, such as registry options, signature trust material, and deploy-time variables.
 
+Use `sensitive(value)` in any evaluated attribute, including nested signature verification settings, options, and variables. UDS masks matching values in diagnostics. Command results and artifacts retain their actual values.
+
 This file is distinct from `bundle.uds.hcl`, which defines the bundle, and `defaults.uds.hcl`, which stores bundle-provided default variables.
 
 ## Supported top-level attributes
@@ -42,6 +44,8 @@ CLI_FEATURES=NextMode=true uds bundle deploy \
 ## `options`
 
 The `options` block configures operation-wide behavior. Config values override built-in defaults and yield to explicit CLI flags.
+
+For example, `uds_cache = sensitive(file("cache-path.txt"))` reads a cache path from a file beside `config.uds.hcl`. A flag that overrides a marked option also receives its mark.
 
 | Attribute | Type | Effective default | Validation and behavior |
 |---|---|---|---|
@@ -149,6 +153,33 @@ Zarf 1.x records deployment configuration, including package values and legacy v
 
 Config variables do not change the bundle definition, package sources, package signature policies, or the set of packages in the artifact.
 
+Use `sensitive(value)` for values inside the `variables` object in `config.uds.hcl` or `defaults.uds.hcl`. It marks the top-level variable as sensitive:
+
+```hcl title="config.uds.hcl"
+variables = {
+  # Replace the example placeholder values as needed.
+  example_token = sensitive("replace-me")
+  password = sensitive(file("secrets/password.txt"))
+  registry = {
+    example_credential = sensitive("replace-me-too")
+  }
+}
+```
+
+Create `secrets/password.txt` beside `config.uds.hcl`. Nested marks apply to the top-level variable and survive defaults, config, and `--set` overrides.
+
+Both deploy commands accept `--set 'token=sensitive("example-token")'`. Quote the whole argument so the shell passes the expression to UDS. A value entered on the command line can also appear in shell history or the process argument list. Use a config file for credentials.
+
+Templates and Zarf receive unchanged values:
+
+```yaml title="values/app.yaml"
+exampleToken: {{ printf "%q" .vars.example_token }}
+password: {{ printf "%q" .vars.password }}
+exampleCredential: {{ printf "%q" .vars.registry.example_credential }}
+```
+
+UDS uses reduced backend logging and sanitized errors for all variables. UDS masks known sensitive values in standard logs with `***`. Deployments stay parallel and share redaction until all sensitive backend calls finish. Matching may miss transformed values or mask unrelated logs. Do not reconfigure global logging during deployment. Artifact defaults remain plaintext.
+
 ## Precedence and timing
 
 The two configuration categories resolve independently:
@@ -160,7 +191,7 @@ The two configuration categories resolve independently:
 
 For variables, nested objects are deep-merged. A scalar or collection in a higher-precedence layer replaces the corresponding lower-precedence value as a whole. For an artifact deployment, defaults embedded in the artifact are the base layer. For `bundle dev deploy`, the adjacent `defaults.uds.hcl` file is the base layer.
 
-Both `bundle deploy` and `bundle dev deploy` accept repeatable `--set key=value` flags. Plain values are strings, while booleans, numbers, HCL lists, and HCL objects retain their types. Quote ambiguous values to force strings:
+Both `bundle deploy` and `bundle dev deploy` accept repeatable `--set key=value` flags. Plain values are strings. Booleans, numbers, lists, objects, and expressions using `sensitive()` retain their HCL types. The `file()` function requires a file-backed HCL document. Quote ambiguous values to force strings:
 
 ```bash
 CLI_FEATURES=NextMode=true uds bundle dev deploy ./my-bundle \

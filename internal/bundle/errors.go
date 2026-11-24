@@ -6,9 +6,11 @@ package bundle
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 var (
@@ -67,25 +69,25 @@ func (e EmptyParameterError) Error() string {
 
 // LocalsBlockError is a generic error when unable to parse the locals blocks
 type LocalsBlockError struct {
-	Diags hcl.Diagnostics
+	Diagnostic *HCLDiagnosticError
 }
 
 func (e *LocalsBlockError) Error() string {
-	return fmt.Sprintf("failed to read locals block: %s", e.Diags.Error())
+	return fmt.Sprintf("failed to read locals block: %s", e.Diagnostic.Error())
 }
 
-func (e *LocalsBlockError) Unwrap() error { return e.Diags }
+func (e *LocalsBlockError) Unwrap() error { return e.Diagnostic }
 
 // LocalsAttributeError occurs when there is a syntactical error and a local variable is unable to be parsed
 type LocalsAttributeError struct {
-	Diags hcl.Diagnostics
+	Diagnostic *HCLDiagnosticError
 }
 
 func (e *LocalsAttributeError) Error() string {
-	return fmt.Sprintf("failed to read locals attributes: %s", e.Diags.Error())
+	return fmt.Sprintf("failed to read locals attributes: %s", e.Diagnostic.Error())
 }
 
-func (e *LocalsAttributeError) Unwrap() error { return e.Diags }
+func (e *LocalsAttributeError) Unwrap() error { return e.Diagnostic }
 
 // DuplicateLocalError occurs when a local variable is declared twice in a single evaluation context
 type DuplicateLocalError struct {
@@ -126,12 +128,55 @@ func (e *UndefinedLocalDependencyError) Error() string {
 // LocalEvaluationError occurs when a local variable is unable to be evaluated such as a call to file() with a file
 // that does not exist
 type LocalEvaluationError struct {
-	Name  string
-	Diags hcl.Diagnostics
+	Name       string
+	Diagnostic *HCLDiagnosticError
 }
 
 func (e *LocalEvaluationError) Error() string {
-	return fmt.Sprintf("failed to evaluate local %q: %s", e.Name, e.Diags.Error())
+	return fmt.Sprintf("failed to evaluate local %q: %s", e.Name, e.Diagnostic.Error())
 }
 
-func (e *LocalEvaluationError) Unwrap() error { return e.Diags }
+func (e *LocalEvaluationError) Unwrap() error { return e.Diagnostic }
+
+// HCLDiagnosticError identifies an invalid HCL expression without retaining its source or evaluation context.
+type HCLDiagnosticError struct {
+	Line, Column int
+	reason       string
+	cause        error
+}
+
+func (e *HCLDiagnosticError) Error() string {
+	return fmt.Sprintf("%s at line %d, column %d", e.reason, e.Line, e.Column)
+}
+
+func (e *HCLDiagnosticError) Unwrap() error { return e.cause }
+
+// NewHCLDiagnosticError keeps a safe category and position from the first HCL error.
+func NewHCLDiagnosticError(diags hcl.Diagnostics) *HCLDiagnosticError {
+	result := &HCLDiagnosticError{reason: "invalid HCL"}
+	for _, d := range diags {
+		if d.Severity != hcl.DiagError {
+			continue
+		}
+		if d.Subject != nil {
+			result.Line, result.Column = d.Subject.Start.Line, d.Subject.Start.Column
+		}
+		switch d.Summary {
+		case "Missing required argument":
+			// HCL constructs this detail solely from the required schema attribute.
+			result.reason = d.Detail
+		case "Unsuitable value type", "Call to unknown function", "Invalid function argument", "Error in function call":
+			result.reason = d.Summary
+		}
+		if call, ok := hcl.DiagnosticExtra[hclsyntax.FunctionCallDiagExtra](d); ok {
+			for _, cause := range []error{os.ErrNotExist, os.ErrPermission, ErrInvalidFile, ErrReadFile} {
+				if errors.Is(call.FunctionCallError(), cause) {
+					result.reason, result.cause = cause.Error(), cause
+					break
+				}
+			}
+		}
+		break
+	}
+	return result
+}

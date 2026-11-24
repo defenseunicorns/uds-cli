@@ -51,10 +51,10 @@ func TestInspectCommand_Integration(t *testing.T) {
 func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 	for _, format := range []string{"json", "yaml"} {
 		t.Run(format, func(t *testing.T) {
-			artifact := createInspectArtifact(t)
-			streams, _, out, _ := iostreams.NewTestIOStreams()
+			artifact := createInspectArtifactWithName(t, `sensitive("inspect-integration")`)
+			streams, _, out, diagnostics := iostreams.NewTestIOStreams()
 			root := cli.NewRootCommand(streams, mode.FeatureSet{})
-			root.SetArgs([]string{"bundle", "inspect", artifact, "--output", format, "--uds-cache", t.TempDir()})
+			root.SetArgs([]string{"bundle", "inspect", artifact, "--log-level", "debug", "--output", format, "--uds-cache", t.TempDir()})
 			require.NoError(t, root.Execute())
 
 			var result inspectResult
@@ -64,6 +64,7 @@ func TestInspectCommand_StructuredOutput_Integration(t *testing.T) {
 				require.NoError(t, yaml.Unmarshal(out.Bytes(), &result))
 			}
 
+			assert.NotContains(t, diagnostics.String(), "inspect-integration")
 			assert.Equal(t, "inspect-integration", result.Name)
 			assert.Equal(t, "1.0.0", result.Version)
 			assert.NotEmpty(t, result.ArtifactDigest)
