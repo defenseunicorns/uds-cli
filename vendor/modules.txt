@@ -209,6 +209,10 @@ cuelang.org/go/tools/flow
 # dario.cat/mergo v1.0.2
 ## explicit; go 1.13
 dario.cat/mergo
+# filippo.io/edwards25519 v1.2.0
+## explicit; go 1.24.0
+filippo.io/edwards25519
+filippo.io/edwards25519/field
 # github.com/AlecAivazis/survey/v2 v2.3.7
 ## explicit; go 1.13
 github.com/AlecAivazis/survey/v2
@@ -434,9 +438,6 @@ github.com/ProtonMail/go-crypto/openpgp/x448
 # github.com/STARRY-S/zip v0.2.3
 ## explicit; go 1.23
 github.com/STARRY-S/zip
-# github.com/ThalesIgnite/crypto11 v1.2.5
-## explicit; go 1.13
-github.com/ThalesIgnite/crypto11
 # github.com/a8m/envsubst v1.4.3
 ## explicit; go 1.24
 github.com/a8m/envsubst/parse
@@ -1449,6 +1450,9 @@ github.com/dustin/go-humanize
 # github.com/dylibso/observe-sdk/go v0.0.0-20240819160327-2d926c5d788a
 ## explicit; go 1.21
 github.com/dylibso/observe-sdk/go
+# github.com/eclipse-keypont/crypto11 v1.6.8
+## explicit; go 1.25.0
+github.com/eclipse-keypont/crypto11
 # github.com/elliotchance/orderedmap v1.8.0
 ## explicit; go 1.12
 github.com/elliotchance/orderedmap
@@ -1679,7 +1683,7 @@ github.com/go-gorp/gorp/v3
 # github.com/go-ini/ini v1.67.0
 ## explicit
 github.com/go-ini/ini
-# github.com/go-jose/go-jose/v4 v4.1.6
+# github.com/go-jose/go-jose/v4 v4.1.9
 ## explicit; go 1.24.0
 github.com/go-jose/go-jose/v4
 github.com/go-jose/go-jose/v4/cipher
@@ -2307,8 +2311,6 @@ github.com/mgutz/ansi
 # github.com/mholt/archives v0.1.5
 ## explicit; go 1.24.0
 github.com/mholt/archives
-# github.com/miekg/dns v1.1.62
-## explicit; go 1.19
 # github.com/miekg/pkcs11 v1.1.2
 ## explicit; go 1.12
 github.com/miekg/pkcs11
@@ -2781,8 +2783,8 @@ github.com/shibumi/go-pathspec
 # github.com/shopspring/decimal v1.4.0
 ## explicit; go 1.10
 github.com/shopspring/decimal
-# github.com/sigstore/cosign/v3 v3.1.3
-## explicit; go 1.26.0
+# github.com/sigstore/cosign/v3 v3.1.5
+## explicit; go 1.27
 github.com/sigstore/cosign/v3/cmd/cosign/cli/fulcio
 github.com/sigstore/cosign/v3/cmd/cosign/cli/options
 github.com/sigstore/cosign/v3/cmd/cosign/cli/rekor
@@ -2891,8 +2893,8 @@ github.com/sigstore/rekor-tiles/v2/pkg/verifier/certificate
 github.com/sigstore/rekor-tiles/v2/pkg/verifier/identity
 github.com/sigstore/rekor-tiles/v2/pkg/verifier/publickey
 github.com/sigstore/rekor-tiles/v2/pkg/verify
-# github.com/sigstore/sigstore v1.10.9
-## explicit; go 1.25.0
+# github.com/sigstore/sigstore v1.11.4
+## explicit; go 1.27
 github.com/sigstore/sigstore/pkg/cryptoutils
 github.com/sigstore/sigstore/pkg/cryptoutils/goodkey
 github.com/sigstore/sigstore/pkg/fulcioroots
@@ -2920,20 +2922,20 @@ github.com/sigstore/sigstore-go/pkg/tlog
 github.com/sigstore/sigstore-go/pkg/tuf
 github.com/sigstore/sigstore-go/pkg/util
 github.com/sigstore/sigstore-go/pkg/verify
-# github.com/sigstore/sigstore/pkg/signature/kms/aws v1.10.9
-## explicit; go 1.25.0
+# github.com/sigstore/sigstore/pkg/signature/kms/aws v1.11.1
+## explicit; go 1.27
 github.com/sigstore/sigstore/pkg/signature/kms/aws
-# github.com/sigstore/sigstore/pkg/signature/kms/azure v1.10.9
-## explicit; go 1.25.0
+# github.com/sigstore/sigstore/pkg/signature/kms/azure v1.11.1
+## explicit; go 1.27
 github.com/sigstore/sigstore/pkg/signature/kms/azure
-# github.com/sigstore/sigstore/pkg/signature/kms/gcp v1.10.9
-## explicit; go 1.25.0
+# github.com/sigstore/sigstore/pkg/signature/kms/gcp v1.11.1
+## explicit; go 1.27
 github.com/sigstore/sigstore/pkg/signature/kms/gcp
-# github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.10.9
-## explicit; go 1.25.0
+# github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.11.1
+## explicit; go 1.27
 github.com/sigstore/sigstore/pkg/signature/kms/hashivault
-# github.com/sigstore/timestamp-authority/v2 v2.1.3
-## explicit; go 1.25.0
+# github.com/sigstore/timestamp-authority/v2 v2.1.5
+## explicit; go 1.27
 github.com/sigstore/timestamp-authority/v2/pkg/verification
 # github.com/sirupsen/logrus v1.10.2
 ## explicit; go 1.23
@@ -3296,9 +3298,11 @@ github.com/zclconf/go-cty/cty/set
 ## explicit; go 1.18
 github.com/zyedidia/generic/list
 github.com/zyedidia/generic/queue
-# gitlab.com/gitlab-org/api/client-go v1.46.0
-## explicit; go 1.24.0
-gitlab.com/gitlab-org/api/client-go
+# gitlab.com/gitlab-org/api/client-go/v3 v3.13.0
+## explicit; go 1.26.0
+gitlab.com/gitlab-org/api/client-go/v3
+gitlab.com/gitlab-org/api/client-go/v3/internal/graphql
+gitlab.com/gitlab-org/api/client-go/v3/internal/graphqlfields
 # go.etcd.io/bbolt v1.5.0
 ## explicit; go 1.25.0
 go.etcd.io/bbolt
@@ -3441,7 +3445,7 @@ go.yaml.in/yaml/v4/plugin/limit
 # go4.org v0.0.0-20230225012048-214862532bf5
 ## explicit; go 1.13
 go4.org/readerutil
-# golang.org/x/crypto v0.58.0
+# golang.org/x/crypto v0.59.0
 ## explicit; go 1.26.0
 golang.org/x/crypto/argon2
 golang.org/x/crypto/bcrypt
@@ -3459,13 +3463,6 @@ golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
 golang.org/x/crypto/nacl/box
 golang.org/x/crypto/nacl/secretbox
-golang.org/x/crypto/openpgp
-golang.org/x/crypto/openpgp/armor
-golang.org/x/crypto/openpgp/clearsign
-golang.org/x/crypto/openpgp/elgamal
-golang.org/x/crypto/openpgp/errors
-golang.org/x/crypto/openpgp/packet
-golang.org/x/crypto/openpgp/s2k
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/pkcs12
 golang.org/x/crypto/pkcs12/internal/rc2
@@ -3477,6 +3474,15 @@ golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/agent
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 golang.org/x/crypto/ssh/knownhosts
+# golang.org/x/crypto/openpgp v0.1.0-deprecated
+## explicit; go 1.26.0
+golang.org/x/crypto/openpgp
+golang.org/x/crypto/openpgp/armor
+golang.org/x/crypto/openpgp/clearsign
+golang.org/x/crypto/openpgp/elgamal
+golang.org/x/crypto/openpgp/errors
+golang.org/x/crypto/openpgp/packet
+golang.org/x/crypto/openpgp/s2k
 # golang.org/x/exp v0.0.0-20260727155853-b88d891fe743
 ## explicit; go 1.25.0
 golang.org/x/exp/constraints
@@ -3526,7 +3532,7 @@ golang.org/x/oauth2/jwt
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.49.0
+# golang.org/x/sys v0.50.0
 ## explicit; go 1.26.0
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -3534,10 +3540,10 @@ golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/term v0.47.0
+# golang.org/x/term v0.48.0
 ## explicit; go 1.26.0
 golang.org/x/term
-# golang.org/x/text v0.43.0
+# golang.org/x/text v0.44.0
 ## explicit; go 1.26.0
 golang.org/x/text/cases
 golang.org/x/text/currency
@@ -3999,7 +4005,7 @@ helm.sh/helm/v4/pkg/uploader
 # howett.net/plist v1.0.1
 ## explicit; go 1.12
 howett.net/plist
-# k8s.io/api v0.37.2
+# k8s.io/api v0.37.3
 ## explicit; go 1.26.0
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
@@ -4065,7 +4071,7 @@ k8s.io/api/storagemigration/v1beta1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
-# k8s.io/apimachinery v0.37.2
+# k8s.io/apimachinery v0.37.3
 ## explicit; go 1.26.0
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
@@ -4144,7 +4150,7 @@ k8s.io/cli-runtime/pkg/genericclioptions
 k8s.io/cli-runtime/pkg/genericiooptions
 k8s.io/cli-runtime/pkg/printers
 k8s.io/cli-runtime/pkg/resource
-# k8s.io/client-go v0.37.2
+# k8s.io/client-go v0.37.3
 ## explicit; go 1.26.0
 k8s.io/client-go/applyconfigurations
 k8s.io/client-go/applyconfigurations/admissionregistration/v1
@@ -4640,7 +4646,7 @@ k8s.io/metrics/pkg/client/clientset/versioned/scheme
 k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1
 k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1alpha1
 k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1
-# k8s.io/streaming v0.37.2
+# k8s.io/streaming v0.37.3
 ## explicit; go 1.26.0
 k8s.io/streaming/pkg/httpstream
 k8s.io/streaming/pkg/httpstream/spdy
